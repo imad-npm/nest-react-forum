@@ -1,11 +1,29 @@
 import { seedUsers } from './user.seed';
 import { seedPosts } from './post.seed';
 import { seedComments } from './comment.seed';
+import { seedReactions } from './reaction.seed'; // <-- if you want to seed reactions
 
 async function main() {
-  const users = await seedUsers();
-  const posts = await seedPosts(users);
-  await seedComments(users, posts);
+  try {
+    // Seed users
+    const users = await seedUsers();
+
+    // Seed posts
+    const posts = await seedPosts(users);
+
+    // Seed comments
+    const comments = await seedComments(users, posts);
+
+    // Seed reactions (optional)
+    await seedReactions(posts, comments, users);
+
+    console.log('Database seeding complete ✅');
+  } catch (error) {
+    console.error('Seeding failed ❌', error);
+  } finally {
+    // Optional: ensure datasource is destroyed if needed
+    // await AppDataSource.destroy();
+  }
 }
 
-main().then(() => console.log('Database seeding complete ✅'));
+main();

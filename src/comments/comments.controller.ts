@@ -1,11 +1,16 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, NotFoundException } from '@nestjs/common';
 import { CommentsService } from './comments.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
+import { PostsService } from 'src/posts/posts.service';
+import { GetUser } from 'src/decorators/user.decorator';
+import { User } from 'src/users/entities/user.entity';
 
 @Controller()
 export class CommentsController {
-  constructor(private readonly commentsService: CommentsService) {}
+  constructor(private readonly commentsService:
+     CommentsService,
+    private readonly postsService: PostsService) {}
 
   @Get('posts/:postId/comments')
   findByPost(@Param('postId') postId: string) {
@@ -13,11 +18,18 @@ export class CommentsController {
   }
 
   @Post('posts/:postId/comments')
-  createForPost(
+ async createForPost(
     @Param('postId') postId: string,
     @Body() createCommentDto: CreateCommentDto,
+    @GetUser() author : User
   ) {
-    return this.commentsService.createForPost(+postId, createCommentDto);
+    // 1. Fetch the full Post entity (with author if needed)
+    const post = await this.postsService.findOne(+postId);
+
+  if(!post){
+    return new NotFoundException() ;
+  }
+    return this.commentsService.createForPost(post, createCommentDto,author);
   }
 
   @Get('comments/:id')

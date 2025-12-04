@@ -16,14 +16,14 @@ export class PostsService {
   // load relations: author and comments
   findAll(): Promise<Post[]> {
     return this.postsRepository.find({
-      relations: ['author', 'comments'], // eager load related entities
+      relations: ['author', 'comments',"reactions"], // eager load related entities
     });
   }
 
   findOne(id: number): Promise<Post | null> {
     return this.postsRepository.findOne({
       where: { id },
-      relations: ['author', 'comments'],
+      relations: ['author', 'comments','reactions'],
     });
   }
 

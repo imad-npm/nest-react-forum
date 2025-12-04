@@ -1,6 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 import { Post } from '../../posts/entities/post.entity';
 import { Comment } from '../../comments/entities/comment.entity';
+import { User } from '../../users/entities/user.entity';
 
 export enum ReactionType {
   LIKE = 'like',
@@ -12,14 +13,20 @@ export class Reaction {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'enum', enum: ReactionType })
-  type: ReactionType;
+@Column({
+  type: 'simple-enum',
+  enum: ReactionType,
+})
+type: ReactionType;
 
-  @ManyToOne(() => Post, post => post.reactions, { onDelete: 'CASCADE', nullable: true })
-  post: Post;
+  @ManyToOne(() => Post, { nullable: true })
+  post?: Post | null;
 
-  @ManyToOne(() => Comment, comment => comment.reactions, { onDelete: 'CASCADE', nullable: true })
-  comment: Comment;
+  @ManyToOne(() => Comment, { nullable: true })
+  comment?: Comment | null;
+
+  @ManyToOne(() => User, user => user.reactions, { nullable: false, onDelete: 'CASCADE' })
+  user: User; // <-- ADD THIS FIELD
 
   @CreateDateColumn()
   createdAt: Date;

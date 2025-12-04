@@ -18,6 +18,7 @@ export async function seedComments(users: User[], posts: Post[]) {
   console.log('Seeded 30 comments ✅');
 
   await AppDataSource.destroy();
+    return comments; // <-- important!
 }
 
 if (require.main === module) seedComments([], []);

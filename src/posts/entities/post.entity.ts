@@ -1,7 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, OneToMany, ManyToOne, CreateDateColumn, UpdateDateColumn, DeleteDateColumn } from 'typeorm';
 import { Comment } from '../../comments/entities/comment.entity';
 import { User } from '../../users/entities/user.entity';
-import { Reaction } from 'src/reactions/entities/reaction.entity';
+import { Reaction } from '../../reactions/entities/reaction.entity';
 
 @Entity()
 export class Post {

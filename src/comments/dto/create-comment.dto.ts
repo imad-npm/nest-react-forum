@@ -1,9 +1,11 @@
-import { IsNotEmpty, IsInt } from 'class-validator';
+import { IsNotEmpty, IsInt, IsOptional } from 'class-validator';
 
 export class CreateCommentDto {
   @IsNotEmpty()
   content: string;
 
+  // Add the optional parent ID
+  @IsOptional()
   @IsInt()
-  authorId: number;
+  parentId?: number;
 }
