@@ -10,5 +10,5 @@ export const AppDataSource = new DataSource({
   entities: [User, Post, Comment,Reaction],  // <-- include ALL entities  migrations: ['./src/migrations/*.ts'], // <-- migration folder
   synchronize: false,                   // never auto-sync in production
 
-  migrations: ['src/migrations/*.ts'],
+  migrations: ['src/database/migrations/*.ts'],
 });
