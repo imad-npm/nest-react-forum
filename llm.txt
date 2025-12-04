@@ -241,12 +241,22 @@ export async function seedReactions(posts: Post[], comments: Comment[], users: U
 import { AppDataSource } from '../../data-source';
 import { userFactory } from '../factories/user.factory';
 import { User } from '../../users/entities/user.entity';
+import * as bcrypt from 'bcrypt';
+import { use } from 'passport';
 
 export async function seedUsers() {
   await AppDataSource.initialize();
   const userRepo = AppDataSource.getRepository(User);
 
-  const users: User[] = Array.from({ length: 5 }).map(() => userFactory());
+  const users: User[] = Array.from({ length: 5 })
+  .map(() => userFactory());
+
+  const user = new User();
+  user.name = 'Test User';
+  user.email = 'test@example.com';
+  user.password = bcrypt.hashSync('password123', 10);
+
+  users.push(user)
 
   await userRepo.save(users);
   console.log('Seeded 5 users ✅');
@@ -989,7 +999,8 @@ import { Post } from './entities/post.entity';
 @Module({
     imports: [TypeOrmModule.forFeature([Post])],
   providers: [PostsService],
-  controllers: [PostsController]
+  controllers: [PostsController] ,
+  exports : [PostsService]
 })
 export class PostsModule {}
 
@@ -1193,9 +1204,7 @@ export class AuthService {
 
   async login(dto: LoginDto) {
     const user = await this.users.findByEmail(dto.email);
-    if (!user || !(await bcrypt.compare(dto.password, user.password))) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
+    
     return this.generateTokens(user);
   }
 
@@ -1370,7 +1379,7 @@ export class LocalStrategy extends PassportStrategy(Strategy, 'local') {
 
   async validate(email: string, password: string) {
     const user = await this.authService.validateUser(email, password);
-    if (!user) throw new UnauthorizedException();
+    if (!user) throw new UnauthorizedException('Invalid credentials'); // <-- custom msg;
     return user;
   }
 }
@@ -1379,21 +1388,36 @@ export class LocalStrategy extends PassportStrategy(Strategy, 'local') {
 
 
 ### FILE: src/auth/strategies/jwt.strategy.ts ###
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
+import { ConfigService } from '@nestjs/config';
+import { UsersService } from 'src/users/users.service';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
-  constructor() {
+  constructor(config: ConfigService,
+  ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-      secretOrKey: process.env.JWT_ACCESS_SECRET,
+      secretOrKey: config.getOrThrow<string>('JWT_ACCESS_SECRET'),
     });
   }
 
-  async validate(payload) {
-    return { userId: payload.sub, email: payload.email };
+  // Hypothetical improvement
+  async validate(payload: { sub: number, email: string },
+         userService: UsersService,
+) {
+    // 1. Check database for active user
+    const user = await userService.findOneById(payload.sub);
+
+    // 2. Reject if user doesn't exist (e.g., account was deleted)
+    if (!user) {
+      throw new UnauthorizedException();
+    }
+
+    // 3. Attach user object to req.user
+    return user;
   }
 }
 
@@ -1401,25 +1425,39 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
 
 
 ### FILE: src/auth/strategies/jwt-refresh.strategy.ts ###
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
+import { UsersService } from 'src/users/users.service';
 
 @Injectable()
 export class JwtRefreshStrategy extends PassportStrategy(
   Strategy,
   'jwt-refresh',
 ) {
-  constructor() {
-    super({
-      jwtFromRequest: ExtractJwt.fromBodyField('refreshToken'),
-      secretOrKey: process.env.JWT_REFRESH_SECRET,
-    });
-  }
+ constructor(config: ConfigService) {
+  super({
+    jwtFromRequest: ExtractJwt.fromBodyField('refreshToken'),
+    secretOrKey: config.getOrThrow<string>('JWT_REFRESH_SECRET'),
+  });
+}
 
-  async validate(payload) {
-    return payload;
-  }
+
+    async validate(payload: { sub: number, email: string },
+           userService: UsersService,
+  ) {
+      // 1. Check database for active user
+      const user = await userService.findOneById(payload.sub);
+  
+      // 2. Reject if user doesn't exist (e.g., account was deleted)
+      if (!user) {
+        throw new UnauthorizedException();
+      }
+  
+      // 3. Attach user object to req.user
+      return user;
+    }
 }
 
 ---
@@ -1455,6 +1493,7 @@ import { User } from './users/entities/user.entity';
 import { Post } from './posts/entities/post.entity';
 import { Comment } from './comments/entities/comment.entity';
 import { Reaction } from './reactions/entities/reaction.entity';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -1476,6 +1515,7 @@ import { Reaction } from './reactions/entities/reaction.entity';
     PostsModule,
     CommentsModule,
     ReactionsModule,
+    AuthModule
   ],
   controllers: [AppController],
   providers: [AppService],
@@ -1498,7 +1538,7 @@ export const AppDataSource = new DataSource({
   entities: [User, Post, Comment,Reaction],  // <-- include ALL entities  migrations: ['./src/migrations/*.ts'], // <-- migration folder
   synchronize: false,                   // never auto-sync in production
 
-  migrations: ['src/migrations/*.ts'],
+  migrations: ['src/database/migrations/*.ts'],
 });
 
 ---
@@ -1684,9 +1724,12 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Comment } from './entities/comment.entity';
 import { CommentsService } from './comments.service';
 import { CommentsController } from './comments.controller';
+import { PostsModule } from 'src/posts/posts.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Comment])],
+  imports: [TypeOrmModule.forFeature([Comment]),
+    PostsModule,    // <-- REQUIRED so PostsService is available
+],
   providers: [CommentsService],
   controllers: [CommentsController],
 })

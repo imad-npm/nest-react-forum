@@ -1,10 +1,11 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, NotFoundException } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, NotFoundException, UseGuards } from '@nestjs/common';
 import { CommentsService } from './comments.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
 import { PostsService } from 'src/posts/posts.service';
 import { GetUser } from 'src/decorators/user.decorator';
 import { User } from 'src/users/entities/user.entity';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 
 @Controller()
 export class CommentsController {
@@ -18,6 +19,8 @@ export class CommentsController {
   }
 
   @Post('posts/:postId/comments')
+    @UseGuards(JwtAuthGuard)   
+
  async createForPost(
     @Param('postId') postId: string,
     @Body() createCommentDto: CreateCommentDto,
@@ -37,12 +40,16 @@ export class CommentsController {
     return this.commentsService.findOne(+id);
   }
 
+
   @Patch('comments/:id')
+  @UseGuards(JwtAuthGuard)   
   update(@Param('id') id: string, @Body() updateCommentDto: UpdateCommentDto) {
     return this.commentsService.update(+id, updateCommentDto);
   }
 
   @Delete('comments/:id')
+  @UseGuards(JwtAuthGuard)   
+
   remove(@Param('id') id: string) {
     return this.commentsService.remove(+id);
   }

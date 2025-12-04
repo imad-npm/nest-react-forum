@@ -1,7 +1,9 @@
-import { Controller, Post, Get, Body, Param, Delete } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Delete, UseGuards } from '@nestjs/common';
 import { ReactionsService } from './reactions.service';
 import { CreateReactionDto } from './dto/create-reaction.dto';
 import { User } from 'src/users/entities/user.entity';
+import { GetUser } from 'src/decorators/user.decorator';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 
 @Controller()
 export class ReactionsController {
@@ -10,18 +12,16 @@ export class ReactionsController {
   // -----------------------------
   // Reactions for Posts
   // -----------------------------
+
   @Post('posts/:postId/reactions')
+  @UseGuards(JwtAuthGuard)
   createPostReaction(
     @Param('postId') postId: number,
-    @Body() dto: CreateReactionDto
+    @Body() dto: CreateReactionDto,
+    @GetUser() user: User
   ) {
-    // Combine DTO with route param
-// Return a mock user for testing
-    const user = new User();
-    user.id = 1;
-    user.name = 'Mock User';
-    user.email = 'mock@example.com';
-      return this.reactionsService.create({ dto,user ,postId });
+
+    return this.reactionsService.create({ dto, user, postId });
   }
 
   @Get('posts/:postId/reactions')
@@ -32,27 +32,28 @@ export class ReactionsController {
   // -----------------------------
   // Reactions for Comments
   // -----------------------------
+
   @Post('comments/:commentId/reactions')
+  @UseGuards(JwtAuthGuard)
   createCommentReaction(
     @Param('commentId') commentId: number,
-    @Body() dto: CreateReactionDto
+    @Body() dto: CreateReactionDto,
+    @GetUser() user: User
   ) {
-// Return a mock user for testing
-    const user = new User();
-    user.id = 1;
-    user.name = 'Mock User';
-    user.email = 'mock@example.com';
-    return this.reactionsService.create({ dto,user ,commentId });
-   }
+
+    return this.reactionsService.create({ dto, user, commentId });
+  }
 
   @Get('comments/:commentId/reactions')
   getCommentReactions(@Param('commentId') commentId: number) {
     return this.reactionsService.findByComment(commentId);
   }
 
+
   @Delete('reactions/:reactionId')
+  @UseGuards(JwtAuthGuard)
   deleteReaction(@Param('reactionId') reactionId: number) {
-    
-    return this.reactionsService.delete( reactionId );
+
+    return this.reactionsService.delete(reactionId);
   }
 }

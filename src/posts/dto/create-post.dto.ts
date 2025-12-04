@@ -9,6 +9,5 @@ export class CreatePostDto {
   @IsNotEmpty()
   content: string;
 
-  @IsInt()
-  authorId: number;
+
 }
