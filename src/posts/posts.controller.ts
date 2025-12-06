@@ -3,11 +3,13 @@ import { Controller, Get, Post, Body, Param, Patch, Delete, ParseIntPipe, UseGua
 import { PostsService } from './posts.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
-import type { Post as PostType } from './entities/post.entity';
+import { Post as PostType } from './entities/post.entity';
 import { GetUser } from 'src/decorators/user.decorator';
 import { User } from 'src/users/entities/user.entity';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
-
+import { PoliciesGuard } from 'src/casl/policies.guard';
+import { CheckAbility } from 'src/casl/check-abilities.decorator';
+import { Actions } from 'src/casl/casl.types';
 
 @Controller('posts')
 export class PostsController {
@@ -24,7 +26,7 @@ export class PostsController {
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PoliciesGuard)
 
   create(@Body() createPostDto: CreatePostDto,
     @GetUser() user: User
@@ -33,8 +35,8 @@ export class PostsController {
   }
 
   @Patch(':id')
-  @UseGuards(JwtAuthGuard)
-
+  @UseGuards(JwtAuthGuard, PoliciesGuard)
+@CheckAbility(Actions.Update, PostType)
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updatePostDto: UpdatePostDto,
@@ -43,8 +45,8 @@ export class PostsController {
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard)
-
+  @UseGuards(JwtAuthGuard, PoliciesGuard)
+@CheckAbility(Actions.Update, PostType)
   remove(@Param('id', ParseIntPipe) id: number): Promise<{ deleted: boolean }> {
     return this.postsService.remove(id).then(deleted => ({ deleted }));
   }

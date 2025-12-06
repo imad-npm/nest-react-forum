@@ -6,6 +6,10 @@ import { PostsService } from 'src/posts/posts.service';
 import { GetUser } from 'src/decorators/user.decorator';
 import { User } from 'src/users/entities/user.entity';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { PoliciesGuard } from 'src/casl/policies.guard';
+import { CheckAbility } from 'src/casl/check-abilities.decorator';
+import { Actions } from 'src/casl/casl.types';
+import { Comment } from './entities/comment.entity';
 
 @Controller()
 export class CommentsController {
@@ -42,14 +46,15 @@ export class CommentsController {
 
 
   @Patch('comments/:id')
-  @UseGuards(JwtAuthGuard)   
+  @UseGuards(JwtAuthGuard, PoliciesGuard)
+  @CheckAbility(Actions.Update, Comment)   
   update(@Param('id') id: string, @Body() updateCommentDto: UpdateCommentDto) {
     return this.commentsService.update(+id, updateCommentDto);
   }
 
   @Delete('comments/:id')
-  @UseGuards(JwtAuthGuard)   
-
+  @UseGuards(JwtAuthGuard, PoliciesGuard)
+  @CheckAbility(Actions.Delete, Comment)   
   remove(@Param('id') id: string) {
     return this.commentsService.remove(+id);
   }

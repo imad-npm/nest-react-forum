@@ -15,6 +15,7 @@ import { Post } from './posts/entities/post.entity';
 import { Comment } from './comments/entities/comment.entity';
 import { Reaction } from './reactions/entities/reaction.entity';
 import { AuthModule } from './auth/auth.module';
+import { CaslModule } from './casl/casl.module';
 
 @Module({
   imports: [
@@ -36,7 +37,8 @@ import { AuthModule } from './auth/auth.module';
     PostsModule,
     CommentsModule,
     ReactionsModule,
-    AuthModule
+    AuthModule ,
+    CaslModule
   ],
   controllers: [AppController],
   providers: [AppService],

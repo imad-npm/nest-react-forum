@@ -719,6 +719,10 @@ import { CreateReactionDto } from './dto/create-reaction.dto';
 import { User } from 'src/users/entities/user.entity';
 import { GetUser } from 'src/decorators/user.decorator';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { PoliciesGuard } from 'src/casl/policies.guard';
+import { CheckAbility } from 'src/casl/check-abilities.decorator';
+import { Actions } from 'src/casl/casl.types';
+import { Reaction } from './entities/reaction.entity';
 
 @Controller()
 export class ReactionsController {
@@ -729,7 +733,7 @@ export class ReactionsController {
   // -----------------------------
 
   @Post('posts/:postId/reactions')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PoliciesGuard)
   createPostReaction(
     @Param('postId') postId: number,
     @Body() dto: CreateReactionDto,
@@ -749,7 +753,7 @@ export class ReactionsController {
   // -----------------------------
 
   @Post('comments/:commentId/reactions')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PoliciesGuard)
   createCommentReaction(
     @Param('commentId') commentId: number,
     @Body() dto: CreateReactionDto,
@@ -766,7 +770,9 @@ export class ReactionsController {
 
 
   @Delete('reactions/:reactionId')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PoliciesGuard)
+  @CheckAbility(Actions.Delete, Reaction)
+
   deleteReaction(@Param('reactionId') reactionId: number) {
 
     return this.reactionsService.delete(reactionId);
@@ -975,6 +981,136 @@ export const GetUser = createParamDecorator(
 ---
 
 
+### FILE: src/casl/casl.types.ts ###
+import { User } from '../users/entities/user.entity';
+import { Post } from '../posts/entities/post.entity';
+import { Comment } from '../comments/entities/comment.entity';
+import { Reaction } from '../reactions/entities/reaction.entity';
+
+export type Subjects =
+  | typeof User
+  | typeof Post
+  | typeof Comment
+  | typeof Reaction
+  | User
+  | Post
+  | Comment
+  | Reaction
+  | 'all';
+
+export enum Actions {
+  Manage = 'manage',
+  Create = 'create',
+  Read = 'read',
+  Update = 'update',
+  Delete = 'delete',
+}
+
+---
+
+
+### FILE: src/casl/check-abilities.decorator.ts ###
+import { SetMetadata } from '@nestjs/common';
+import { Actions, Subjects } from './casl.types';
+
+export interface RequiredRule {
+  action: Actions;
+  subject: Subjects;
+}
+
+export const CHECK_ABILITY = 'check_ability';
+export const CheckAbility = (action: Actions, subject: Subjects) =>
+  SetMetadata(CHECK_ABILITY, [{ action, subject }]);
+
+---
+
+
+### FILE: src/casl/policies.guard.ts ###
+import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import { CHECK_ABILITY, RequiredRule } from './check-abilities.decorator';
+import { CaslAbilityFactory } from './casl-ability.factory';
+
+@Injectable()
+export class PoliciesGuard implements CanActivate {
+  constructor(
+    private reflector: Reflector,
+    private abilityFactory: CaslAbilityFactory,
+  ) {}
+
+  canActivate(context: ExecutionContext): boolean {
+    const rules =
+      this.reflector.get<RequiredRule[]>(CHECK_ABILITY, context.getHandler()) ??
+      [];
+
+    const request = context.switchToHttp().getRequest();
+    const user = request.user;
+
+    const ability = this.abilityFactory.defineAbility(user);
+
+    return rules.every(rule => ability.can(rule.action, rule.subject));
+  }
+}
+
+---
+
+
+### FILE: src/casl/casl-ability.factory.ts ###
+import { AbilityBuilder, createMongoAbility, MongoAbility } from '@casl/ability';
+import { Injectable } from '@nestjs/common';
+import { Actions, Subjects } from './casl.types';
+import { User } from '../users/entities/user.entity';
+import { Post } from '../posts/entities/post.entity';
+import { Comment } from '../comments/entities/comment.entity';
+import { Reaction } from '../reactions/entities/reaction.entity';
+
+export type AppAbility = MongoAbility<[Actions, Subjects]>;
+
+@Injectable()
+export class CaslAbilityFactory {
+  defineAbility(user: User) {
+    const { can, cannot, build } =
+      new AbilityBuilder<AppAbility>(createMongoAbility);
+
+    // POSTS
+    can(Actions.Read, Post);
+    can(Actions.Create, Post);
+    can(Actions.Update, Post, { author: { id: user.id } });
+    can(Actions.Delete, Post, { author: { id: user.id } });
+
+    // COMMENTS
+    can(Actions.Read, Comment);
+    can(Actions.Create, Comment);
+    can(Actions.Update, Comment, { author: { id: user.id } });
+    can(Actions.Delete, Comment, { author: { id: user.id } });
+
+    // REACTIONS
+    can(Actions.Create, Reaction);
+    can(Actions.Delete, Reaction, { user: { id: user.id } });
+    cannot(Actions.Delete, Reaction, { user: { id: { $ne: user.id } } });
+
+    return build({
+      detectSubjectType: item => item.constructor as any,
+    });
+  }
+}
+
+---
+
+
+### FILE: src/casl/casl.module.ts ###
+import { Module } from '@nestjs/common';
+import { CaslAbilityFactory } from './casl-ability.factory';
+
+@Module({
+  providers: [CaslAbilityFactory],
+  exports: [CaslAbilityFactory],
+})
+export class CaslModule {}
+
+---
+
+
 ### FILE: src/posts/posts.module.ts ###
 import { Module } from '@nestjs/common';
 import { PostsService } from './posts.service';
@@ -1092,11 +1228,13 @@ import { Controller, Get, Post, Body, Param, Patch, Delete, ParseIntPipe, UseGua
 import { PostsService } from './posts.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
-import type { Post as PostType } from './entities/post.entity';
+import { Post as PostType } from './entities/post.entity';
 import { GetUser } from 'src/decorators/user.decorator';
 import { User } from 'src/users/entities/user.entity';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
-
+import { PoliciesGuard } from 'src/casl/policies.guard';
+import { CheckAbility } from 'src/casl/check-abilities.decorator';
+import { Actions } from 'src/casl/casl.types';
 
 @Controller('posts')
 export class PostsController {
@@ -1113,7 +1251,7 @@ export class PostsController {
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PoliciesGuard)
 
   create(@Body() createPostDto: CreatePostDto,
     @GetUser() user: User
@@ -1122,8 +1260,8 @@ export class PostsController {
   }
 
   @Patch(':id')
-  @UseGuards(JwtAuthGuard)
-
+  @UseGuards(JwtAuthGuard, PoliciesGuard)
+@CheckAbility(Actions.Update, PostType)
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updatePostDto: UpdatePostDto,
@@ -1132,8 +1270,8 @@ export class PostsController {
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard)
-
+  @UseGuards(JwtAuthGuard, PoliciesGuard)
+@CheckAbility(Actions.Update, PostType)
   remove(@Param('id', ParseIntPipe) id: number): Promise<{ deleted: boolean }> {
     return this.postsService.remove(id).then(deleted => ({ deleted }));
   }
@@ -1492,6 +1630,7 @@ import { Post } from './posts/entities/post.entity';
 import { Comment } from './comments/entities/comment.entity';
 import { Reaction } from './reactions/entities/reaction.entity';
 import { AuthModule } from './auth/auth.module';
+import { CaslModule } from './casl/casl.module';
 
 @Module({
   imports: [
@@ -1513,7 +1652,8 @@ import { AuthModule } from './auth/auth.module';
     PostsModule,
     CommentsModule,
     ReactionsModule,
-    AuthModule
+    AuthModule ,
+    CaslModule
   ],
   controllers: [AppController],
   providers: [AppService],
@@ -1628,6 +1768,10 @@ import { PostsService } from 'src/posts/posts.service';
 import { GetUser } from 'src/decorators/user.decorator';
 import { User } from 'src/users/entities/user.entity';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { PoliciesGuard } from 'src/casl/policies.guard';
+import { CheckAbility } from 'src/casl/check-abilities.decorator';
+import { Actions } from 'src/casl/casl.types';
+import { Comment } from './entities/comment.entity';
 
 @Controller()
 export class CommentsController {
@@ -1664,14 +1808,15 @@ export class CommentsController {
 
 
   @Patch('comments/:id')
-  @UseGuards(JwtAuthGuard)   
+  @UseGuards(JwtAuthGuard, PoliciesGuard)
+  @CheckAbility(Actions.Update, Comment)   
   update(@Param('id') id: string, @Body() updateCommentDto: UpdateCommentDto) {
     return this.commentsService.update(+id, updateCommentDto);
   }
 
   @Delete('comments/:id')
-  @UseGuards(JwtAuthGuard)   
-
+  @UseGuards(JwtAuthGuard, PoliciesGuard)
+  @CheckAbility(Actions.Delete, Comment)   
   remove(@Param('id') id: string) {
     return this.commentsService.remove(+id);
   }

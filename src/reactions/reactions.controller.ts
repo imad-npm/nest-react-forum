@@ -4,6 +4,10 @@ import { CreateReactionDto } from './dto/create-reaction.dto';
 import { User } from 'src/users/entities/user.entity';
 import { GetUser } from 'src/decorators/user.decorator';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { PoliciesGuard } from 'src/casl/policies.guard';
+import { CheckAbility } from 'src/casl/check-abilities.decorator';
+import { Actions } from 'src/casl/casl.types';
+import { Reaction } from './entities/reaction.entity';
 
 @Controller()
 export class ReactionsController {
@@ -14,7 +18,7 @@ export class ReactionsController {
   // -----------------------------
 
   @Post('posts/:postId/reactions')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PoliciesGuard)
   createPostReaction(
     @Param('postId') postId: number,
     @Body() dto: CreateReactionDto,
@@ -34,7 +38,7 @@ export class ReactionsController {
   // -----------------------------
 
   @Post('comments/:commentId/reactions')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PoliciesGuard)
   createCommentReaction(
     @Param('commentId') commentId: number,
     @Body() dto: CreateReactionDto,
@@ -51,7 +55,9 @@ export class ReactionsController {
 
 
   @Delete('reactions/:reactionId')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PoliciesGuard)
+  @CheckAbility(Actions.Delete, Reaction)
+
   deleteReaction(@Param('reactionId') reactionId: number) {
 
     return this.reactionsService.delete(reactionId);
