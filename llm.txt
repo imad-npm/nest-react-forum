@@ -713,10 +713,12 @@ export class User {
 
 
 ### FILE: src/reactions/reactions.controller.ts ###
-import { Controller, Post, Get, Body, Param, Delete } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Delete, UseGuards } from '@nestjs/common';
 import { ReactionsService } from './reactions.service';
 import { CreateReactionDto } from './dto/create-reaction.dto';
 import { User } from 'src/users/entities/user.entity';
+import { GetUser } from 'src/decorators/user.decorator';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 
 @Controller()
 export class ReactionsController {
@@ -725,18 +727,16 @@ export class ReactionsController {
   // -----------------------------
   // Reactions for Posts
   // -----------------------------
+
   @Post('posts/:postId/reactions')
+  @UseGuards(JwtAuthGuard)
   createPostReaction(
     @Param('postId') postId: number,
-    @Body() dto: CreateReactionDto
+    @Body() dto: CreateReactionDto,
+    @GetUser() user: User
   ) {
-    // Combine DTO with route param
-// Return a mock user for testing
-    const user = new User();
-    user.id = 1;
-    user.name = 'Mock User';
-    user.email = 'mock@example.com';
-      return this.reactionsService.create({ dto,user ,postId });
+
+    return this.reactionsService.create({ dto, user, postId });
   }
 
   @Get('posts/:postId/reactions')
@@ -747,28 +747,29 @@ export class ReactionsController {
   // -----------------------------
   // Reactions for Comments
   // -----------------------------
+
   @Post('comments/:commentId/reactions')
+  @UseGuards(JwtAuthGuard)
   createCommentReaction(
     @Param('commentId') commentId: number,
-    @Body() dto: CreateReactionDto
+    @Body() dto: CreateReactionDto,
+    @GetUser() user: User
   ) {
-// Return a mock user for testing
-    const user = new User();
-    user.id = 1;
-    user.name = 'Mock User';
-    user.email = 'mock@example.com';
-    return this.reactionsService.create({ dto,user ,commentId });
-   }
+
+    return this.reactionsService.create({ dto, user, commentId });
+  }
 
   @Get('comments/:commentId/reactions')
   getCommentReactions(@Param('commentId') commentId: number) {
     return this.reactionsService.findByComment(commentId);
   }
 
+
   @Delete('reactions/:reactionId')
+  @UseGuards(JwtAuthGuard)
   deleteReaction(@Param('reactionId') reactionId: number) {
-    
-    return this.reactionsService.delete( reactionId );
+
+    return this.reactionsService.delete(reactionId);
   }
 }
 
@@ -953,39 +954,24 @@ export class CreateReactionDto {
 
 
 ### FILE: src/decorators/user.decorator.ts ###
-import { createParamDecorator, ExecutionContext } from '@nestjs/common';
+// src/decorators/current-user.decorator.ts
+import { createParamDecorator, ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { User } from 'src/users/entities/user.entity';
-import { UsersService } from 'src/users/users.service';
 
-
-/**
- * Custom parameter decorator to inject the authenticated user into a controller handler.
- * NOTE: This is a temporary implementation that fetches a hardcoded User (ID 1)
- * from the UsersService for demonstration purposes.
- * In a real application, the user would be extracted from the request (e.g., from a JWT payload).
- */
 export const GetUser = createParamDecorator(
-  async (data: unknown, ctx: ExecutionContext): Promise<User> => {
+  (data: unknown, ctx: ExecutionContext): User => {
     const request = ctx.switchToHttp().getRequest();
-    const app = request.app; // Get NestJS application instance (required for manual service lookup)
     
-    // Manually fetch the UsersService instance from the application context
-    const usersService = app.get(UsersService);
-    
-    // --------------------------------------------------------------------
-    // TEMPORARY LOGIC: Hardcode fetching User ID 1
-    // In a real app, this would be:
-    // const userId = request.user.id; 
-    // const user = await usersService.findOneById(userId);
-    // --------------------------------------------------------------------
-    
-    const MOCK_USER_ID = 1;
-    const user = await usersService.findOneById(MOCK_USER_ID);
-    
+    // This comes from JwtStrategy.validate() → req.user
+    const user: User | undefined = request.user;
+
+    if (!user) {
+      throw new UnauthorizedException('No authenticated user found. Token may be missing or invalid.');
+    }
+
     return user;
   },
 );
-
 ---
 
 
@@ -1015,6 +1001,7 @@ import { Repository } from 'typeorm';
 import { Post } from './entities/post.entity';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
+import { User } from 'src/users/entities/user.entity';
 
 @Injectable()
 export class PostsService {
@@ -1037,8 +1024,8 @@ export class PostsService {
     });
   }
 
-  create(createPostDto: CreatePostDto): Promise<Post> {
-    const post = this.postsRepository.create(createPostDto);
+  create(createPostDto: CreatePostDto,author : User): Promise<Post> {
+    const post = this.postsRepository.create({ author,...createPostDto});
     return this.postsRepository.save(post);
   }
 
@@ -1101,15 +1088,19 @@ reactions: Reaction[];
 
 ### FILE: src/posts/posts.controller.ts ###
 // posts/posts.controller.ts
-import { Controller, Get, Post, Body, Param, Patch, Delete, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Patch, Delete, ParseIntPipe, UseGuards } from '@nestjs/common';
 import { PostsService } from './posts.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import type { Post as PostType } from './entities/post.entity';
+import { GetUser } from 'src/decorators/user.decorator';
+import { User } from 'src/users/entities/user.entity';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+
 
 @Controller('posts')
 export class PostsController {
-  constructor(private readonly postsService: PostsService) {}
+  constructor(private readonly postsService: PostsService) { }
 
   @Get()
   findAll(): Promise<PostType[]> {
@@ -1122,11 +1113,17 @@ export class PostsController {
   }
 
   @Post()
-  create(@Body() createPostDto: CreatePostDto): Promise<PostType> {
-    return this.postsService.create(createPostDto);
+  @UseGuards(JwtAuthGuard)
+
+  create(@Body() createPostDto: CreatePostDto,
+    @GetUser() user: User
+  ): Promise<PostType> {
+    return this.postsService.create(createPostDto, user);
   }
 
   @Patch(':id')
+  @UseGuards(JwtAuthGuard)
+
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updatePostDto: UpdatePostDto,
@@ -1135,6 +1132,8 @@ export class PostsController {
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard)
+
   remove(@Param('id', ParseIntPipe) id: number): Promise<{ deleted: boolean }> {
     return this.postsService.remove(id).then(deleted => ({ deleted }));
   }
@@ -1164,8 +1163,7 @@ export class CreatePostDto {
   @IsNotEmpty()
   content: string;
 
-  @IsInt()
-  authorId: number;
+
 }
 
 ---
@@ -1397,6 +1395,7 @@ import { UsersService } from 'src/users/users.service';
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   constructor(config: ConfigService,
+    private readonly userService: UsersService,
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -1405,11 +1404,9 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   }
 
   // Hypothetical improvement
-  async validate(payload: { sub: number, email: string },
-         userService: UsersService,
-) {
+  async validate(payload: { sub: number, email: string }) {
     // 1. Check database for active user
-    const user = await userService.findOneById(payload.sub);
+    const user = await this.userService.findOneById(payload.sub);
 
     // 2. Reject if user doesn't exist (e.g., account was deleted)
     if (!user) {
@@ -1436,7 +1433,10 @@ export class JwtRefreshStrategy extends PassportStrategy(
   Strategy,
   'jwt-refresh',
 ) {
- constructor(config: ConfigService) {
+ constructor(config: ConfigService ,
+      private readonly userService: UsersService,
+
+ ) {
   super({
     jwtFromRequest: ExtractJwt.fromBodyField('refreshToken'),
     secretOrKey: config.getOrThrow<string>('JWT_REFRESH_SECRET'),
@@ -1444,11 +1444,9 @@ export class JwtRefreshStrategy extends PassportStrategy(
 }
 
 
-    async validate(payload: { sub: number, email: string },
-           userService: UsersService,
-  ) {
+    async validate(payload: { sub: number, email: string }  ) {
       // 1. Check database for active user
-      const user = await userService.findOneById(payload.sub);
+      const user = await this.userService.findOneById(payload.sub);
   
       // 2. Reject if user doesn't exist (e.g., account was deleted)
       if (!user) {
@@ -1622,13 +1620,14 @@ export class CommentsService {
 
 
 ### FILE: src/comments/comments.controller.ts ###
-import { Controller, Get, Post, Patch, Delete, Param, Body, NotFoundException } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, NotFoundException, UseGuards } from '@nestjs/common';
 import { CommentsService } from './comments.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
 import { PostsService } from 'src/posts/posts.service';
 import { GetUser } from 'src/decorators/user.decorator';
 import { User } from 'src/users/entities/user.entity';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 
 @Controller()
 export class CommentsController {
@@ -1642,6 +1641,8 @@ export class CommentsController {
   }
 
   @Post('posts/:postId/comments')
+    @UseGuards(JwtAuthGuard)   
+
  async createForPost(
     @Param('postId') postId: string,
     @Body() createCommentDto: CreateCommentDto,
@@ -1661,12 +1662,16 @@ export class CommentsController {
     return this.commentsService.findOne(+id);
   }
 
+
   @Patch('comments/:id')
+  @UseGuards(JwtAuthGuard)   
   update(@Param('id') id: string, @Body() updateCommentDto: UpdateCommentDto) {
     return this.commentsService.update(+id, updateCommentDto);
   }
 
   @Delete('comments/:id')
+  @UseGuards(JwtAuthGuard)   
+
   remove(@Param('id') id: string) {
     return this.commentsService.remove(+id);
   }
