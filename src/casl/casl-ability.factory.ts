@@ -29,7 +29,7 @@ export class CaslAbilityFactory {
     // REACTIONS
     can(Actions.Create, Reaction);
     can(Actions.Delete, Reaction, { user: { id: user.id } });
-    cannot(Actions.Delete, Reaction, { user: { id: { $ne: user.id } } });
+    //cannot(Actions.Delete, Reaction, { user: { id: { $ne: user.id } } });
 
     return build({
       detectSubjectType: item => item.constructor as any,

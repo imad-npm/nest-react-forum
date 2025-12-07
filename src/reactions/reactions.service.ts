@@ -1,8 +1,8 @@
 // src/reactions/reactions.service.ts
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Reaction } from './entities/reaction.entity';
+import { Reaction, ReactionType } from './entities/reaction.entity';
 import { CreateReactionDto } from './dto/create-reaction.dto';
 import { User } from '../users/entities/user.entity';
 
@@ -11,10 +11,12 @@ export class ReactionsService {
   constructor(
     @InjectRepository(Reaction)
     private readonly repo: Repository<Reaction>,
-  ) { }
+  ) {}
 
   /**
-   * Create a reaction using named arguments (PHP-style)
+   * Create a new reaction.
+   * Does NOT toggle or update existing ones.
+   * If user already reacted → throws ForbiddenException (client should delete first)
    */
   async create({
     dto,
@@ -30,64 +32,87 @@ export class ReactionsService {
     if (!postId && !commentId) {
       throw new NotFoundException('Reaction must target a post or a comment.');
     }
-// First check if user already reacted to this target
-const existing = await this.repo.findOne({
-  where: {
-    user: { id: user.id },
-    ...(postId ? { post: { id: postId } } : { comment: { id: commentId } }),
-  },
-});
 
-if (existing) {
-  if (existing.type === dto.type) {
-    // same type → remove (toggle off)
-    return await this.repo.remove(existing);
-  } else {
-    // different type → update
-    existing.type = dto.type;
-    return this.repo.save(existing);
-  }
-}
+    // Check if user already has a reaction on this target
+    const existing = await this.repo.findOne({
+      where: {
+        user: { id: user.id },
+        ...(postId ? { post: { id: postId } } : { comment: { id: commentId } }),
+      },
+    });
 
-// else create new
+    if (existing) {
+      throw new ForbiddenException(
+        'You already reacted to this content. Remove your existing reaction first.',
+      );
+    }
+
+    // Create new reaction
     const reaction = this.repo.create({
       type: dto.type,
       user,
-      post: postId ? { id: postId } : undefined,
-      comment: commentId ? { id: commentId } : undefined,
+      post: postId ? { id: postId } : null,
+      comment: commentId ? { id: commentId } : null,
     });
 
-    return this.repo.save(reaction);
+    return await this.repo.save(reaction);
   }
 
+  /**
+   * Find all reactions for a post
+   */
   findByPost(postId: number) {
     return this.repo.find({
       where: { post: { id: postId } },
-      relations: ['post', 'comment', 'user'],
+      relations: ['user'],
+      select: {
+        id: true,
+        type: true,
+        createdAt: true,
+        user: { id: true, name: true },
+      },
     });
   }
 
+  /**
+   * Find all reactions for a comment
+   */
   findByComment(commentId: number) {
     return this.repo.find({
       where: { comment: { id: commentId } },
-      relations: ['post', 'comment', 'user'],
+      relations: ['user'],
+      select: {
+        id: true,
+        type: true,
+        createdAt: true,
+        user: { id: true, name: true },
+      },
     });
   }
 
-  async delete(
-
-    reactionId: number): Promise<void> {
-    const reaction = await this.repo.findOne({
-      where: { id: reactionId },
-      relations: ['user', 'post', 'comment'],
-    });
-
-    if (!reaction) {
-      throw new NotFoundException('Reaction not found');
-    }
-
-
+  /**
+   * Delete a reaction by ID
+   * Only called from controller where @CheckAbility(Actions.Delete, Reaction) ensures ownership
+   */
+  async delete(reaction: Reaction): Promise<void> {
+  
 
     await this.repo.remove(reaction);
+  }
+
+  /**
+   * Optional: Helper to get current user's reaction on a target (useful for frontend)
+   */
+  async getUserReactionOnTarget(
+    userId: number,
+    postId?: number,
+    commentId?: number,
+  ): Promise<Reaction | null> {
+    return this.repo.findOne({
+      where: {
+        user: { id: userId },
+        ...(postId ? { post: { id: postId } } : { comment: { id: commentId } }),
+      },
+    });
   }
 }

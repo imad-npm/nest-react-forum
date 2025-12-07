@@ -1,4 +1,3 @@
-// posts/posts.service.ts
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -14,32 +13,35 @@ export class PostsService {
     private postsRepository: Repository<Post>,
   ) {}
 
-  // load relations: author and comments
   findAll(): Promise<Post[]> {
     return this.postsRepository.find({
-      relations: ['author', 'comments',"reactions"], // eager load related entities
+      relations: ['author', 'comments', 'reactions'],
     });
   }
 
   findOne(id: number): Promise<Post | null> {
     return this.postsRepository.findOne({
       where: { id },
-      relations: ['author', 'comments','reactions'],
+      relations: ['author', 'comments', 'reactions'],
     });
   }
 
-  create(createPostDto: CreatePostDto,author : User): Promise<Post> {
-    const post = this.postsRepository.create({ author,...createPostDto});
+  create(dto: CreatePostDto, author: User): Promise<Post> {
+    const post = this.postsRepository.create({
+      ...dto,
+      author,
+    });
+
     return this.postsRepository.save(post);
   }
 
-  async update(id: number, updatePostDto: UpdatePostDto): Promise<Post | null> {
-    await this.postsRepository.update(id, updatePostDto);
-    return this.findOne(id); // return post with relations
+  async update(post: Post, dto: UpdatePostDto): Promise<Post> {
+    Object.assign(post, dto);
+    return this.postsRepository.save(post);
   }
 
-async remove(id: number): Promise<boolean> {
-  const result = await this.postsRepository.delete(id);
-  return !!result.affected; // converts undefined/null/0 to false, >0 to true
-}
+  async remove(post: Post): Promise<boolean> {
+    const res = await this.postsRepository.remove(post);
+    return !!res;
+  }
 }

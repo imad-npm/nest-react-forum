@@ -1,8 +1,18 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, NotFoundException, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post as HttpPost,
+  Patch,
+  Delete,
+  Param,
+  Body,
+  UseGuards,
+  Req,
+  NotFoundException,
+} from '@nestjs/common';
 import { CommentsService } from './comments.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
-import { PostsService } from 'src/posts/posts.service';
 import { GetUser } from 'src/decorators/user.decorator';
 import { User } from 'src/users/entities/user.entity';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
@@ -10,52 +20,56 @@ import { PoliciesGuard } from 'src/casl/policies.guard';
 import { CheckAbility } from 'src/casl/check-abilities.decorator';
 import { Actions } from 'src/casl/casl.types';
 import { Comment } from './entities/comment.entity';
+import { CommentPipe } from 'src/common/pipes/comment.pipe';
+import { Post as PostEntity } from 'src/posts/entities/post.entity';
+import { PostPipe } from 'src/common/pipes/post.pipe';
 
 @Controller()
 export class CommentsController {
-  constructor(private readonly commentsService:
-     CommentsService,
-    private readonly postsService: PostsService) {}
+  constructor(
+    private readonly commentsService: CommentsService,
+  ) {}
 
   @Get('posts/:postId/comments')
-  findByPost(@Param('postId') postId: string) {
-    return this.commentsService.findByPost(+postId);
+  findByPost(@Param('postId', PostPipe) post: PostEntity) {
+    return this.commentsService.findByPost(post.id);
   }
 
-  @Post('posts/:postId/comments')
-    @UseGuards(JwtAuthGuard)   
-
- async createForPost(
-    @Param('postId') postId: string,
-    @Body() createCommentDto: CreateCommentDto,
-    @GetUser() author : User
+  @HttpPost('posts/:postId/comments')
+  @UseGuards(JwtAuthGuard)
+  createForPost(
+    @Param('postId', PostPipe) post: PostEntity,
+    @Body() dto: CreateCommentDto,
+    @GetUser() user: User,
   ) {
-    // 1. Fetch the full Post entity (with author if needed)
-    const post = await this.postsService.findOne(+postId);
-
-  if(!post){
-    return new NotFoundException() ;
-  }
-    return this.commentsService.createForPost(post, createCommentDto,author);
+    return this.commentsService.createForPost(post, dto, user);
   }
 
   @Get('comments/:id')
-  findOne(@Param('id') id: string) {
-    return this.commentsService.findOne(+id);
+  findOne(@Param('id', CommentPipe) comment: Comment) {
+    return comment;
   }
-
 
   @Patch('comments/:id')
   @UseGuards(JwtAuthGuard, PoliciesGuard)
-  @CheckAbility(Actions.Update, Comment)   
-  update(@Param('id') id: string, @Body() updateCommentDto: UpdateCommentDto) {
-    return this.commentsService.update(+id, updateCommentDto);
+  @CheckAbility(Actions.Update, Comment)
+  update(
+    @Param('id', CommentPipe) comment: Comment,
+    @Body() dto: UpdateCommentDto,
+    @Req() req,
+  ) {
+    req.ability.throwUnlessCan(Actions.Update, comment);
+    return this.commentsService.update(comment, dto);
   }
 
   @Delete('comments/:id')
   @UseGuards(JwtAuthGuard, PoliciesGuard)
-  @CheckAbility(Actions.Delete, Comment)   
-  remove(@Param('id') id: string) {
-    return this.commentsService.remove(+id);
+  @CheckAbility(Actions.Delete, Comment)
+  remove(
+    @Param('id', CommentPipe) comment: Comment,
+    @Req() req,
+  ) {
+    req.ability.throwUnlessCan(Actions.Delete, comment);
+    return this.commentsService.remove(comment);
   }
 }

@@ -12,7 +12,7 @@ export class CommentsService {
   constructor(
     @InjectRepository(Comment)
     private readonly commentRepo: Repository<Comment>,
-  ) { }
+  ) {}
 
   findByPost(postId: number) {
     return this.commentRepo.find({
@@ -27,12 +27,8 @@ export class CommentsService {
       relations: ['author', 'post'],
     });
   }
-  async createForPost(
-    post: Post,
-    dto: CreateCommentDto,
-    user: User
-  ): Promise<Comment> {
 
+  async createForPost(post: Post, dto: CreateCommentDto, user: User) {
     const comment = this.commentRepo.create({
       content: dto.content,
       author: user,
@@ -43,30 +39,23 @@ export class CommentsService {
         where: { id: dto.parentId },
         relations: ['post'],
       });
-
-      if (!parent) {
-        throw new NotFoundException('Parent comment not found');
-      }
-
-
+      if (!parent) throw new NotFoundException();
       comment.parent = parent;
-      comment.post = parent.post; // inherited
+      comment.post = parent.post;
     } else {
-      // top-level comment
       comment.post = post;
     }
 
     return this.commentRepo.save(comment);
   }
 
-
-  async update(id: number, updateCommentDto: UpdateCommentDto) {
-    await this.commentRepo.update(id, updateCommentDto);
-    return this.findOne(id);
+  async update(comment: Comment, dto: UpdateCommentDto) {
+    Object.assign(comment, dto);
+    return this.commentRepo.save(comment);
   }
 
-  async remove(id: number): Promise<boolean> {
-    const result = await this.commentRepo.delete(id);
-    return !!result.affected;
+  async remove(comment: Comment) {
+    await this.commentRepo.remove(comment);
+    return true;
   }
 }
