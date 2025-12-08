@@ -92,7 +92,7 @@ export class ReactionsService {
 
   /**
    * Delete a reaction by ID
-   * Only called from controller where @CheckAbility(Actions.Delete, Reaction) ensures ownership
+   * Only called from controller where @CheckAbility(Action.Delete, Reaction) ensures ownership
    */
   async delete(reaction: Reaction): Promise<void> {
   

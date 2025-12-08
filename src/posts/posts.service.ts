@@ -36,7 +36,10 @@ export class PostsService {
   }
 
   async update(post: Post, dto: UpdatePostDto): Promise<Post> {
+   
     Object.assign(post, dto);
+    console.log(dto);
+    
     return this.postsRepository.save(post);
   }
 

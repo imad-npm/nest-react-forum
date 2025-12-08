@@ -16,6 +16,9 @@ export class Post {
 
   @ManyToOne(() => User, user => user.posts, { nullable: false, onDelete: 'CASCADE' })
   author: User;
+   // FK explicite
+  @Column()
+  authorId: number
 
   @OneToMany(() => Comment, comment => comment.post)
   comments: Comment[];

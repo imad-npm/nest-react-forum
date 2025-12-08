@@ -7,7 +7,7 @@ import {
   Patch,
   Delete,
   UseGuards,
-  Req,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PostsService } from './posts.service';
 import { CreatePostDto } from './dto/create-post.dto';
@@ -16,14 +16,18 @@ import { Post as PostEntity } from './entities/post.entity';
 import { GetUser } from 'src/decorators/user.decorator';
 import { User } from 'src/users/entities/user.entity';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
-import { PoliciesGuard } from 'src/casl/policies.guard';
-import { CheckAbility } from 'src/casl/check-abilities.decorator';
-import { Actions } from 'src/casl/casl.types';
 import { PostPipe } from 'src/common/pipes/post.pipe';
+import { PoliciesGuard } from 'src/casl/policies.guard';
+import { Action } from 'src/casl/casl.types';
+import { AppAbility, CaslAbilityFactory } from 'src/casl/casl-ability.factory';
+import { CheckPolicies } from 'src/casl';
 
 @Controller('posts')
 export class PostsController {
-  constructor(private readonly postsService: PostsService) {}
+  constructor(
+    private readonly postsService: PostsService,
+    private readonly caslAbilityFactory: CaslAbilityFactory,
+  ) { }
 
   @Get()
   findAll(): Promise<PostEntity[]> {
@@ -37,7 +41,7 @@ export class PostsController {
 
   @HttpPost()
   @UseGuards(JwtAuthGuard, PoliciesGuard)
-  @CheckAbility(Actions.Create, PostEntity)
+  @CheckPolicies((ability) => ability.can(Action.Create, PostEntity))
   create(
     @Body() dto: CreatePostDto,
     @GetUser() user: User,
@@ -47,26 +51,32 @@ export class PostsController {
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard, PoliciesGuard)
-  @CheckAbility(Actions.Update, PostEntity)
-  update(
+  @CheckPolicies((ability: AppAbility) => ability.can(Action.Update, PostEntity))
+  async update(
     @Param('id', PostPipe) post: PostEntity,
     @Body() dto: UpdatePostDto,
-    @Req() req,
+    @GetUser() user: User,
   ) {
-   req.ability.throwUnlessCan(Actions.Update, post);
-  
-   
-   return this.postsService.update(post, dto);
+// 1. Generate the ability for the current user
+  const ability = this.caslAbilityFactory.createForUser(user);
+
+  // 2. Check permission against the SPECIFIC post instance
+  // This triggers the rule: can(Action.Update, Post, { authorId: user.id })
+  if (ability.cannot(Action.Update, post)) {
+    throw new ForbiddenException('You are not allowed to update this post');
+  }
+
+    return this.postsService.update(post, dto);
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard, PoliciesGuard)
-  @CheckAbility(Actions.Delete, PostEntity)
-  remove(
+  @UseGuards(JwtAuthGuard)
+  async remove(
     @Param('id', PostPipe) post: PostEntity,
-    @Req() req,
+    @GetUser() user: User,
   ) {
-    req.ability.throwUnlessCan(Actions.Delete, post);
+
+
     return this.postsService.remove(post);
   }
 }

@@ -16,6 +16,9 @@ export class Comment {
 
   @ManyToOne(() => User, user => user.comments, { nullable: false, onDelete: 'CASCADE' })
   author: User;
+   // FK explicite
+  @Column()
+  authorId: number
 
   @ManyToOne(() => Comment, comment => comment.replies, { nullable: true, onDelete: 'CASCADE' })
   parent: Comment;

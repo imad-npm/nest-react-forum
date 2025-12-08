@@ -1,17 +1,16 @@
-import { Controller, Post, Get, Body, Param, Delete,
-   UseGuards, NotFoundException, Req } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Delete, UseGuards } from '@nestjs/common';
 import { ReactionsService } from './reactions.service';
 import { CreateReactionDto } from './dto/create-reaction.dto';
 import { User } from 'src/users/entities/user.entity';
 import { GetUser } from 'src/decorators/user.decorator';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { PoliciesGuard } from 'src/casl/policies.guard';
-import { CheckAbility } from 'src/casl/check-abilities.decorator';
-import { Actions } from 'src/casl/casl.types';
+import { CheckPolicies } from 'src/casl/check-policies.decorator';
+import { Action } from 'src/casl/casl.types';
 import { Reaction } from './entities/reaction.entity';
 import { ReactionPipe } from 'src/common/pipes/reaction.pipe';
-import { PostPipe } from 'src/common/pipes/post.pipe';         // ← Add
-import { CommentPipe } from 'src/common/pipes/comment.pipe';   // ← Add
+import { PostPipe } from 'src/common/pipes/post.pipe';
+import { CommentPipe } from 'src/common/pipes/comment.pipe';
 import { Post as PostEntity } from '../posts/entities/post.entity';
 import { Comment as CommentEntity } from '../comments/entities/comment.entity';
 
@@ -19,13 +18,11 @@ import { Comment as CommentEntity } from '../comments/entities/comment.entity';
 export class ReactionsController {
   constructor(private readonly reactionsService: ReactionsService) {}
 
-  // -----------------------------
-  // Reactions for Posts
-  // -----------------------------
   @Post('posts/:postId/reactions')
   @UseGuards(JwtAuthGuard, PoliciesGuard)
+  @CheckPolicies((ability) => ability.can(Action.Create, Reaction))
   createPostReaction(
-    @Param('postId', PostPipe) post: PostEntity,           // ← Now validated + loaded
+    @Param('postId', PostPipe) post: PostEntity,
     @Body() dto: CreateReactionDto,
     @GetUser() user: User,
   ) {
@@ -37,13 +34,11 @@ export class ReactionsController {
     return this.reactionsService.findByPost(post.id);
   }
 
-  // -----------------------------
-  // Reactions for Comments
-  // -----------------------------
   @Post('comments/:commentId/reactions')
   @UseGuards(JwtAuthGuard, PoliciesGuard)
+  @CheckPolicies((ability) => ability.can(Action.Create, Reaction))
   createCommentReaction(
-    @Param('commentId', CommentPipe) comment: CommentEntity, // ← Now validated + loaded
+    @Param('commentId', CommentPipe) comment: CommentEntity,
     @Body() dto: CreateReactionDto,
     @GetUser() user: User,
   ) {
@@ -55,17 +50,10 @@ export class ReactionsController {
     return this.reactionsService.findByComment(comment.id);
   }
 
-  // -----------------------------
-  // Delete Reaction (already perfect)
-  // -----------------------------
   @Delete('reactions/:reactionId')
   @UseGuards(JwtAuthGuard, PoliciesGuard)
-  @CheckAbility(Actions.Delete, Reaction)
-  deleteReaction(@Param('reactionId', ReactionPipe)
-   reaction: Reaction ,
-   @Req() req,
-  ) {
-    req.ability.throwUnlessCan(Actions.Delete, reaction);
+  @CheckPolicies((ability) => ability.can(Action.Delete, Reaction))
+  deleteReaction(@Param('reactionId', ReactionPipe) reaction: Reaction) {
     return this.reactionsService.delete(reaction);
   }
 }

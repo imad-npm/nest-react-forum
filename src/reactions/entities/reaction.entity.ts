@@ -27,6 +27,9 @@ type: ReactionType;
 
   @ManyToOne(() => User, user => user.reactions, { nullable: false, onDelete: 'CASCADE' })
   user: User; // <-- ADD THIS FIELD
+   // FK explicite
+  @Column()
+  userId: number
 
   @CreateDateColumn()
   createdAt: Date;

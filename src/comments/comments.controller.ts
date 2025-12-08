@@ -7,8 +7,6 @@ import {
   Param,
   Body,
   UseGuards,
-  Req,
-  NotFoundException,
 } from '@nestjs/common';
 import { CommentsService } from './comments.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
@@ -17,8 +15,8 @@ import { GetUser } from 'src/decorators/user.decorator';
 import { User } from 'src/users/entities/user.entity';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { PoliciesGuard } from 'src/casl/policies.guard';
-import { CheckAbility } from 'src/casl/check-abilities.decorator';
-import { Actions } from 'src/casl/casl.types';
+import { CheckPolicies } from 'src/casl/check-policies.decorator';
+import { Action } from 'src/casl/casl.types';
 import { Comment } from './entities/comment.entity';
 import { CommentPipe } from 'src/common/pipes/comment.pipe';
 import { Post as PostEntity } from 'src/posts/entities/post.entity';
@@ -36,7 +34,8 @@ export class CommentsController {
   }
 
   @HttpPost('posts/:postId/comments')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PoliciesGuard)
+  @CheckPolicies((ability) => ability.can(Action.Create, Comment))
   createForPost(
     @Param('postId', PostPipe) post: PostEntity,
     @Body() dto: CreateCommentDto,
@@ -52,24 +51,20 @@ export class CommentsController {
 
   @Patch('comments/:id')
   @UseGuards(JwtAuthGuard, PoliciesGuard)
-  @CheckAbility(Actions.Update, Comment)
+  @CheckPolicies((ability) => ability.can(Action.Update, Comment))
   update(
     @Param('id', CommentPipe) comment: Comment,
     @Body() dto: UpdateCommentDto,
-    @Req() req,
   ) {
-    req.ability.throwUnlessCan(Actions.Update, comment);
     return this.commentsService.update(comment, dto);
   }
 
   @Delete('comments/:id')
   @UseGuards(JwtAuthGuard, PoliciesGuard)
-  @CheckAbility(Actions.Delete, Comment)
+  @CheckPolicies((ability) => ability.can(Action.Delete, Comment))
   remove(
     @Param('id', CommentPipe) comment: Comment,
-    @Req() req,
   ) {
-    req.ability.throwUnlessCan(Actions.Delete, comment);
     return this.commentsService.remove(comment);
   }
 }
