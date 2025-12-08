@@ -51,31 +51,38 @@ export class PostsController {
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard, PoliciesGuard)
-  @CheckPolicies((ability: AppAbility) => ability.can(Action.Update, PostEntity))
+  @CheckPolicies((ability) => ability.can(Action.Update, PostEntity))
   async update(
     @Param('id', PostPipe) post: PostEntity,
     @Body() dto: UpdatePostDto,
     @GetUser() user: User,
   ) {
-// 1. Generate the ability for the current user
-  const ability = this.caslAbilityFactory.createForUser(user);
+    // 1. Generate the ability for the current user
+    const ability = this.caslAbilityFactory.createForUser(user);
 
-  // 2. Check permission against the SPECIFIC post instance
-  // This triggers the rule: can(Action.Update, Post, { authorId: user.id })
-  if (ability.cannot(Action.Update, post)) {
-    throw new ForbiddenException('You are not allowed to update this post');
-  }
+    // 2. Check permission against the SPECIFIC post instance
+    // This triggers the rule: can(Action.Update, Post, { authorId: user.id })
+    if (!ability.can(Action.Update, post)) {
+      throw new ForbiddenException('You are not allowed to update this post');
+    }
 
     return this.postsService.update(post, dto);
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PoliciesGuard)
+  @CheckPolicies((ability) => ability.can(Action.Delete, PostEntity))
   async remove(
     @Param('id', PostPipe) post: PostEntity,
     @GetUser() user: User,
   ) {
+    // 1. Generate the ability for the current user
+    const ability = this.caslAbilityFactory.createForUser(user);
 
+    // 2. Check permission against the SPECIFIC post instance
+    if (!ability.can(Action.Delete, post)) {
+      throw new ForbiddenException('You are not allowed to delete this post');
+    }
 
     return this.postsService.remove(post);
   }

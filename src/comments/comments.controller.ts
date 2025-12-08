@@ -7,6 +7,7 @@ import {
   Param,
   Body,
   UseGuards,
+  ForbiddenException,
 } from '@nestjs/common';
 import { CommentsService } from './comments.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
@@ -21,11 +22,13 @@ import { Comment } from './entities/comment.entity';
 import { CommentPipe } from 'src/common/pipes/comment.pipe';
 import { Post as PostEntity } from 'src/posts/entities/post.entity';
 import { PostPipe } from 'src/common/pipes/post.pipe';
+import { CaslAbilityFactory } from 'src/casl/casl-ability.factory';
 
 @Controller()
 export class CommentsController {
   constructor(
     private readonly commentsService: CommentsService,
+    private readonly caslAbilityFactory: CaslAbilityFactory,
   ) {}
 
   @Get('posts/:postId/comments')
@@ -55,7 +58,15 @@ export class CommentsController {
   update(
     @Param('id', CommentPipe) comment: Comment,
     @Body() dto: UpdateCommentDto,
+    @GetUser() user: User,
   ) {
+    // Check permission against the SPECIFIC comment instance
+    const ability = this.caslAbilityFactory.createForUser(user);
+    
+    if (!ability.can(Action.Update, comment)) {
+      throw new ForbiddenException('You are not allowed to update this comment');
+    }
+
     return this.commentsService.update(comment, dto);
   }
 
@@ -64,7 +75,15 @@ export class CommentsController {
   @CheckPolicies((ability) => ability.can(Action.Delete, Comment))
   remove(
     @Param('id', CommentPipe) comment: Comment,
+    @GetUser() user: User,
   ) {
+    // Check permission against the SPECIFIC comment instance
+    const ability = this.caslAbilityFactory.createForUser(user);
+    
+    if (!ability.can(Action.Delete, comment)) {
+      throw new ForbiddenException('You are not allowed to delete this comment');
+    }
+
     return this.commentsService.remove(comment);
   }
 }

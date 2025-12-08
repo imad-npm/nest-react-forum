@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Delete, UseGuards, ForbiddenException } from '@nestjs/common';
 import { ReactionsService } from './reactions.service';
 import { CreateReactionDto } from './dto/create-reaction.dto';
 import { User } from 'src/users/entities/user.entity';
@@ -13,10 +13,14 @@ import { PostPipe } from 'src/common/pipes/post.pipe';
 import { CommentPipe } from 'src/common/pipes/comment.pipe';
 import { Post as PostEntity } from '../posts/entities/post.entity';
 import { Comment as CommentEntity } from '../comments/entities/comment.entity';
+import { CaslAbilityFactory } from 'src/casl/casl-ability.factory';
 
 @Controller()
 export class ReactionsController {
-  constructor(private readonly reactionsService: ReactionsService) {}
+  constructor(
+    private readonly reactionsService: ReactionsService,
+    private readonly caslAbilityFactory: CaslAbilityFactory,
+  ) {}
 
   @Post('posts/:postId/reactions')
   @UseGuards(JwtAuthGuard, PoliciesGuard)
@@ -53,7 +57,17 @@ export class ReactionsController {
   @Delete('reactions/:reactionId')
   @UseGuards(JwtAuthGuard, PoliciesGuard)
   @CheckPolicies((ability) => ability.can(Action.Delete, Reaction))
-  deleteReaction(@Param('reactionId', ReactionPipe) reaction: Reaction) {
+  deleteReaction(
+    @Param('reactionId', ReactionPipe) reaction: Reaction,
+    @GetUser() user: User,
+  ) {
+    // Check permission against the SPECIFIC reaction instance
+    const ability = this.caslAbilityFactory.createForUser(user);
+    
+    if (!ability.can(Action.Delete, reaction)) {
+      throw new ForbiddenException('You are not allowed to delete this reaction');
+    }
+
     return this.reactionsService.delete(reaction);
   }
 }

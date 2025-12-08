@@ -714,7 +714,7 @@ export class User {
 
 
 ### FILE: src/reactions/reactions.controller.ts ###
-import { Controller, Post, Get, Body, Param, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Delete, UseGuards, ForbiddenException } from '@nestjs/common';
 import { ReactionsService } from './reactions.service';
 import { CreateReactionDto } from './dto/create-reaction.dto';
 import { User } from 'src/users/entities/user.entity';
@@ -729,10 +729,14 @@ import { PostPipe } from 'src/common/pipes/post.pipe';
 import { CommentPipe } from 'src/common/pipes/comment.pipe';
 import { Post as PostEntity } from '../posts/entities/post.entity';
 import { Comment as CommentEntity } from '../comments/entities/comment.entity';
+import { CaslAbilityFactory } from 'src/casl/casl-ability.factory';
 
 @Controller()
 export class ReactionsController {
-  constructor(private readonly reactionsService: ReactionsService) {}
+  constructor(
+    private readonly reactionsService: ReactionsService,
+    private readonly caslAbilityFactory: CaslAbilityFactory,
+  ) {}
 
   @Post('posts/:postId/reactions')
   @UseGuards(JwtAuthGuard, PoliciesGuard)
@@ -769,7 +773,17 @@ export class ReactionsController {
   @Delete('reactions/:reactionId')
   @UseGuards(JwtAuthGuard, PoliciesGuard)
   @CheckPolicies((ability) => ability.can(Action.Delete, Reaction))
-  deleteReaction(@Param('reactionId', ReactionPipe) reaction: Reaction) {
+  deleteReaction(
+    @Param('reactionId', ReactionPipe) reaction: Reaction,
+    @GetUser() user: User,
+  ) {
+    // Check permission against the SPECIFIC reaction instance
+    const ability = this.caslAbilityFactory.createForUser(user);
+    
+    if (!ability.can(Action.Delete, reaction)) {
+      throw new ForbiddenException('You are not allowed to delete this reaction');
+    }
+
     return this.reactionsService.delete(reaction);
   }
 }
@@ -1344,6 +1358,8 @@ export class PostsService {
   async update(post: Post, dto: UpdatePostDto): Promise<Post> {
    
     Object.assign(post, dto);
+    console.log(dto);
+    
     return this.postsRepository.save(post);
   }
 
@@ -1456,24 +1472,38 @@ export class PostsController {
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard, PoliciesGuard)
-  @CheckPolicies((ability: AppAbility) => ability.can(Action.Update, PostEntity))
+  @CheckPolicies((ability) => ability.can(Action.Update, PostEntity))
   async update(
     @Param('id', PostPipe) post: PostEntity,
     @Body() dto: UpdatePostDto,
     @GetUser() user: User,
   ) {
+    // 1. Generate the ability for the current user
+    const ability = this.caslAbilityFactory.createForUser(user);
 
+    // 2. Check permission against the SPECIFIC post instance
+    // This triggers the rule: can(Action.Update, Post, { authorId: user.id })
+    if (!ability.can(Action.Update, post)) {
+      throw new ForbiddenException('You are not allowed to update this post');
+    }
 
     return this.postsService.update(post, dto);
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PoliciesGuard)
+  @CheckPolicies((ability) => ability.can(Action.Delete, PostEntity))
   async remove(
     @Param('id', PostPipe) post: PostEntity,
     @GetUser() user: User,
   ) {
+    // 1. Generate the ability for the current user
+    const ability = this.caslAbilityFactory.createForUser(user);
 
+    // 2. Check permission against the SPECIFIC post instance
+    if (!ability.can(Action.Delete, post)) {
+      throw new ForbiddenException('You are not allowed to delete this post');
+    }
 
     return this.postsService.remove(post);
   }
@@ -1483,11 +1513,16 @@ export class PostsController {
 
 
 ### FILE: src/posts/dto/update-post.dto.ts ###
-export class UpdatePostDto {
-  title?: string;
-  content?: string;
-}
+// src/posts/dto/update-post.dto.ts
 
+import { PartialType } from '@nestjs/mapped-types'; // <-- 1. Make sure this is imported
+import { CreatePostDto } from './create-post.dto';   // <-- 2. Make sure you import CreatePostDto
+
+// 3. Extend PartialType of your base DTO
+export class UpdatePostDto extends PartialType(CreatePostDto) {
+  // If you need to add custom validation or properties, they go here.
+  // Otherwise, leave the body empty.
+}
 ---
 
 
@@ -1558,7 +1593,7 @@ export class AuthService {
     const payload = { sub: user.id, email: user.email };
     const accessToken = this.jwt.sign(payload, {
       secret: this.config.get<string>('JWT_ACCESS_SECRET'), // use ConfigService
-      expiresIn: '15m',
+      expiresIn: '2h',
     });
     const refreshToken = this.jwt.sign(payload, {
       secret: this.config.get<string>('JWT_REFRESH_SECRET'), // use ConfigService
@@ -1960,6 +1995,7 @@ import {
   Param,
   Body,
   UseGuards,
+  ForbiddenException,
 } from '@nestjs/common';
 import { CommentsService } from './comments.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
@@ -1974,11 +2010,13 @@ import { Comment } from './entities/comment.entity';
 import { CommentPipe } from 'src/common/pipes/comment.pipe';
 import { Post as PostEntity } from 'src/posts/entities/post.entity';
 import { PostPipe } from 'src/common/pipes/post.pipe';
+import { CaslAbilityFactory } from 'src/casl/casl-ability.factory';
 
 @Controller()
 export class CommentsController {
   constructor(
     private readonly commentsService: CommentsService,
+    private readonly caslAbilityFactory: CaslAbilityFactory,
   ) {}
 
   @Get('posts/:postId/comments')
@@ -2008,7 +2046,15 @@ export class CommentsController {
   update(
     @Param('id', CommentPipe) comment: Comment,
     @Body() dto: UpdateCommentDto,
+    @GetUser() user: User,
   ) {
+    // Check permission against the SPECIFIC comment instance
+    const ability = this.caslAbilityFactory.createForUser(user);
+    
+    if (!ability.can(Action.Update, comment)) {
+      throw new ForbiddenException('You are not allowed to update this comment');
+    }
+
     return this.commentsService.update(comment, dto);
   }
 
@@ -2017,7 +2063,15 @@ export class CommentsController {
   @CheckPolicies((ability) => ability.can(Action.Delete, Comment))
   remove(
     @Param('id', CommentPipe) comment: Comment,
+    @GetUser() user: User,
   ) {
+    // Check permission against the SPECIFIC comment instance
+    const ability = this.caslAbilityFactory.createForUser(user);
+    
+    if (!ability.can(Action.Delete, comment)) {
+      throw new ForbiddenException('You are not allowed to delete this comment');
+    }
+
     return this.commentsService.remove(comment);
   }
 }
