@@ -8,6 +8,10 @@ import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as Handlebars from 'handlebars';
+import { User } from 'src/users/entities/user.entity';
+import { use } from 'passport';
+
+
 @Injectable()
 export class EmailVerificationService {
   private transporter: nodemailer.Transporter;
@@ -18,22 +22,29 @@ export class EmailVerificationService {
     private readonly tokenRepo: Repository<EmailVerificationToken>,
     private readonly configService: ConfigService,
   ) {
-    this.transporter = nodemailer.createTransport({
-      host: this.configService.get<string>('SMTP_HOST'),
-      port: this.configService.get<number>('SMTP_PORT'),
-      secure: this.configService.get<boolean>('SMTP_SECURE', false),
-      auth: {
-        user: this.configService.get<string>('SMTP_USER'),
-        pass: this.configService.get<string>('SMTP_PASS'),
-      },
-    });
+  this.transporter = nodemailer.createTransport({
+  host: this.configService.get<string>('SMTP_HOST'),
+  port: this.configService.get<number>('SMTP_PORT'),
+  secure: false,
+  // Only add auth if SMTP_USER and SMTP_PASS are defined
+  ...(this.configService.get<string>('SMTP_USER') &&
+  this.configService.get<string>('SMTP_PASS')
+    ? {
+        auth: {
+          user: this.configService.get<string>('SMTP_USER'),
+          pass: this.configService.get<string>('SMTP_PASS'),
+        },
+      }
+    : {}),
+});
+
   }
 
-  private async deleteExistingTokens(userId: string): Promise<void> {
+  private async deleteExistingTokens(userId: number): Promise<void> {
     await this.tokenRepo.delete({ userId });
   }
 
-  async generateToken(userId: string): Promise<string> {
+  async generateToken(userId: number): Promise<string> {
     await this.deleteExistingTokens(userId);
 
     const token = randomUUID();
@@ -52,24 +63,26 @@ export class EmailVerificationService {
    */
   private generateVerificationLink(token: string): string {
     const domain = this.configService.get<string>('APP_DOMAIN'); // e.g. https://myapp.com
-    const path = '/auth/verify';
+    const path = '/email/verify';
     return `${domain}${path}?token=${token}`;
   }
 
-  async sendVerificationEmail(email: string, userId: string, name: string): Promise<void> {
-    const token = await this.generateToken(userId);
+  async sendVerificationEmail(user : User): Promise<void> {
+    const token = await this.generateToken(user.id);
     const verifyUrl = this.generateVerificationLink(token);
 
     // Load and compile the Handlebars template
-    const templatePath = path.join(__dirname, 'templates', 'verify-email.hbs');
-    const source = fs.readFileSync(templatePath, 'utf-8');
+const templatePath = path.resolve('src/email-verification/templates/verify-email.hbs');
+const source = fs.readFileSync(templatePath, 'utf-8');
+
     const template = Handlebars.compile(source);
+    const name =user.name
     const html = template({ name, verifyUrl });
 
     try {
       await this.transporter.sendMail({
-        from: `"Your App" <${this.configService.get<string>('SMTP_USER')}>`,
-        to: email,
+        from:  this.configService.get<string>('SMTP_FROM')  ,
+        to: user.email,
         subject: 'Verify Your Email',
         html,
       });
@@ -79,7 +92,7 @@ export class EmailVerificationService {
     }
   }
 
-  async verifyToken(token: string): Promise<string> {
+  async verifyToken(token: string): Promise<number> {
     const record = await this.tokenRepo.findOne({ where: { token } });
 
     if (!record) throw new BadRequestException('Invalid token');

@@ -18,6 +18,9 @@ export class User {
   @Column({ type: 'varchar' })
   password: string;
 
+  @Column({ type: 'datetime', nullable: true, default: null })
+  emailVerifiedAt: Date | null; // 👈 NEW FIELD
+
   // Relations
   @OneToMany(() => Post, post => post.author)
   posts: Post[];

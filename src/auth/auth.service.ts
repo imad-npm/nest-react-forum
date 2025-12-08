@@ -6,6 +6,7 @@ import { UsersService } from '../users/users.service';
 import * as bcrypt from 'bcrypt';
 import { RegisterDto } from './dtos/register.dto';
 import { LoginDto } from './dtos/login.dto';
+import { EmailVerificationService } from 'src/email-verification/email-verification.service';
 
 @Injectable()
 export class AuthService {
@@ -13,12 +14,17 @@ export class AuthService {
     private readonly users: UsersService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService, // inject ConfigService
+ private readonly emailVerificationService: EmailVerificationService,
   ) {}
 
   async register(dto: RegisterDto) {
     const hashed = await bcrypt.hash(dto.password, 10);
     const user = await this.users.createUser(dto, hashed);
-    return this.generateTokens(user);
+    await this.emailVerificationService.sendVerificationEmail(user);
+// DO NOT RETURN TOKENS
+  return {
+    message: 'Registration successful. Please check your email to verify your account.',
+  };
   }
 
   async validateUser(email: string, pass: string) {
@@ -30,7 +36,13 @@ export class AuthService {
 
   async login(dto: LoginDto) {
     const user = await this.users.findByEmail(dto.email);
-    
+    // ← THIS IS THE CRITICAL LINE
+  if (!user.emailVerifiedAt) {
+    await this.emailVerificationService.sendVerificationEmail(user);
+    throw new UnauthorizedException(
+      'Please verify your email address. A new verification link has been sent.',
+    );
+  }
     return this.generateTokens(user);
   }
 

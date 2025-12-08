@@ -25,8 +25,8 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "typeorm": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js",
-    "migration:generate": "npm run typeorm -- migration:generate -d ./src/data-source.ts",
-    "migration:run": "npm run typeorm -- migration:run -d ./src/data-source.ts",
+  "migration:generate": "ts-node ./node_modules/typeorm/cli.js migration:generate -d ./src/data-source.ts",
+  "mg": "ts-node ./node_modules/typeorm/cli.js migration:generate -d ./src/data-source.ts ./src/database/migrations/$npm_config_name" ,
     "migration:revert": "npm run typeorm -- migration:revert -d ./src/data-source.ts",
     "seed": "ts-node src/database/seeds/index.ts",
     "db:drop": "npm run typeorm -- schema:drop -d ./src/data-source.ts"
@@ -44,6 +44,8 @@
     "bcrypt": "^6.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.3",
+    "handlebars": "^4.7.8",
+    "nodemailer": "^7.0.11",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0",
@@ -581,6 +583,31 @@ export class AddingColsToUser1764871406438 implements MigrationInterface {
 ---
 
 
+### FILE: src/database/migrations/1765209236854-AddEmailVerifiedColumn.ts ###
+import { MigrationInterface, QueryRunner } from "typeorm";
+
+export class AddEmailVerifiedColumn1765209236854 implements MigrationInterface {
+    name = 'AddEmailVerifiedColumn1765209236854'
+
+    public async up(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`CREATE TABLE "temporary_users" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(100) NOT NULL, "email" varchar(100) NOT NULL, "password" varchar NOT NULL, "emailVerifiedAt" datetime, CONSTRAINT "UQ_97672ac88f789774dd47f7c8be3" UNIQUE ("email"))`);
+        await queryRunner.query(`INSERT INTO "temporary_users"("id", "name", "email", "password") SELECT "id", "name", "email", "password" FROM "users"`);
+        await queryRunner.query(`DROP TABLE "users"`);
+        await queryRunner.query(`ALTER TABLE "temporary_users" RENAME TO "users"`);
+    }
+
+    public async down(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`ALTER TABLE "users" RENAME TO "temporary_users"`);
+        await queryRunner.query(`CREATE TABLE "users" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(100) NOT NULL, "email" varchar(100) NOT NULL, "password" varchar NOT NULL, CONSTRAINT "UQ_97672ac88f789774dd47f7c8be3" UNIQUE ("email"))`);
+        await queryRunner.query(`INSERT INTO "users"("id", "name", "email", "password") SELECT "id", "name", "email", "password" FROM "temporary_users"`);
+        await queryRunner.query(`DROP TABLE "temporary_users"`);
+    }
+
+}
+
+---
+
+
 ### FILE: src/main.ts ###
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
@@ -657,6 +684,22 @@ export class UsersService {
 
     return this.repo.save(user);
   }
+
+  async markEmailAsVerified(userId: number): Promise<void> {
+    const user = await this.repo.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException(`User with ID ${userId} not found.`);
+    }
+    
+    // Check if already verified to prevent unnecessary database writes
+    if (user.emailVerifiedAt) {
+        return; 
+    }
+
+    // Set the verification timestamp
+    user.emailVerifiedAt = new Date(); 
+    await this.repo.save(user);
+  }
 }
 
 ---
@@ -698,6 +741,9 @@ export class User {
 
   @Column({ type: 'varchar' })
   password: string;
+
+  @Column({ type: 'datetime', nullable: true, default: null })
+  emailVerifiedAt: Date | null; // 👈 NEW FIELD
 
   // Relations
   @OneToMany(() => Post, post => post.author)
@@ -1142,6 +1188,198 @@ export const GetUser = createParamDecorator(
 ---
 
 
+### FILE: src/email-verification/email-verification.controller.ts ###
+import { Controller, Post, Body } from '@nestjs/common';
+import { EmailVerificationService } from './email-verification.service';
+import { SendVerificationDto } from './dto/send-verification.dto';
+import { VerifyEmailDto } from './dto/verify-email.dto';
+
+@Controller('email-verification')
+export class EmailVerificationController {
+  constructor(private readonly service: EmailVerificationService) {}
+
+  @Post('send')
+  send(@Body() dto: SendVerificationDto) {
+    const token = this.service.generateToken(dto.userId);
+    return { message: 'Verification token generated', token };
+  }
+
+  @Post('verify')
+  verify(@Body() dto: VerifyEmailDto) {
+    const userId = this.service.verifyToken(dto.token);
+    return { message: 'Email verified successfully', userId };
+  }
+}
+
+
+---
+
+
+### FILE: src/email-verification/entities/email-verification-token.entity.ts ###
+
+// src/email-verification/entities/email-verification-token.entity.ts
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from 'typeorm';
+
+@Entity('email_verification_tokens')
+export class EmailVerificationToken {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @Column({ unique: true })
+  token: string;
+
+  @Column()
+  userId: number;
+
+  @Column()
+  expiresAt: Date;
+
+  @CreateDateColumn()
+  createdAt: Date;
+}
+
+---
+
+
+### FILE: src/email-verification/email-verification.service.ts ###
+import { Injectable, BadRequestException, InternalServerErrorException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { randomUUID } from 'crypto';
+import { EmailVerificationToken } from './entities/email-verification-token.entity';
+import * as nodemailer from 'nodemailer';
+import { ConfigService } from '@nestjs/config';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as Handlebars from 'handlebars';
+import { User } from 'src/users/entities/user.entity';
+import { use } from 'passport';
+@Injectable()
+export class EmailVerificationService {
+  private transporter: nodemailer.Transporter;
+  private EXPIRATION_MS = 15 * 60 * 1000; // 15 minutes
+
+  constructor(
+    @InjectRepository(EmailVerificationToken)
+    private readonly tokenRepo: Repository<EmailVerificationToken>,
+    private readonly configService: ConfigService,
+  ) {
+    this.transporter = nodemailer.createTransport({
+      host: this.configService.get<string>('SMTP_HOST'),
+      port: this.configService.get<number>('SMTP_PORT'),
+      secure: this.configService.get<boolean>('SMTP_SECURE', false),
+      auth: {
+        user: this.configService.get<string>('SMTP_USER'),
+        pass: this.configService.get<string>('SMTP_PASS'),
+      },
+    });
+  }
+
+  private async deleteExistingTokens(userId: number): Promise<void> {
+    await this.tokenRepo.delete({ userId });
+  }
+
+  async generateToken(userId: number): Promise<string> {
+    await this.deleteExistingTokens(userId);
+
+    const token = randomUUID();
+    const record = this.tokenRepo.create({
+      token,
+      userId,
+      expiresAt: new Date(Date.now() + this.EXPIRATION_MS),
+    });
+
+    await this.tokenRepo.save(record);
+    return token;
+  }
+
+  /**
+   * Generates verification URL dynamically from config domain
+   */
+  private generateVerificationLink(token: string): string {
+    const domain = this.configService.get<string>('APP_DOMAIN'); // e.g. https://myapp.com
+    const path = '/auth/verify';
+    return `${domain}${path}?token=${token}`;
+  }
+
+  async sendVerificationEmail(user : User): Promise<void> {
+    const token = await this.generateToken(user.id);
+    const verifyUrl = this.generateVerificationLink(token);
+
+    // Load and compile the Handlebars template
+    const templatePath = path.join(__dirname, 'templates', 'verify-email.hbs');
+    const source = fs.readFileSync(templatePath, 'utf-8');
+    const template = Handlebars.compile(source);
+    const name =user.name
+    const html = template({ name, verifyUrl });
+
+    try {
+      await this.transporter.sendMail({
+        from: `"Your App" <${this.configService.get<string>('SMTP_USER')}>`,
+        to: user.email,
+        subject: 'Verify Your Email',
+        html,
+      });
+    } catch (err) {
+      console.error('Error sending verification email:', err);
+      throw new InternalServerErrorException('Failed to send verification email');
+    }
+  }
+
+  async verifyToken(token: string): Promise<number> {
+    const record = await this.tokenRepo.findOne({ where: { token } });
+
+    if (!record) throw new BadRequestException('Invalid token');
+    if (record.expiresAt < new Date()) {
+      await this.tokenRepo.delete({ token });
+      throw new BadRequestException('Token expired');
+    }
+
+    await this.tokenRepo.delete({ token });
+    return record.userId;
+  }
+}
+
+---
+
+
+### FILE: src/email-verification/dto/verify-email.dto.ts ###
+export class VerifyEmailDto {
+  token: string;
+}
+
+
+---
+
+
+### FILE: src/email-verification/dto/send-verification.dto.ts ###
+export class SendVerificationDto {
+  userId: number;
+}
+
+
+---
+
+
+### FILE: src/email-verification/email-verification.module.ts ###
+// src/email-verification/email-verification.module.ts
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { EmailVerificationService } from './email-verification.service';
+import { EmailVerificationController } from './email-verification.controller';
+import { EmailVerificationToken } from './entities/email-verification-token.entity';
+
+@Module({
+  imports: [TypeOrmModule.forFeature([EmailVerificationToken])],
+  controllers: [EmailVerificationController],
+  providers: [EmailVerificationService],
+  exports: [EmailVerificationService],
+})
+export class EmailVerificationModule {}
+
+---
+
+
 ### FILE: src/casl/casl.types.ts ###
 
 export enum Action {
@@ -1553,6 +1791,7 @@ import { UsersService } from '../users/users.service';
 import * as bcrypt from 'bcrypt';
 import { RegisterDto } from './dtos/register.dto';
 import { LoginDto } from './dtos/login.dto';
+import { EmailVerificationService } from 'src/email-verification/email-verification.service';
 
 @Injectable()
 export class AuthService {
@@ -1560,11 +1799,13 @@ export class AuthService {
     private readonly users: UsersService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService, // inject ConfigService
+ private readonly emailVerificationService: EmailVerificationService,
   ) {}
 
   async register(dto: RegisterDto) {
     const hashed = await bcrypt.hash(dto.password, 10);
     const user = await this.users.createUser(dto, hashed);
+    await this.emailVerificationService.sendVerificationEmail(user);
     return this.generateTokens(user);
   }
 
@@ -1868,6 +2109,7 @@ import { Comment } from './comments/entities/comment.entity';
 import { Reaction } from './reactions/entities/reaction.entity';
 import { AuthModule } from './auth/auth.module';
 import { CaslModule } from './casl/casl.module';
+import { EmailVerificationToken } from './email-verification/entities/email-verification-token.entity';
 
 @Module({
   imports: [
@@ -1879,7 +2121,7 @@ import { CaslModule } from './casl/casl.module';
       useFactory: (config: ConfigService) => ({
         type: config.get<'sqlite' | 'mysql'>('DB_TYPE', 'sqlite'),
         database: config.get<string>('DB_NAME', 'forum.db'),
-        entities: [User, Post, Comment, Reaction],
+        entities: [User, Post, Comment, Reaction,EmailVerificationToken],
         migrations: ['./src/migrations/*.ts'],
         synchronize: false,
       }),
@@ -1906,11 +2148,12 @@ import { Post } from './posts/entities/post.entity';
 import { User } from './users/entities/user.entity';
 import { Comment } from './comments/entities/comment.entity';
 import { Reaction } from './reactions/entities/reaction.entity';
+import { EmailVerificationToken } from './email-verification/entities/email-verification-token.entity';
 
 export const AppDataSource = new DataSource({
   type: 'sqlite',
   database: 'forum.db',
-  entities: [User, Post, Comment,Reaction],  // <-- include ALL entities  migrations: ['./src/migrations/*.ts'], // <-- migration folder
+  entities: [User, Post, Comment,Reaction ,EmailVerificationToken],  // <-- include ALL entities  migrations: ['./src/migrations/*.ts'], // <-- migration folder
   synchronize: false,                   // never auto-sync in production
 
   migrations: ['src/database/migrations/*.ts'],

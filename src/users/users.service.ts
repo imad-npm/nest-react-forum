@@ -52,4 +52,20 @@ export class UsersService {
 
     return this.repo.save(user);
   }
+
+  async markEmailAsVerified(userId: number): Promise<void> {
+    const user = await this.repo.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException(`User with ID ${userId} not found.`);
+    }
+    
+    // Check if already verified to prevent unnecessary database writes
+    if (user.emailVerifiedAt) {
+        return; 
+    }
+
+    // Set the verification timestamp
+    user.emailVerifiedAt = new Date(); 
+    await this.repo.save(user);
+  }
 }

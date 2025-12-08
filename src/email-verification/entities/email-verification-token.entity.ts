@@ -11,7 +11,7 @@ export class EmailVerificationToken {
   token: string;
 
   @Column()
-  userId: string;
+  userId: number;
 
   @Column()
   expiresAt: Date;

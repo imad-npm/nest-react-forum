@@ -1,4 +1,4 @@
 export class SendVerificationDto {
-  userId: string;
+  userId: number;
 }
 

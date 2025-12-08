@@ -16,6 +16,7 @@ import { Comment } from './comments/entities/comment.entity';
 import { Reaction } from './reactions/entities/reaction.entity';
 import { AuthModule } from './auth/auth.module';
 import { CaslModule } from './casl/casl.module';
+import { EmailVerificationToken } from './email-verification/entities/email-verification-token.entity';
 
 @Module({
   imports: [
@@ -27,7 +28,7 @@ import { CaslModule } from './casl/casl.module';
       useFactory: (config: ConfigService) => ({
         type: config.get<'sqlite' | 'mysql'>('DB_TYPE', 'sqlite'),
         database: config.get<string>('DB_NAME', 'forum.db'),
-        entities: [User, Post, Comment, Reaction],
+        entities: [User, Post, Comment, Reaction,EmailVerificationToken],
         migrations: ['./src/migrations/*.ts'],
         synchronize: false,
       }),

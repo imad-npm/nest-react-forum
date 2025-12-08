@@ -9,6 +9,7 @@ import { UsersModule } from '../users/users.module';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
 import { LocalStrategy } from './strategies/local.strategy';
+import { EmailVerificationModule } from 'src/email-verification/email-verification.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { LocalStrategy } from './strategies/local.strategy';
       secret: process.env.JWT_ACCESS_SECRET,
       signOptions: { expiresIn: '15m' },
     }),
+    EmailVerificationModule
   ],
   controllers: [AuthController],
   providers: [
