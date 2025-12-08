@@ -14,17 +14,13 @@ export class AuthService {
     private readonly users: UsersService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService, // inject ConfigService
- private readonly emailVerificationService: EmailVerificationService,
   ) {}
 
   async register(dto: RegisterDto) {
     const hashed = await bcrypt.hash(dto.password, 10);
     const user = await this.users.createUser(dto, hashed);
-    await this.emailVerificationService.sendVerificationEmail(user);
 // DO NOT RETURN TOKENS
-  return {
-    message: 'Registration successful. Please check your email to verify your account.',
-  };
+  return user ;
   }
 
   async validateUser(email: string, pass: string) {
@@ -38,10 +34,7 @@ export class AuthService {
     const user = await this.users.findByEmail(dto.email);
     // ← THIS IS THE CRITICAL LINE
   if (!user.emailVerifiedAt) {
-    await this.emailVerificationService.sendVerificationEmail(user);
-    throw new UnauthorizedException(
-      'Please verify your email address. A new verification link has been sent.',
-    );
+        throw new UnauthorizedException('Email not verified.');
   }
     return this.generateTokens(user);
   }

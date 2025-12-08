@@ -15,8 +15,6 @@ export class EmailVerificationService {
     @InjectRepository(EmailVerificationToken)
     private readonly tokenRepo: Repository<EmailVerificationToken>,
     private readonly configService: ConfigService,
-
-
     @Inject('IMailService')
     private readonly mailService: IMailService,
   ) { }

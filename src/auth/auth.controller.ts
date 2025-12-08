@@ -4,14 +4,20 @@ import { LoginDto } from './dtos/login.dto';
 import { RegisterDto } from './dtos/register.dto';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
+import { EmailVerificationService } from 'src/email-verification/email-verification.service';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly authService: AuthService ,
+     private readonly emailVerificationService: EmailVerificationService,
+
+  ) {}
 
   @Post('register')
-  register(@Body() dto: RegisterDto) {
-    return this.authService.register(dto);
+  async register(@Body() dto: RegisterDto) {
+    const user= await this.authService.register(dto);
+    await this.emailVerificationService.sendVerificationEmail(user);
+  return { message: 'Registration successful. Please verify your email.' };
   }
 
   @UseGuards(LocalAuthGuard)
