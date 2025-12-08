@@ -25,7 +25,9 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "typeorm": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js",
-  "migration:generate": "ts-node ./node_modules/typeorm/cli.js migration:generate -d ./src/data-source.ts",
+      "migration:run": "npm run typeorm -- migration:run -d ./src/data-source.ts",
+
+    "migration:generate": "ts-node ./node_modules/typeorm/cli.js migration:generate -d ./src/data-source.ts",
   "mg": "ts-node ./node_modules/typeorm/cli.js migration:generate -d ./src/data-source.ts ./src/database/migrations/$npm_config_name" ,
     "migration:revert": "npm run typeorm -- migration:revert -d ./src/data-source.ts",
     "seed": "ts-node src/database/seeds/index.ts",
@@ -509,6 +511,25 @@ export class AddReactions1764783033004 implements MigrationInterface {
         await queryRunner.query(`INSERT INTO "comment"("id", "content", "createdAt", "postId", "authorId") SELECT "id", "content", "createdAt", "postId", "authorId" FROM "temporary_comment"`);
         await queryRunner.query(`DROP TABLE "temporary_comment"`);
         await queryRunner.query(`DROP TABLE "reaction"`);
+    }
+
+}
+
+---
+
+
+### FILE: src/database/migrations/1765214825123-addVerifrokesTable.ts ###
+import { MigrationInterface, QueryRunner } from "typeorm";
+
+export class AddVerifrokesTable1765214825123 implements MigrationInterface {
+    name = 'AddVerifrokesTable1765214825123'
+
+    public async up(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`CREATE TABLE "email_verification_tokens" ("id" varchar PRIMARY KEY NOT NULL, "token" varchar NOT NULL, "userId" integer NOT NULL, "expiresAt" datetime NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), CONSTRAINT "UQ_3d1613f95c6a564a3b588d161ae" UNIQUE ("token"))`);
+    }
+
+    public async down(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`DROP TABLE "email_verification_tokens"`);
     }
 
 }
@@ -1189,28 +1210,55 @@ export const GetUser = createParamDecorator(
 
 
 ### FILE: src/email-verification/email-verification.controller.ts ###
-import { Controller, Post, Body } from '@nestjs/common';
+import { Controller, Post, Body, BadRequestException, Query, Get } from '@nestjs/common';
 import { EmailVerificationService } from './email-verification.service';
 import { SendVerificationDto } from './dto/send-verification.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
+import { UsersService } from '../users/users.service';
 
-@Controller('email-verification')
+@Controller('email')
 export class EmailVerificationController {
-  constructor(private readonly service: EmailVerificationService) {}
+  constructor(
+    private readonly service: EmailVerificationService,
+    private readonly usersService: UsersService,
+  ) {}
 
   @Post('send')
-  send(@Body() dto: SendVerificationDto) {
-    const token = this.service.generateToken(dto.userId);
-    return { message: 'Verification token generated', token };
+  async send(@Body() dto: SendVerificationDto) {
+    // Try to find the user by ID
+    const user = await this.usersService.findOneById(dto.userId);
+
+    if (user && !user.emailVerifiedAt) {
+      // Only send verification if user exists and email not verified
+      await this.service.sendVerificationEmail(user);
+    }
+
+    // Always return the same message to prevent email enumeration
+    return {
+      message:
+        'If the email exists and is not verified, a new verification link has been sent.',
+    };
   }
 
-  @Post('verify')
-  verify(@Body() dto: VerifyEmailDto) {
-    const userId = this.service.verifyToken(dto.token);
-    return { message: 'Email verified successfully', userId };
+  @Get('verify')
+  async verify(@Query('token') token: string) {
+    if (!token) {
+      throw new BadRequestException('Token is required.');
+    }
+
+    try {
+      const userId = await this.service.verifyToken(token);
+
+      await this.usersService.markEmailAsVerified(userId);
+
+      return { message: 'Email verified successfully', userId };
+    } catch (err) {
+      throw new BadRequestException('Invalid or expired verification token.');
+    }
   }
+
+
 }
-
 
 ---
 
@@ -1254,6 +1302,8 @@ import * as path from 'path';
 import * as Handlebars from 'handlebars';
 import { User } from 'src/users/entities/user.entity';
 import { use } from 'passport';
+
+
 @Injectable()
 export class EmailVerificationService {
   private transporter: nodemailer.Transporter;
@@ -1264,15 +1314,22 @@ export class EmailVerificationService {
     private readonly tokenRepo: Repository<EmailVerificationToken>,
     private readonly configService: ConfigService,
   ) {
-    this.transporter = nodemailer.createTransport({
-      host: this.configService.get<string>('SMTP_HOST'),
-      port: this.configService.get<number>('SMTP_PORT'),
-      secure: this.configService.get<boolean>('SMTP_SECURE', false),
-      auth: {
-        user: this.configService.get<string>('SMTP_USER'),
-        pass: this.configService.get<string>('SMTP_PASS'),
-      },
-    });
+  this.transporter = nodemailer.createTransport({
+  host: this.configService.get<string>('SMTP_HOST'),
+  port: this.configService.get<number>('SMTP_PORT'),
+  secure: false,
+  // Only add auth if SMTP_USER and SMTP_PASS are defined
+  ...(this.configService.get<string>('SMTP_USER') &&
+  this.configService.get<string>('SMTP_PASS')
+    ? {
+        auth: {
+          user: this.configService.get<string>('SMTP_USER'),
+          pass: this.configService.get<string>('SMTP_PASS'),
+        },
+      }
+    : {}),
+});
+
   }
 
   private async deleteExistingTokens(userId: number): Promise<void> {
@@ -1298,7 +1355,7 @@ export class EmailVerificationService {
    */
   private generateVerificationLink(token: string): string {
     const domain = this.configService.get<string>('APP_DOMAIN'); // e.g. https://myapp.com
-    const path = '/auth/verify';
+    const path = '/email/verify';
     return `${domain}${path}?token=${token}`;
   }
 
@@ -1307,15 +1364,16 @@ export class EmailVerificationService {
     const verifyUrl = this.generateVerificationLink(token);
 
     // Load and compile the Handlebars template
-    const templatePath = path.join(__dirname, 'templates', 'verify-email.hbs');
-    const source = fs.readFileSync(templatePath, 'utf-8');
+const templatePath = path.resolve('src/email-verification/templates/verify-email.hbs');
+const source = fs.readFileSync(templatePath, 'utf-8');
+
     const template = Handlebars.compile(source);
     const name =user.name
     const html = template({ name, verifyUrl });
 
     try {
       await this.transporter.sendMail({
-        from: `"Your App" <${this.configService.get<string>('SMTP_USER')}>`,
+        from:  this.configService.get<string>('SMTP_FROM')  ,
         to: user.email,
         subject: 'Verify Your Email',
         html,
@@ -1368,9 +1426,13 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { EmailVerificationService } from './email-verification.service';
 import { EmailVerificationController } from './email-verification.controller';
 import { EmailVerificationToken } from './entities/email-verification-token.entity';
+import { UsersModule } from 'src/users/users.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([EmailVerificationToken])],
+  imports: [TypeOrmModule.forFeature([EmailVerificationToken]) ,
+  UsersModule
+
+],
   controllers: [EmailVerificationController],
   providers: [EmailVerificationService],
   exports: [EmailVerificationService],
@@ -1806,7 +1868,10 @@ export class AuthService {
     const hashed = await bcrypt.hash(dto.password, 10);
     const user = await this.users.createUser(dto, hashed);
     await this.emailVerificationService.sendVerificationEmail(user);
-    return this.generateTokens(user);
+// DO NOT RETURN TOKENS
+  return {
+    message: 'Registration successful. Please check your email to verify your account.',
+  };
   }
 
   async validateUser(email: string, pass: string) {
@@ -1818,7 +1883,13 @@ export class AuthService {
 
   async login(dto: LoginDto) {
     const user = await this.users.findByEmail(dto.email);
-    
+    // ← THIS IS THE CRITICAL LINE
+  if (!user.emailVerifiedAt) {
+    await this.emailVerificationService.sendVerificationEmail(user);
+    throw new UnauthorizedException(
+      'Please verify your email address. A new verification link has been sent.',
+    );
+  }
     return this.generateTokens(user);
   }
 
@@ -1925,6 +1996,7 @@ import { UsersModule } from '../users/users.module';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
 import { LocalStrategy } from './strategies/local.strategy';
+import { EmailVerificationModule } from 'src/email-verification/email-verification.module';
 
 @Module({
   imports: [
@@ -1934,6 +2006,7 @@ import { LocalStrategy } from './strategies/local.strategy';
       secret: process.env.JWT_ACCESS_SECRET,
       signOptions: { expiresIn: '15m' },
     }),
+    EmailVerificationModule
   ],
   controllers: [AuthController],
   providers: [

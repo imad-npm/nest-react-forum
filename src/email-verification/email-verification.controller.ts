@@ -14,7 +14,7 @@ export class EmailVerificationController {
   @Post('send')
   async send(@Body() dto: SendVerificationDto) {
     // Try to find the user by ID
-    const user = await this.usersService.findOneById(dto.userId);
+    const user = await this.usersService.findByEmail(dto.email);
 
     if (user && !user.emailVerifiedAt) {
       // Only send verification if user exists and email not verified
