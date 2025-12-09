@@ -1,10 +1,12 @@
-import { Controller, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Request } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dtos/login.dto';
 import { RegisterDto } from './dtos/register.dto';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 import { EmailVerificationService } from 'src/email-verification/email-verification.service';
+import { RefreshDto } from './dtos/refresh.dto';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 @Controller('auth')
 export class AuthController {
@@ -26,9 +28,11 @@ export class AuthController {
     return this.authService.login(dto);
   }
 
+  
+
   @UseGuards(JwtRefreshGuard)
-  @Post('refresh')
-  refresh(@Body() dto) {
-    return this.authService.refreshToken(dto.refreshToken);
-  }
+ @Post('refresh')
+  refresh(@Body() dto :RefreshDto) {
+    return this.authService.renewTokens(dto.refreshToken);
+  } 
 }

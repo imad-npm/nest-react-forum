@@ -39,7 +39,7 @@ export class AuthService {
     return this.generateTokens(user);
   }
 
-  async refreshToken(refreshToken: string) {
+  async renewTokens(refreshToken: string) {
     const payload = this.jwt.verify(refreshToken, {
       secret: this.config.get<string>('JWT_REFRESH_SECRET'), // use ConfigService
     });
