@@ -1,12 +1,13 @@
 // src/auth/auth.service.ts
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../users/users.service';
 import * as bcrypt from 'bcrypt';
-import { RegisterDto } from './dtos/register.dto';
-import { LoginDto } from './dtos/login.dto';
-import { EmailVerificationService } from 'src/email-verification/email-verification.service';
 import { User } from 'src/users/entities/user.entity';
 
 @Injectable()
@@ -14,35 +15,52 @@ export class AuthService {
   constructor(
     private readonly userService: UsersService,
     private readonly jwt: JwtService,
-    private readonly config: ConfigService, // inject ConfigService
-  ) { }
+    private readonly config: ConfigService,
+  ) {}
 
-  async register(dto: RegisterDto) {
-    const user = await this.userService.createUser(dto);
-    return user;
+  // -------------------------------------------------------------------------
+  // Register (local account)
+  // -------------------------------------------------------------------------
+  async register(name: string, email: string, password: string): Promise<User> {
+    return this.userService.createUser(
+      name,
+      email,
+      password, // will be hashed inside UsersService
+    );
   }
 
-  async validateUser(email: string, pass: string) {
+  // -------------------------------------------------------------------------
+  // Validate credentials (used by LocalStrategy)
+  // -------------------------------------------------------------------------
+  async validateUser(email: string, password: string): Promise<User | null> {
     const user = await this.userService.findByEmail(email);
 
-    if (!user || user.password === null) {
-      return null;
-    }
+    // Social-only accounts have no password
+    if (!user.password) return null;
 
-    const isMatch = await bcrypt.compare(pass, user.password);
+    const isMatch = await bcrypt.compare(password, user.password);
     return isMatch ? user : null;
   }
 
-  async login(dto: LoginDto) {
-    const user = await this.userService.findByEmail(dto.email);
-    // ← THIS IS THE CRITICAL LINE
+  // -------------------------------------------------------------------------
+  // Sign in (called after successful local or refresh validation)
+  // -------------------------------------------------------------------------
+  async signIn(user: User) {
     if (!user.emailVerifiedAt) {
       throw new UnauthorizedException('Email not verified.');
     }
     return this.generateTokens(user);
   }
-  // src/auth/auth.service.ts
-  async googleLogin(oauthUser: any) {
+
+  // -------------------------------------------------------------------------
+  // Google OAuth login / link
+  // -------------------------------------------------------------------------
+  async googleLogin(oauthUser: {
+    email: string;
+    fullName?: string;
+    id: string;
+    picture?: string;
+  }): Promise<User> {
     if (!oauthUser?.email) {
       throw new BadRequestException('Google account has no accessible email');
     }
@@ -50,52 +68,56 @@ export class AuthService {
     let user: User | null = null;
 
     try {
-      // If exists → load
       user = await this.userService.findByEmail(oauthUser.email);
-    } catch (_) {
-      user = null; // Not found
+    } catch {
+      user = null; // not found
     }
 
     if (!user) {
-      // CREATE a new user
-      return this.userService.createUser({
-        email: oauthUser.email,
-        name: oauthUser.fullName,
-        provider: 'google',
-        providerId: oauthUser.id,
-        emailVerifiedAt: new Date(),
-        picture: oauthUser.picture,
-      });
+      // First time → create new user
+      return this.userService.createUser(
+        oauthUser.fullName ?? oauthUser.email.split('@')[0],
+        oauthUser.email,
+        undefined, // no password
+        'google',
+        oauthUser.id,
+        new Date(), // email already verified by Google
+        oauthUser.picture,
+      );
     }
 
-    // UPDATE existing user
+    // Existing user → make sure provider data is up-to-date
     return this.userService.updateUser(user, {
-      name: oauthUser.fullName,
+      name: oauthUser.fullName ?? user.name,
       provider: 'google',
       providerId: oauthUser.id,
       emailVerifiedAt: user.emailVerifiedAt ?? new Date(),
     });
   }
 
-
-  async renewTokens(refreshToken: string) {
-    const payload = this.jwt.verify(refreshToken, {
-      secret: this.config.get<string>('JWT_REFRESH_SECRET'), // use ConfigService
-    });
-    const user = await this.userService.findOneById(payload.sub);
+  // -------------------------------------------------------------------------
+  // Refresh token flow
+  // -------------------------------------------------------------------------
+  async renewTokens(user: User) {
     return this.generateTokens(user);
   }
 
-  private generateTokens(user: any) {
+  // -------------------------------------------------------------------------
+  // Token generation (shared)
+  // -------------------------------------------------------------------------
+  private generateTokens(user: User) {
     const payload = { sub: user.id, email: user.email };
+
     const accessToken = this.jwt.sign(payload, {
-      secret: this.config.get<string>('JWT_ACCESS_SECRET'), // use ConfigService
+      secret: this.config.get<string>('JWT_ACCESS_SECRET'),
       expiresIn: '2h',
     });
+
     const refreshToken = this.jwt.sign(payload, {
-      secret: this.config.get<string>('JWT_REFRESH_SECRET'), // use ConfigService
+      secret: this.config.get<string>('JWT_REFRESH_SECRET'),
       expiresIn: '7d',
     });
+
     return { accessToken, refreshToken };
   }
 }

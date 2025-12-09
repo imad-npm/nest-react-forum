@@ -4,9 +4,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { User } from './entities/user.entity';
-import { CreateUserDto } from './dtos/create-user.dto';
-import { UpdateUserDto } from './dtos/update-user.dto';
-
 
 @Injectable()
 export class UsersService {
@@ -35,22 +32,31 @@ export class UsersService {
   // ---------------------------------------
   // Create (OWN logic)
   // ---------------------------------------
-  async createUser(dto: CreateUserDto): Promise<User> {
+  async createUser(
+    name: string,
+    email: string,
+    password?: string | null,
+    provider?: 'google' | 'github' | null,
+    providerId?: string | null,
+    emailVerifiedAt?: Date | null,
+    picture?: string | null,
+  ): Promise<User> {
     const user = this.repo.create();
 
-    user.name = dto.name ;
-    user.email = dto.email ;
+    user.name = name;
+    user.email = email;
 
-    user.provider = dto.provider ?? null;
-    user.providerId = dto.providerId ?? null;
+    user.provider = provider ?? null;
+    user.providerId = providerId ?? null;
 
-    user.password = dto.password
-      ? await bcrypt.hash(dto.password, 10)
+    user.password = password
+      ? await bcrypt.hash(password, 10)
       : null;
 
     user.emailVerifiedAt =
-      dto.emailVerifiedAt ??
-      (dto.password ? null : new Date());
+      emailVerifiedAt ??
+      (password ? null : new Date());
+
 
     return this.repo.save(user);
   }
@@ -59,10 +65,21 @@ export class UsersService {
 // ---------------------------------------
 // Update (Slimmed logic)
 // ---------------------------------------
-async updateUser(user: User, dto: UpdateUserDto): Promise<User> {
-  const { password, ...rest } = dto; // Separate password for hashing
+async updateUser(
+  user: User,
+  updates: {
+    name?: string,
+    email?: string,
+    password?: string | null,
+    provider?: 'google' | 'github' | null,
+    providerId?: string | null,
+    emailVerifiedAt?: Date | null,
+    picture?: string | null,
+  }
+): Promise<User> {
+  const { password, ...rest } = updates; // Separate password for hashing
 
-  // 1. Update basic fields dynamically (only if they exist in dto)
+  // 1. Update basic fields dynamically (only if they exist in updates)
   Object.assign(user, rest);
   
   // 2. Handle password hashing separately if it exists
@@ -78,14 +95,14 @@ async updateUser(user: User, dto: UpdateUserDto): Promise<User> {
 }
 
 // ---------------------------------------
-  // Email verification
-  // ---------------------------------------
-  async markEmailAsVerified(id: number): Promise<void> {
-    const user = await this.findOneById(id);
+// Email verification
+// ---------------------------------------
+async markEmailAsVerified(id: number): Promise<void> {
+  const user = await this.findOneById(id);
 
-    if (!user.emailVerifiedAt) {
-      user.emailVerifiedAt = new Date();
-      await this.repo.save(user);
-    }
+  if (!user.emailVerifiedAt) {
+    user.emailVerifiedAt = new Date();
+    await this.repo.save(user);
   }
+}
 }

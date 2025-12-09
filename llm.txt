@@ -2074,19 +2074,6 @@ export class AuthController {
   async googleCallback(@Req() req: any) {
     const oauthUser = req.user;
 
-    let user = await this.userService.findOne({ where: { email: oauthUser.email } });
-
-    if (!user) {
-      // Create a new user if one doesn't exist
-      user = this.userService.create(payload);
-      await this.userService.save(user);
-    } else {
-      // Optional: Update user details (name, picture, etc.) on every login
-      user.firstName = payload.firstName;
-      user.lastName = payload.lastName;
-      user.picture = payload.picture;
-      await this.userService.save(user);
-    }
 
   return this.authService.googleLogin(req.user);  }
 }

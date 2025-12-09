@@ -1,42 +1,38 @@
-import { Controller, Post, Body, UseGuards, Request, Get, Req } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Get, Req } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { LoginDto } from './dtos/login.dto';
 import { RegisterDto } from './dtos/register.dto';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 import { EmailVerificationService } from 'src/email-verification/email-verification.service';
-import { RefreshDto } from './dtos/refresh.dto';
-import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { AuthGuard } from '@nestjs/passport';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService ,
-     private readonly emailVerificationService: EmailVerificationService,
-
+  constructor(
+    private readonly authService: AuthService,
+    private readonly emailVerificationService: EmailVerificationService,
   ) {}
 
   @Post('register')
   async register(@Body() dto: RegisterDto) {
-    const user= await this.authService.register(dto);
+    const user = await this.authService.register(dto.name, dto.email, dto.password);
     await this.emailVerificationService.sendVerificationEmail(user);
-  return { message: 'Registration successful. Please verify your email.' };
+    return { message: 'Registration successful. Please verify your email.' };
   }
 
   @UseGuards(LocalAuthGuard)
   @Post('login')
-  login(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
+  login(@Req() req: any) {
+    return this.authService.signIn(req.user);
   }
 
-  
   @UseGuards(JwtRefreshGuard)
- @Post('refresh')
-  refresh(@Body() dto :RefreshDto) {
-    return this.authService.renewTokens(dto.refreshToken);
-  } 
+  @Post('refresh')
+  refresh(@Req() req: any) {
+    return this.authService.renewTokens(req.user);
+  }
 
-    // Step 1: Redirect to Google OAuth
+  // Step 1: Redirect to Google OAuth
   @Get('google')
   @UseGuards(AuthGuard('google'))
   async googleAuth() {
@@ -47,8 +43,6 @@ export class AuthController {
   @Get('google/callback')
   @UseGuards(AuthGuard('google'))
   async googleCallback(@Req() req: any) {
-    const oauthUser = req.user;
-
-
-  return this.authService.googleLogin(req.user);  }
+    return this.authService.googleLogin(req.user);
+  }
 }
