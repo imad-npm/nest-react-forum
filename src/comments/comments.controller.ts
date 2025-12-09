@@ -23,7 +23,6 @@ import { CommentPipe } from 'src/common/pipes/comment.pipe';
 import { Post as PostEntity } from 'src/posts/entities/post.entity';
 import { PostPipe } from 'src/common/pipes/post.pipe';
 import { CaslAbilityFactory } from 'src/casl/casl-ability.factory';
-
 @Controller()
 export class CommentsController {
   constructor(
@@ -44,7 +43,12 @@ export class CommentsController {
     @Body() dto: CreateCommentDto,
     @GetUser() user: User,
   ) {
-    return this.commentsService.createForPost(post, dto, user);
+    return this.commentsService.createForPost(
+      post,
+      dto.content,
+      user,
+      dto.parentId,
+    );
   }
 
   @Get('comments/:id')
@@ -60,14 +64,11 @@ export class CommentsController {
     @Body() dto: UpdateCommentDto,
     @GetUser() user: User,
   ) {
-    // Check permission against the SPECIFIC comment instance
     const ability = this.caslAbilityFactory.createForUser(user);
-    
     if (!ability.can(Action.Update, comment)) {
       throw new ForbiddenException('You are not allowed to update this comment');
     }
-
-    return this.commentsService.update(comment, dto);
+    return this.commentsService.update(comment, dto.content);
   }
 
   @Delete('comments/:id')
@@ -77,13 +78,10 @@ export class CommentsController {
     @Param('id', CommentPipe) comment: Comment,
     @GetUser() user: User,
   ) {
-    // Check permission against the SPECIFIC comment instance
     const ability = this.caslAbilityFactory.createForUser(user);
-    
     if (!ability.can(Action.Delete, comment)) {
       throw new ForbiddenException('You are not allowed to delete this comment');
     }
-
     return this.commentsService.remove(comment);
   }
 }
