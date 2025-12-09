@@ -2,8 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Post } from './entities/post.entity';
-import { CreatePostDto } from './dto/create-post.dto';
-import { UpdatePostDto } from './dto/update-post.dto';
 import { User } from 'src/users/entities/user.entity';
 
 @Injectable()
@@ -26,20 +24,18 @@ export class PostsService {
     });
   }
 
-  create(dto: CreatePostDto, author: User): Promise<Post> {
+  create(title: string, content: string, author: User): Promise<Post> {
     const post = this.postsRepository.create({
-      ...dto,
+      title,
+      content,
       author,
     });
-
     return this.postsRepository.save(post);
   }
 
-  async update(post: Post, dto: UpdatePostDto): Promise<Post> {
-   
-    Object.assign(post, dto);
-    console.log(dto);
-    
+  async update(post: Post, title?: string, content?: string): Promise<Post> {
+    if (title !== undefined) post.title = title;
+    if (content !== undefined) post.content = content;
     return this.postsRepository.save(post);
   }
 

@@ -19,7 +19,7 @@ import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { PostPipe } from 'src/common/pipes/post.pipe';
 import { PoliciesGuard } from 'src/casl/policies.guard';
 import { Action } from 'src/casl/casl.types';
-import { AppAbility, CaslAbilityFactory } from 'src/casl/casl-ability.factory';
+import { CaslAbilityFactory } from 'src/casl/casl-ability.factory';
 import { CheckPolicies } from 'src/casl';
 
 @Controller('posts')
@@ -46,7 +46,7 @@ export class PostsController {
     @Body() dto: CreatePostDto,
     @GetUser() user: User,
   ): Promise<PostEntity> {
-    return this.postsService.create(dto, user);
+    return this.postsService.create(dto.title, dto.content, user);
   }
 
   @Patch(':id')
@@ -59,14 +59,12 @@ export class PostsController {
   ) {
     // 1. Generate the ability for the current user
     const ability = this.caslAbilityFactory.createForUser(user);
-
     // 2. Check permission against the SPECIFIC post instance
     // This triggers the rule: can(Action.Update, Post, { authorId: user.id })
     if (!ability.can(Action.Update, post)) {
       throw new ForbiddenException('You are not allowed to update this post');
     }
-
-    return this.postsService.update(post, dto);
+    return this.postsService.update(post, dto.title, dto.content);
   }
 
   @Delete(':id')
@@ -78,12 +76,10 @@ export class PostsController {
   ) {
     // 1. Generate the ability for the current user
     const ability = this.caslAbilityFactory.createForUser(user);
-
     // 2. Check permission against the SPECIFIC post instance
     if (!ability.can(Action.Delete, post)) {
       throw new ForbiddenException('You are not allowed to delete this post');
     }
-
     return this.postsService.remove(post);
   }
 }

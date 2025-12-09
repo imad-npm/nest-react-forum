@@ -1,9 +1,12 @@
 // src/reactions/reactions.service.ts
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Reaction, ReactionType } from './entities/reaction.entity';
-import { CreateReactionDto } from './dto/create-reaction.dto';
 import { User } from '../users/entities/user.entity';
 
 @Injectable()
@@ -14,26 +17,20 @@ export class ReactionsService {
   ) {}
 
   /**
-   * Create a new reaction.
-   * Does NOT toggle or update existing ones.
-   * If user already reacted → throws ForbiddenException (client should delete first)
+   * Create a new reaction (like/dislike) on post or comment
+   * One reaction per user per target allowed
    */
-  async create({
-    dto,
-    user,
-    postId,
-    commentId,
-  }: {
-    dto: CreateReactionDto;
-    user: User;
-    postId?: number;
-    commentId?: number;
-  }): Promise<Reaction> {
+  async create(
+    type: ReactionType,
+    user: User,
+    postId?: number,
+    commentId?: number,
+  ): Promise<Reaction> {
     if (!postId && !commentId) {
       throw new NotFoundException('Reaction must target a post or a comment.');
     }
 
-    // Check if user already has a reaction on this target
+    // Prevent duplicate reaction
     const existing = await this.repo.findOne({
       where: {
         user: { id: user.id },
@@ -47,20 +44,16 @@ export class ReactionsService {
       );
     }
 
-    // Create new reaction
     const reaction = this.repo.create({
-      type: dto.type,
+      type,
       user,
       post: postId ? { id: postId } : null,
       comment: commentId ? { id: commentId } : null,
     });
 
-    return await this.repo.save(reaction);
+    return this.repo.save(reaction);
   }
 
-  /**
-   * Find all reactions for a post
-   */
   findByPost(postId: number) {
     return this.repo.find({
       where: { post: { id: postId } },
@@ -74,9 +67,6 @@ export class ReactionsService {
     });
   }
 
-  /**
-   * Find all reactions for a comment
-   */
   findByComment(commentId: number) {
     return this.repo.find({
       where: { comment: { id: commentId } },
@@ -90,19 +80,10 @@ export class ReactionsService {
     });
   }
 
-  /**
-   * Delete a reaction by ID
-   * Only called from controller where @CheckAbility(Action.Delete, Reaction) ensures ownership
-   */
   async delete(reaction: Reaction): Promise<void> {
-  
-
     await this.repo.remove(reaction);
   }
 
-  /**
-   * Optional: Helper to get current user's reaction on a target (useful for frontend)
-   */
   async getUserReactionOnTarget(
     userId: number,
     postId?: number,

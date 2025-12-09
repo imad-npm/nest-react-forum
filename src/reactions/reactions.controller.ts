@@ -1,4 +1,13 @@
-import { Controller, Post, Get, Body, Param, Delete, UseGuards, ForbiddenException } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Body,
+  Param,
+  Delete,
+  UseGuards,
+  ForbiddenException,
+} from '@nestjs/common';
 import { ReactionsService } from './reactions.service';
 import { CreateReactionDto } from './dto/create-reaction.dto';
 import { User } from 'src/users/entities/user.entity';
@@ -25,12 +34,12 @@ export class ReactionsController {
   @Post('posts/:postId/reactions')
   @UseGuards(JwtAuthGuard, PoliciesGuard)
   @CheckPolicies((ability) => ability.can(Action.Create, Reaction))
-  createPostReaction(
+  async createPostReaction(
     @Param('postId', PostPipe) post: PostEntity,
     @Body() dto: CreateReactionDto,
     @GetUser() user: User,
   ) {
-    return this.reactionsService.create({ dto, user, postId: post.id });
+    return this.reactionsService.create(dto.type, user, post.id);
   }
 
   @Get('posts/:postId/reactions')
@@ -41,12 +50,12 @@ export class ReactionsController {
   @Post('comments/:commentId/reactions')
   @UseGuards(JwtAuthGuard, PoliciesGuard)
   @CheckPolicies((ability) => ability.can(Action.Create, Reaction))
-  createCommentReaction(
+  async createCommentReaction(
     @Param('commentId', CommentPipe) comment: CommentEntity,
     @Body() dto: CreateReactionDto,
     @GetUser() user: User,
   ) {
-    return this.reactionsService.create({ dto, user, commentId: comment.id });
+    return this.reactionsService.create(dto.type, user, undefined, comment.id);
   }
 
   @Get('comments/:commentId/reactions')
@@ -57,13 +66,12 @@ export class ReactionsController {
   @Delete('reactions/:reactionId')
   @UseGuards(JwtAuthGuard, PoliciesGuard)
   @CheckPolicies((ability) => ability.can(Action.Delete, Reaction))
-  deleteReaction(
+  async deleteReaction(
     @Param('reactionId', ReactionPipe) reaction: Reaction,
     @GetUser() user: User,
   ) {
-    // Check permission against the SPECIFIC reaction instance
     const ability = this.caslAbilityFactory.createForUser(user);
-    
+
     if (!ability.can(Action.Delete, reaction)) {
       throw new ForbiddenException('You are not allowed to delete this reaction');
     }
