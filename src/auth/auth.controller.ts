@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards, Request } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Request, Get, Req } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dtos/login.dto';
 import { RegisterDto } from './dtos/register.dto';
@@ -7,6 +7,7 @@ import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 import { EmailVerificationService } from 'src/email-verification/email-verification.service';
 import { RefreshDto } from './dtos/refresh.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { AuthGuard } from '@nestjs/passport';
 
 @Controller('auth')
 export class AuthController {
@@ -29,10 +30,25 @@ export class AuthController {
   }
 
   
-
   @UseGuards(JwtRefreshGuard)
  @Post('refresh')
   refresh(@Body() dto :RefreshDto) {
     return this.authService.renewTokens(dto.refreshToken);
   } 
+
+    // Step 1: Redirect to Google OAuth
+  @Get('google')
+  @UseGuards(AuthGuard('google'))
+  async googleAuth() {
+    // Passport automatically redirects to Google
+  }
+
+  // Step 2: Google callback → GoogleStrategy.validate() → req.user
+  @Get('google/callback')
+  @UseGuards(AuthGuard('google'))
+  async googleCallback(@Req() req: any) {
+    const oauthUser = req.user;
+
+
+  return this.authService.googleLogin(req.user);  }
 }

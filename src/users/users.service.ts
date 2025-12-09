@@ -2,8 +2,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import * as bcrypt from 'bcrypt';
 import { User } from './entities/user.entity';
-import { RegisterDto } from 'src/auth/dtos/register.dto';
+import { CreateUserDto } from './dtos/create-user.dto';
+import { UpdateUserDto } from './dtos/update-user.dto';
+
 
 @Injectable()
 export class UsersService {
@@ -12,60 +15,77 @@ export class UsersService {
     private readonly repo: Repository<User>,
   ) {}
 
-  /**
-   * Fetches a user by ID from the database.
-   * Throws NotFoundException if the user does not exist.
-   */
+  // ---------------------------------------
+  // Base find helper (DRY but minimal)
+  // ---------------------------------------
+  private async find(where: any, message: string): Promise<User> {
+    const user = await this.repo.findOne({ where });
+    if (!user) throw new NotFoundException(message);
+    return user;
+  }
+
   async findOneById(id: number): Promise<User> {
-    const user = await this.repo.findOne({
-      where: { id },
-    });
-
-    if (!user) {
-      throw new NotFoundException(`User with ID ${id} not found.`);
-    }
-
-    return user;
+    return this.find({ id }, `User with ID ${id} not found.`);
   }
 
-  /**
-   * Fetches a user by email from the database.
-   * Throws NotFoundException if the user does not exist.
-   */
   async findByEmail(email: string): Promise<User> {
-    const user = await this.repo.findOne({
-      where: { email },
-    });
-
-    if (!user) {
-      throw new NotFoundException(`User with email ${email} not found.`);
-    }
-
-    return user;
+    return this.find({ email }, `User with email ${email} not found.`);
   }
 
-    async createUser(dto: RegisterDto, hashedPassword: string): Promise<User> {
-    const user = this.repo.create({
-      ...dto,
-      password: hashedPassword,
-    });
+  // ---------------------------------------
+  // Create (OWN logic)
+  // ---------------------------------------
+  async createUser(dto: CreateUserDto): Promise<User> {
+    const user = this.repo.create();
+
+    user.name = dto.name ;
+    user.email = dto.email ;
+
+    user.provider = dto.provider ?? null;
+    user.providerId = dto.providerId ?? null;
+
+    user.password = dto.password
+      ? await bcrypt.hash(dto.password, 10)
+      : null;
+
+    user.emailVerifiedAt =
+      dto.emailVerifiedAt ??
+      (dto.password ? null : new Date());
 
     return this.repo.save(user);
   }
 
-  async markEmailAsVerified(userId: number): Promise<void> {
-    const user = await this.repo.findOne({ where: { id: userId } });
-    if (!user) {
-      throw new NotFoundException(`User with ID ${userId} not found.`);
-    }
-    
-    // Check if already verified to prevent unnecessary database writes
-    if (user.emailVerifiedAt) {
-        return; 
-    }
+  
+// ---------------------------------------
+// Update (Slimmed logic)
+// ---------------------------------------
+async updateUser(user: User, dto: UpdateUserDto): Promise<User> {
+  const { password, ...rest } = dto; // Separate password for hashing
 
-    // Set the verification timestamp
-    user.emailVerifiedAt = new Date(); 
-    await this.repo.save(user);
+  // 1. Update basic fields dynamically (only if they exist in dto)
+  Object.assign(user, rest);
+  
+  // 2. Handle password hashing separately if it exists
+  if (password !== undefined) {
+    user.password = password
+      ? await bcrypt.hash(password, 10)
+      : null;
+  }
+
+  // TypeORM's save handles both creation and update, 
+  // and only updates fields that have changed.
+  return this.repo.save(user);
+}
+
+// ---------------------------------------
+  // Email verification
+  // ---------------------------------------
+  async markEmailAsVerified(id: number): Promise<void> {
+    const user = await this.findOneById(id);
+
+    if (!user.emailVerifiedAt) {
+      user.emailVerifiedAt = new Date();
+      await this.repo.save(user);
+    }
   }
 }

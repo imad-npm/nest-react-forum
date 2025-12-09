@@ -25,16 +25,16 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "typeorm": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js",
-      "migration:run": "npm run typeorm -- migration:run -d ./src/data-source.ts",
-
+    "migration:run": "npm run typeorm -- migration:run -d ./src/data-source.ts",
     "migration:generate": "ts-node ./node_modules/typeorm/cli.js migration:generate -d ./src/data-source.ts",
-  "mg": "ts-node ./node_modules/typeorm/cli.js migration:generate -d ./src/data-source.ts ./src/database/migrations/$npm_config_name" ,
+    "mg": "ts-node ./node_modules/typeorm/cli.js migration:generate -d ./src/data-source.ts ./src/database/migrations/$npm_config_name",
     "migration:revert": "npm run typeorm -- migration:revert -d ./src/data-source.ts",
     "seed": "ts-node src/database/seeds/index.ts",
     "db:drop": "npm run typeorm -- schema:drop -d ./src/data-source.ts"
   },
   "dependencies": {
     "@casl/ability": "^6.7.3",
+    "@nestjs-modules/mailer": "^2.0.2",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.0.1",
@@ -49,6 +49,7 @@
     "handlebars": "^4.7.8",
     "nodemailer": "^7.0.11",
     "passport": "^0.7.0",
+    "passport-google-oauth20": "^2.0.0",
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0",
     "reflect-metadata": "^0.2.2",
@@ -655,8 +656,11 @@ bootstrap();
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import * as bcrypt from 'bcrypt';
 import { User } from './entities/user.entity';
-import { RegisterDto } from 'src/auth/dtos/register.dto';
+import { CreateUserDto } from './dtos/create-user.dto';
+import { UpdateUserDto } from './dtos/update-user.dto';
+
 
 @Injectable()
 export class UsersService {
@@ -665,63 +669,107 @@ export class UsersService {
     private readonly repo: Repository<User>,
   ) {}
 
-  /**
-   * Fetches a user by ID from the database.
-   * Throws NotFoundException if the user does not exist.
-   */
+  // ---------------------------------------
+  // Base find helper (DRY but minimal)
+  // ---------------------------------------
+  private async find(where: any, message: string): Promise<User> {
+    const user = await this.repo.findOne({ where });
+    if (!user) throw new NotFoundException(message);
+    return user;
+  }
+
   async findOneById(id: number): Promise<User> {
-    const user = await this.repo.findOne({
-      where: { id },
-    });
-
-    if (!user) {
-      throw new NotFoundException(`User with ID ${id} not found.`);
-    }
-
-    return user;
+    return this.find({ id }, `User with ID ${id} not found.`);
   }
 
-  /**
-   * Fetches a user by email from the database.
-   * Throws NotFoundException if the user does not exist.
-   */
   async findByEmail(email: string): Promise<User> {
-    const user = await this.repo.findOne({
-      where: { email },
-    });
-
-    if (!user) {
-      throw new NotFoundException(`User with email ${email} not found.`);
-    }
-
-    return user;
+    return this.find({ email }, `User with email ${email} not found.`);
   }
 
-    async createUser(dto: RegisterDto, hashedPassword: string): Promise<User> {
-    const user = this.repo.create({
-      ...dto,
-      password: hashedPassword,
-    });
+  // ---------------------------------------
+  // Create (OWN logic)
+  // ---------------------------------------
+  async createUser(dto: CreateUserDto): Promise<User> {
+    const user = this.repo.create();
+
+    user.name = dto.name ;
+    user.email = dto.email ;
+
+    user.provider = dto.provider ?? null;
+    user.providerId = dto.providerId ?? null;
+
+    user.password = dto.password
+      ? await bcrypt.hash(dto.password, 10)
+      : null;
+
+    user.emailVerifiedAt =
+      dto.emailVerifiedAt ??
+      (dto.password ? null : new Date());
 
     return this.repo.save(user);
   }
 
-  async markEmailAsVerified(userId: number): Promise<void> {
-    const user = await this.repo.findOne({ where: { id: userId } });
-    if (!user) {
-      throw new NotFoundException(`User with ID ${userId} not found.`);
-    }
-    
-    // Check if already verified to prevent unnecessary database writes
-    if (user.emailVerifiedAt) {
-        return; 
-    }
+  
+// ---------------------------------------
+// Update (Slimmed logic)
+// ---------------------------------------
+async updateUser(user: User, dto: UpdateUserDto): Promise<User> {
+  const { password, ...rest } = dto; // Separate password for hashing
 
-    // Set the verification timestamp
-    user.emailVerifiedAt = new Date(); 
-    await this.repo.save(user);
+  // 1. Update basic fields dynamically (only if they exist in dto)
+  Object.assign(user, rest);
+  
+  // 2. Handle password hashing separately if it exists
+  if (password !== undefined) {
+    user.password = password
+      ? await bcrypt.hash(password, 10)
+      : null;
+  }
+
+  // TypeORM's save handles both creation and update, 
+  // and only updates fields that have changed.
+  return this.repo.save(user);
+}
+
+// ---------------------------------------
+  // Email verification
+  // ---------------------------------------
+  async markEmailAsVerified(id: number): Promise<void> {
+    const user = await this.findOneById(id);
+
+    if (!user.emailVerifiedAt) {
+      user.emailVerifiedAt = new Date();
+      await this.repo.save(user);
+    }
   }
 }
+
+---
+
+
+### FILE: src/users/dtos/create-user.dto.ts ###
+// src/users/dtos/create-user.dto.ts
+
+export class CreateUserDto {
+  name: string;
+  email: string;
+  password?: string | null;
+  provider?: 'google' | 'github' | null;
+  providerId?: string | null;
+  emailVerifiedAt?: Date | null;
+  picture?: string | null;
+}
+
+---
+
+
+### FILE: src/users/dtos/update-user.dto.ts ###
+// src/users/dtos/update-user.dto.ts
+import { PartialType } from '@nestjs/mapped-types';
+import { CreateUserDto } from './create-user.dto';
+
+// Makes all fields from CreateUserDto optional for update operations
+export class UpdateUserDto extends PartialType(CreateUserDto) {}
 
 ---
 
@@ -760,11 +808,17 @@ export class User {
   @Column({ type: 'varchar', length: 100, unique: true })
   email: string;
 
-  @Column({ type: 'varchar' })
-  password: string;
+  @Column({ type: 'varchar', nullable: true })
+  password: string | null;
 
   @Column({ type: 'datetime', nullable: true, default: null })
   emailVerifiedAt: Date | null; // 👈 NEW FIELD
+
+  @Column({ type: 'enum', enum: ['google', 'github'], nullable: true, default: null })
+  provider: 'google' | 'github' | null;
+
+  @Column({ nullable: true })
+  providerId: string | null; // Google's profile.id
 
   // Relations
   @OneToMany(() => Post, post => post.author)
@@ -1226,7 +1280,7 @@ export class EmailVerificationController {
   @Post('send')
   async send(@Body() dto: SendVerificationDto) {
     // Try to find the user by ID
-    const user = await this.usersService.findOneById(dto.userId);
+    const user = await this.usersService.findByEmail(dto.email);
 
     if (user && !user.emailVerifiedAt) {
       // Only send verification if user exists and email not verified
@@ -1290,47 +1344,26 @@ export class EmailVerificationToken {
 
 
 ### FILE: src/email-verification/email-verification.service.ts ###
-import { Injectable, BadRequestException, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, BadRequestException, InternalServerErrorException, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { randomUUID } from 'crypto';
 import { EmailVerificationToken } from './entities/email-verification-token.entity';
-import * as nodemailer from 'nodemailer';
-import { ConfigService } from '@nestjs/config';
-import * as fs from 'fs';
-import * as path from 'path';
-import * as Handlebars from 'handlebars';
 import { User } from 'src/users/entities/user.entity';
-import { use } from 'passport';
-
+import type { IMailService } from 'src/mail/interfaces/mail-service.interface';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class EmailVerificationService {
-  private transporter: nodemailer.Transporter;
-  private EXPIRATION_MS = 15 * 60 * 1000; // 15 minutes
+  private readonly EXPIRATION_MS = 15 * 60 * 1000; // 15 minutes
 
   constructor(
     @InjectRepository(EmailVerificationToken)
     private readonly tokenRepo: Repository<EmailVerificationToken>,
     private readonly configService: ConfigService,
-  ) {
-  this.transporter = nodemailer.createTransport({
-  host: this.configService.get<string>('SMTP_HOST'),
-  port: this.configService.get<number>('SMTP_PORT'),
-  secure: false,
-  // Only add auth if SMTP_USER and SMTP_PASS are defined
-  ...(this.configService.get<string>('SMTP_USER') &&
-  this.configService.get<string>('SMTP_PASS')
-    ? {
-        auth: {
-          user: this.configService.get<string>('SMTP_USER'),
-          pass: this.configService.get<string>('SMTP_PASS'),
-        },
-      }
-    : {}),
-});
-
-  }
+    @Inject('IMailService')
+    private readonly mailService: IMailService,
+  ) { }
 
   private async deleteExistingTokens(userId: number): Promise<void> {
     await this.tokenRepo.delete({ userId });
@@ -1350,34 +1383,24 @@ export class EmailVerificationService {
     return token;
   }
 
-  /**
-   * Generates verification URL dynamically from config domain
-   */
   private generateVerificationLink(token: string): string {
+    // You can move APP_DOMAIN to ConfigService if needed
     const domain = this.configService.get<string>('APP_DOMAIN'); // e.g. https://myapp.com
     const path = '/email/verify';
     return `${domain}${path}?token=${token}`;
   }
 
-  async sendVerificationEmail(user : User): Promise<void> {
+  async sendVerificationEmail(user: User): Promise<void> {
     const token = await this.generateToken(user.id);
     const verifyUrl = this.generateVerificationLink(token);
 
-    // Load and compile the Handlebars template
-const templatePath = path.resolve('src/email-verification/templates/verify-email.hbs');
-const source = fs.readFileSync(templatePath, 'utf-8');
-
-    const template = Handlebars.compile(source);
-    const name =user.name
-    const html = template({ name, verifyUrl });
-
     try {
-      await this.transporter.sendMail({
-        from:  this.configService.get<string>('SMTP_FROM')  ,
-        to: user.email,
-        subject: 'Verify Your Email',
-        html,
-      });
+      await this.mailService.sendEmail(
+        user.email,
+        'Verify Your Email',
+        'verify-email',       // templateName (templates/verify-email.hbs)
+        { name: user.name, verifyUrl } // context for the template
+      );
     } catch (err) {
       console.error('Error sending verification email:', err);
       throw new InternalServerErrorException('Failed to send verification email');
@@ -1411,11 +1434,13 @@ export class VerifyEmailDto {
 
 
 ### FILE: src/email-verification/dto/send-verification.dto.ts ###
+import { IsEmail, IsNotEmpty } from 'class-validator';
+
 export class SendVerificationDto {
-  userId: number;
+  @IsNotEmpty()
+  @IsEmail()
+  email: string; // ✅ Use email, a public identifier
 }
-
-
 ---
 
 
@@ -1427,10 +1452,12 @@ import { EmailVerificationService } from './email-verification.service';
 import { EmailVerificationController } from './email-verification.controller';
 import { EmailVerificationToken } from './entities/email-verification-token.entity';
 import { UsersModule } from 'src/users/users.module';
+import { MailModule } from 'src/mail/mail.module';
 
 @Module({
   imports: [TypeOrmModule.forFeature([EmailVerificationToken]) ,
-  UsersModule
+  UsersModule ,
+  MailModule
 
 ],
   controllers: [EmailVerificationController],
@@ -1846,7 +1873,7 @@ export class CreatePostDto {
 
 ### FILE: src/auth/auth.service.ts ###
 // src/auth/auth.service.ts
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../users/users.service';
@@ -1854,50 +1881,82 @@ import * as bcrypt from 'bcrypt';
 import { RegisterDto } from './dtos/register.dto';
 import { LoginDto } from './dtos/login.dto';
 import { EmailVerificationService } from 'src/email-verification/email-verification.service';
+import { User } from 'src/users/entities/user.entity';
 
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly users: UsersService,
+    private readonly userService: UsersService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService, // inject ConfigService
- private readonly emailVerificationService: EmailVerificationService,
-  ) {}
+  ) { }
 
   async register(dto: RegisterDto) {
-    const hashed = await bcrypt.hash(dto.password, 10);
-    const user = await this.users.createUser(dto, hashed);
-    await this.emailVerificationService.sendVerificationEmail(user);
-// DO NOT RETURN TOKENS
-  return {
-    message: 'Registration successful. Please check your email to verify your account.',
-  };
+    const user = await this.userService.createUser(dto);
+    return user;
   }
 
   async validateUser(email: string, pass: string) {
-    const user = await this.users.findByEmail(email);
-    if (!user) return null;
+    const user = await this.userService.findByEmail(email);
+
+    if (!user || user.password === null) {
+      return null;
+    }
+
     const isMatch = await bcrypt.compare(pass, user.password);
     return isMatch ? user : null;
   }
 
   async login(dto: LoginDto) {
-    const user = await this.users.findByEmail(dto.email);
+    const user = await this.userService.findByEmail(dto.email);
     // ← THIS IS THE CRITICAL LINE
-  if (!user.emailVerifiedAt) {
-    await this.emailVerificationService.sendVerificationEmail(user);
-    throw new UnauthorizedException(
-      'Please verify your email address. A new verification link has been sent.',
-    );
-  }
+    if (!user.emailVerifiedAt) {
+      throw new UnauthorizedException('Email not verified.');
+    }
     return this.generateTokens(user);
   }
+  // src/auth/auth.service.ts
+  async googleLogin(oauthUser: any) {
+    if (!oauthUser?.email) {
+      throw new BadRequestException('Google account has no accessible email');
+    }
 
-  async refreshToken(refreshToken: string) {
+    let user: User | null = null;
+
+    try {
+      // If exists → load
+      user = await this.userService.findByEmail(oauthUser.email);
+    } catch (_) {
+      user = null; // Not found
+    }
+
+    if (!user) {
+      // CREATE a new user
+      return this.userService.createUser({
+        email: oauthUser.email,
+        name: oauthUser.fullName,
+        provider: 'google',
+        providerId: oauthUser.id,
+        emailVerifiedAt: new Date(),
+        picture: oauthUser.picture,
+      });
+    }
+
+    // UPDATE existing user
+    return this.userService.updateUser(user, {
+      name: oauthUser.fullName,
+      provider: 'google',
+      providerId: oauthUser.id,
+      emailVerifiedAt: user.emailVerifiedAt ?? new Date(),
+    });
+  }
+
+
+  async renewTokens(refreshToken: string) {
     const payload = this.jwt.verify(refreshToken, {
       secret: this.config.get<string>('JWT_REFRESH_SECRET'), // use ConfigService
     });
-    const user = await this.users.findOneById(payload.sub);
+    const user = await this.userService.findOneById(payload.sub);
     return this.generateTokens(user);
   }
 
@@ -1951,21 +2010,42 @@ export class LoginDto {
 ---
 
 
+### FILE: src/auth/dtos/refresh.dto.ts ###
+import { IsString, IsNotEmpty } from 'class-validator';
+
+export class RefreshDto {
+  @IsString()
+  @IsNotEmpty()
+  refreshToken: string;
+}
+
+---
+
+
 ### FILE: src/auth/auth.controller.ts ###
-import { Controller, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Request, Get, Req } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dtos/login.dto';
 import { RegisterDto } from './dtos/register.dto';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
+import { EmailVerificationService } from 'src/email-verification/email-verification.service';
+import { RefreshDto } from './dtos/refresh.dto';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { AuthGuard } from '@nestjs/passport';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly authService: AuthService ,
+     private readonly emailVerificationService: EmailVerificationService,
+
+  ) {}
 
   @Post('register')
-  register(@Body() dto: RegisterDto) {
-    return this.authService.register(dto);
+  async register(@Body() dto: RegisterDto) {
+    const user= await this.authService.register(dto);
+    await this.emailVerificationService.sendVerificationEmail(user);
+  return { message: 'Registration successful. Please verify your email.' };
   }
 
   @UseGuards(LocalAuthGuard)
@@ -1974,11 +2054,41 @@ export class AuthController {
     return this.authService.login(dto);
   }
 
+  
   @UseGuards(JwtRefreshGuard)
-  @Post('refresh')
-  refresh(@Body() dto) {
-    return this.authService.refreshToken(dto.refreshToken);
+ @Post('refresh')
+  refresh(@Body() dto :RefreshDto) {
+    return this.authService.renewTokens(dto.refreshToken);
+  } 
+
+    // Step 1: Redirect to Google OAuth
+  @Get('google')
+  @UseGuards(AuthGuard('google'))
+  async googleAuth() {
+    // Passport automatically redirects to Google
   }
+
+  // Step 2: Google callback → GoogleStrategy.validate() → req.user
+  @Get('google/callback')
+  @UseGuards(AuthGuard('google'))
+  async googleCallback(@Req() req: any) {
+    const oauthUser = req.user;
+
+    let user = await this.userService.findOne({ where: { email: oauthUser.email } });
+
+    if (!user) {
+      // Create a new user if one doesn't exist
+      user = this.userService.create(payload);
+      await this.userService.save(user);
+    } else {
+      // Optional: Update user details (name, picture, etc.) on every login
+      user.firstName = payload.firstName;
+      user.lastName = payload.lastName;
+      user.picture = payload.picture;
+      await this.userService.save(user);
+    }
+
+  return this.authService.googleLogin(req.user);  }
 }
 
 ---
@@ -2074,6 +2184,54 @@ export class LocalStrategy extends PassportStrategy(Strategy, 'local') {
 ---
 
 
+### FILE: src/auth/strategies/google.strategy.ts ###
+import { Injectable } from '@nestjs/common';
+import { PassportStrategy } from '@nestjs/passport';
+import { Strategy, VerifyCallback } from 'passport-google-oauth20';
+import { AuthService } from '../auth.service';
+import { ConfigService } from '@nestjs/config';
+
+@Injectable()
+export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
+  constructor(
+    private readonly authService: AuthService,
+    private readonly config: ConfigService,
+  ) {
+    super({
+      clientID: config.get<string>('GOOGLE_CLIENT_ID'),
+      clientSecret: config.get<string>('GOOGLE_CLIENT_SECRET'),
+      callbackURL: config.get<string>('GOOGLE_CALLBACK_URL'),
+      scope: ['email', 'profile'],
+      passReqToCallback: false,
+    });
+  }
+
+  // profile comes from Google; map to our OAuthUser shape
+  async validate(
+    accessToken: string,
+    refreshToken: string,
+    profile: any,
+    done: VerifyCallback,
+  ): Promise<any> {
+    try {
+      const emailObj = (profile.emails && profile.emails[0]) || { value: undefined };
+      const oauthUser = {
+        provider: 'google',
+        providerId: profile.id,
+        email: emailObj.value,
+        name: profile.displayName,
+      };
+
+      // return the object that will be available as req.user
+      return done(null, oauthUser);
+    } catch (err) {
+      return done(err as Error, false);
+    }
+  }
+}
+---
+
+
 ### FILE: src/auth/strategies/jwt.strategy.ts ###
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
@@ -2146,6 +2304,91 @@ export class JwtRefreshStrategy extends PassportStrategy(
       return user;
     }
 }
+
+---
+
+
+### FILE: src/mail/interfaces/mail-service.interface.ts ###
+export interface IMailService {
+  sendEmail(
+    to: string,
+    subject: string,
+    templateName: string,
+    context: any
+  ): Promise<void>;
+}
+
+---
+
+
+### FILE: src/mail/services/nodemailer-mail.service.ts ###
+import { Injectable } from '@nestjs/common';
+import { MailerService } from '@nestjs-modules/mailer';
+import { IMailService } from '../interfaces/mail-service.interface';
+
+@Injectable()
+export class NodemailerMailService implements IMailService {
+  constructor(private readonly mailerService: MailerService) {}
+
+  async sendEmail(
+    to: string,
+    subject: string,
+    templateName: string,
+    context: any
+  ): Promise<void> {
+    await this.mailerService.sendMail({
+      to,
+      subject,
+      template: templateName,
+      context,
+    });
+  }
+}
+
+---
+
+
+### FILE: src/mail/mail.module.ts ###
+import { Module } from '@nestjs/common';
+import { MailerModule } from '@nestjs-modules/mailer';
+import { NodemailerMailService } from './services/nodemailer-mail.service';
+import { IMailService } from './interfaces/mail-service.interface';
+import { ConfigService } from '@nestjs/config';
+import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
+@Module({
+  imports: [
+    MailerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        transport: {
+          host: config.get('SMTP_HOST'),
+          port: config.get('SMTP_PORT'),
+          secure: false,
+         /* auth: {
+            user: config.get('SMTP_USER'),
+            pass: config.get('SMTP_PASS'),
+          },*/
+        },
+        defaults: {
+          from: config.get('SMTP_FROM'),
+        },
+        template: {
+          dir: process.cwd() + '/src/mail/templates',
+          adapter: new HandlebarsAdapter(),
+          options: { strict: true },
+        },
+      }),
+    }),
+  ],
+  providers: [
+    {
+      provide: 'IMailService',
+      useClass: NodemailerMailService,
+    },
+  ],
+  exports: ['IMailService'],
+})
+export class MailModule { }
 
 ---
 

@@ -15,11 +15,17 @@ export class User {
   @Column({ type: 'varchar', length: 100, unique: true })
   email: string;
 
-  @Column({ type: 'varchar' })
-  password: string;
+  @Column({ type: 'varchar', nullable: true })
+  password: string | null;
 
   @Column({ type: 'datetime', nullable: true, default: null })
   emailVerifiedAt: Date | null; // 👈 NEW FIELD
+
+  @Column({ type: 'enum', enum: ['google', 'github'], nullable: true, default: null })
+  provider: 'google' | 'github' | null;
+
+  @Column({ nullable: true })
+  providerId: string | null; // Google's profile.id
 
   // Relations
   @OneToMany(() => Post, post => post.author)
