@@ -23,6 +23,8 @@ import { CommentPipe } from 'src/common/pipes/comment.pipe';
 import { Post as PostEntity } from 'src/posts/entities/post.entity';
 import { PostPipe } from 'src/common/pipes/post.pipe';
 import { CaslAbilityFactory } from 'src/casl/casl-ability.factory';
+import { CommentResponseDto } from './dto/comment-response.dto';
+
 @Controller()
 export class CommentsController {
   constructor(
@@ -31,50 +33,58 @@ export class CommentsController {
   ) {}
 
   @Get('posts/:postId/comments')
-  findByPost(@Param('postId', PostPipe) post: PostEntity) {
-    return this.commentsService.findByPost(post.id);
+  async findByPost(
+    @Param('postId', PostPipe) post: PostEntity,
+  ): Promise<CommentResponseDto[]> {
+    const comments = await this.commentsService.findByPost(post.id);
+    return comments.map(CommentResponseDto.fromEntity);
   }
 
   @HttpPost('posts/:postId/comments')
   @UseGuards(JwtAuthGuard, PoliciesGuard)
   @CheckPolicies((ability) => ability.can(Action.Create, Comment))
-  createForPost(
+  async createForPost(
     @Param('postId', PostPipe) post: PostEntity,
     @Body() dto: CreateCommentDto,
     @GetUser() user: User,
-  ) {
-    return this.commentsService.createForPost(
+  ): Promise<CommentResponseDto> {
+    const comment = await this.commentsService.createForPost(
       post,
       dto.content,
       user,
       dto.parentId,
     );
+    return CommentResponseDto.fromEntity(comment);
   }
 
   @Get('comments/:id')
-  findOne(@Param('id', CommentPipe) comment: Comment) {
-    return comment;
+  findOne(@Param('id', CommentPipe) comment: Comment): CommentResponseDto {
+    return CommentResponseDto.fromEntity(comment);
   }
 
   @Patch('comments/:id')
   @UseGuards(JwtAuthGuard, PoliciesGuard)
   @CheckPolicies((ability) => ability.can(Action.Update, Comment))
-  update(
+  async update(
     @Param('id', CommentPipe) comment: Comment,
     @Body() dto: UpdateCommentDto,
     @GetUser() user: User,
-  ) {
+  ): Promise<CommentResponseDto> {
     const ability = this.caslAbilityFactory.createForUser(user);
     if (!ability.can(Action.Update, comment)) {
       throw new ForbiddenException('You are not allowed to update this comment');
     }
-    return this.commentsService.update(comment, dto.content);
+    const updatedComment = await this.commentsService.update(
+      comment,
+      dto.content,
+    );
+    return CommentResponseDto.fromEntity(updatedComment);
   }
 
   @Delete('comments/:id')
   @UseGuards(JwtAuthGuard, PoliciesGuard)
   @CheckPolicies((ability) => ability.can(Action.Delete, Comment))
-  remove(
+  async remove(
     @Param('id', CommentPipe) comment: Comment,
     @GetUser() user: User,
   ) {
@@ -82,6 +92,6 @@ export class CommentsController {
     if (!ability.can(Action.Delete, comment)) {
       throw new ForbiddenException('You are not allowed to delete this comment');
     }
-    return this.commentsService.remove(comment);
+    return await this.commentsService.remove(comment);
   }
 }

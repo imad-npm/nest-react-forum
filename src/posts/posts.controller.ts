@@ -21,6 +21,7 @@ import { PoliciesGuard } from 'src/casl/policies.guard';
 import { Action } from 'src/casl/casl.types';
 import { CaslAbilityFactory } from 'src/casl/casl-ability.factory';
 import { CheckPolicies } from 'src/casl';
+import { PostResponseDto } from './dto/post-response.dto';
 
 @Controller('posts')
 export class PostsController {
@@ -30,23 +31,25 @@ export class PostsController {
   ) { }
 
   @Get()
-  findAll(): Promise<PostEntity[]> {
-    return this.postsService.findAll();
+  async findAll(): Promise<PostResponseDto[]> {
+    const posts = await this.postsService.findAll();
+    return posts.map(PostResponseDto.fromEntity);
   }
 
   @Get(':id')
-  findOne(@Param('id', PostPipe) post: PostEntity) {
-    return post;
+  findOne(@Param('id', PostPipe) post: PostEntity): PostResponseDto {
+    return PostResponseDto.fromEntity(post);
   }
 
   @HttpPost()
   @UseGuards(JwtAuthGuard, PoliciesGuard)
   @CheckPolicies((ability) => ability.can(Action.Create, PostEntity))
-  create(
+  async create(
     @Body() dto: CreatePostDto,
     @GetUser() user: User,
-  ): Promise<PostEntity> {
-    return this.postsService.create(dto.title, dto.content, user);
+  ): Promise<PostResponseDto> {
+    const post = await this.postsService.create(dto.title, dto.content, user);
+    return PostResponseDto.fromEntity(post);
   }
 
   @Patch(':id')
@@ -56,7 +59,7 @@ export class PostsController {
     @Param('id', PostPipe) post: PostEntity,
     @Body() dto: UpdatePostDto,
     @GetUser() user: User,
-  ) {
+  ): Promise<PostResponseDto> {
     // 1. Generate the ability for the current user
     const ability = this.caslAbilityFactory.createForUser(user);
     // 2. Check permission against the SPECIFIC post instance
@@ -64,7 +67,8 @@ export class PostsController {
     if (!ability.can(Action.Update, post)) {
       throw new ForbiddenException('You are not allowed to update this post');
     }
-    return this.postsService.update(post, dto.title, dto.content);
+    const updatedPost = await this.postsService.update(post, dto.title, dto.content);
+    return PostResponseDto.fromEntity(updatedPost);
   }
 
   @Delete(':id')
@@ -80,6 +84,6 @@ export class PostsController {
     if (!ability.can(Action.Delete, post)) {
       throw new ForbiddenException('You are not allowed to delete this post');
     }
-    return this.postsService.remove(post);
+    return  await this.postsService.remove(post);
   }
 }

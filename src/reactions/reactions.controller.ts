@@ -23,13 +23,14 @@ import { CommentPipe } from 'src/common/pipes/comment.pipe';
 import { Post as PostEntity } from '../posts/entities/post.entity';
 import { Comment as CommentEntity } from '../comments/entities/comment.entity';
 import { CaslAbilityFactory } from 'src/casl/casl-ability.factory';
+import { ReactionResponseDto } from './dto/reaction-response.dto';
 
 @Controller()
 export class ReactionsController {
   constructor(
     private readonly reactionsService: ReactionsService,
     private readonly caslAbilityFactory: CaslAbilityFactory,
-  ) {}
+  ) { }
 
   @Post('posts/:postId/reactions')
   @UseGuards(JwtAuthGuard, PoliciesGuard)
@@ -38,13 +39,17 @@ export class ReactionsController {
     @Param('postId', PostPipe) post: PostEntity,
     @Body() dto: CreateReactionDto,
     @GetUser() user: User,
-  ) {
-    return this.reactionsService.create(dto.type, user, post.id);
+  ): Promise<ReactionResponseDto> {
+    const reaction = await this.reactionsService.create(dto.type, user, post.id);
+    return ReactionResponseDto.fromEntity(reaction);
   }
 
   @Get('posts/:postId/reactions')
-  getPostReactions(@Param('postId', PostPipe) post: PostEntity) {
-    return this.reactionsService.findByPost(post.id);
+  async getPostReactions(
+    @Param('postId', PostPipe) post: PostEntity,
+  ): Promise<ReactionResponseDto[]> {
+    const reactions = await this.reactionsService.findByPost(post.id);
+    return reactions.map(ReactionResponseDto.fromEntity);
   }
 
   @Post('comments/:commentId/reactions')
@@ -54,13 +59,22 @@ export class ReactionsController {
     @Param('commentId', CommentPipe) comment: CommentEntity,
     @Body() dto: CreateReactionDto,
     @GetUser() user: User,
-  ) {
-    return this.reactionsService.create(dto.type, user, undefined, comment.id);
+  ): Promise<ReactionResponseDto> {
+    const reaction = await this.reactionsService.create(
+      dto.type,
+      user,
+      undefined,
+      comment.id,
+    );
+    return ReactionResponseDto.fromEntity(reaction);
   }
 
   @Get('comments/:commentId/reactions')
-  getCommentReactions(@Param('commentId', CommentPipe) comment: CommentEntity) {
-    return this.reactionsService.findByComment(comment.id);
+  async getCommentReactions(
+    @Param('commentId', CommentPipe) comment: CommentEntity,
+  ): Promise<ReactionResponseDto[]> {
+    const reactions = await this.reactionsService.findByComment(comment.id);
+    return reactions.map(ReactionResponseDto.fromEntity);
   }
 
   @Delete('reactions/:reactionId')
@@ -76,6 +90,6 @@ export class ReactionsController {
       throw new ForbiddenException('You are not allowed to delete this reaction');
     }
 
-    return this.reactionsService.delete(reaction);
+    return await this.reactionsService.delete(reaction);
   }
 }
