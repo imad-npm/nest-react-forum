@@ -5,7 +5,7 @@ import * as bcrypt from 'bcrypt';
 import { use } from 'passport';
 
 export async function seedUsers() {
-  await AppDataSource.initialize();
+
   const userRepo = AppDataSource.getRepository(User);
 
   const users: User[] = Array.from({ length: 5 })
@@ -21,7 +21,6 @@ export async function seedUsers() {
   await userRepo.save(users);
   console.log('Seeded 5 users ✅');
 
-  await AppDataSource.destroy();
   return users;
 }
 

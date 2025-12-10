@@ -5,7 +5,6 @@ import { User } from '../../users/entities/user.entity';
 import { Post } from '../../posts/entities/post.entity';
 
 export async function seedComments(users: User[], posts: Post[]) {
-  await AppDataSource.initialize();
   const commentRepo = AppDataSource.getRepository(Comment);
 
   const comments: Comment[] = Array.from({ length: 30 }).map(() => {
@@ -17,7 +16,6 @@ export async function seedComments(users: User[], posts: Post[]) {
   await commentRepo.save(comments);
   console.log('Seeded 30 comments ✅');
 
-  await AppDataSource.destroy();
     return comments; // <-- important!
 }
 

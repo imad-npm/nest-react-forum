@@ -13,7 +13,6 @@ export async function seedReactions(posts: Post[], comments: Comment[], users: U
     throw new Error('At least one user is required to seed reactions.');
   }
 
-  await AppDataSource.initialize();
   const reactionRepo = AppDataSource.getRepository(Reaction);
   const reactions: Reaction[] = [];
 
@@ -39,7 +38,6 @@ export async function seedReactions(posts: Post[], comments: Comment[], users: U
   await reactionRepo.save(reactions);
   console.log(`Seeded ${reactions.length} reactions ✅`);
 
-  await AppDataSource.destroy();
   return reactions;
 }
 

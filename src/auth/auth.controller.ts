@@ -51,4 +51,26 @@ export class AuthController {
       ...tokens,
     };
   }
+
+
+  // Step 1: Redirect to Google OAuth
+  @Get('google')
+  @UseGuards(AuthGuard('google'))
+  async googleAuth() {
+    // Passport automatically redirects to Google
+  }
+
+  // Step 2: Google callback → GoogleStrategy.validate() → req.user
+  @Get('google/callback')
+  @UseGuards(AuthGuard('google'))
+  async googleCallback(@Req() req: { user: any }) {
+    const user = await this.authService.googleLogin(req.user);
+    const tokens = await this.authService.signIn(user);
+    return {
+      user: UserResponseDto.fromEntity(user),
+      ...tokens,
+    };
+  }
+
+
 }
