@@ -792,27 +792,19 @@ export class UpdateUserDto extends PartialType(CreateUserDto) {}
 
 
 ### FILE: src/users/dtos/user-response.dto.ts ###
-import { Exclude, Expose } from 'class-transformer';
+import { Exclude, Expose, plainToInstance } from 'class-transformer';
+import { User } from '../entities/user.entity';
 
 @Exclude()
 export class UserResponseDto {
-  @Expose()
-  id: number;
+  @Expose() readonly id: number;
+  @Expose() readonly name: string;
+  @Expose() readonly email: string;
+  @Expose() readonly emailVerifiedAt: Date | null;
+  @Expose() readonly provider: string | null;
 
-  @Expose()
-  name: string;
-
-  @Expose()
-  email: string;
-
-  @Expose()
-  emailVerifiedAt: Date | null;
-
-  @Expose()
-  provider: string | null;
-
-  constructor(partial: Partial<UserResponseDto>) {
-    Object.assign(this, partial);
+  static fromEntity(entity: User): UserResponseDto {
+    return plainToInstance(UserResponseDto, entity, { excludeExtraneousValues: true });
   }
 }
 
@@ -905,13 +897,14 @@ import { CommentPipe } from 'src/common/pipes/comment.pipe';
 import { Post as PostEntity } from '../posts/entities/post.entity';
 import { Comment as CommentEntity } from '../comments/entities/comment.entity';
 import { CaslAbilityFactory } from 'src/casl/casl-ability.factory';
+import { ReactionResponseDto } from './dto/reaction-response.dto';
 
 @Controller()
 export class ReactionsController {
   constructor(
     private readonly reactionsService: ReactionsService,
     private readonly caslAbilityFactory: CaslAbilityFactory,
-  ) {}
+  ) { }
 
   @Post('posts/:postId/reactions')
   @UseGuards(JwtAuthGuard, PoliciesGuard)
@@ -920,13 +913,17 @@ export class ReactionsController {
     @Param('postId', PostPipe) post: PostEntity,
     @Body() dto: CreateReactionDto,
     @GetUser() user: User,
-  ) {
-    return this.reactionsService.create(dto.type, user, post.id);
+  ): Promise<ReactionResponseDto> {
+    const reaction = await this.reactionsService.create(dto.type, user, post.id);
+    return ReactionResponseDto.fromEntity(reaction);
   }
 
   @Get('posts/:postId/reactions')
-  getPostReactions(@Param('postId', PostPipe) post: PostEntity) {
-    return this.reactionsService.findByPost(post.id);
+  async getPostReactions(
+    @Param('postId', PostPipe) post: PostEntity,
+  ): Promise<ReactionResponseDto[]> {
+    const reactions = await this.reactionsService.findByPost(post.id);
+    return reactions.map(ReactionResponseDto.fromEntity);
   }
 
   @Post('comments/:commentId/reactions')
@@ -936,13 +933,22 @@ export class ReactionsController {
     @Param('commentId', CommentPipe) comment: CommentEntity,
     @Body() dto: CreateReactionDto,
     @GetUser() user: User,
-  ) {
-    return this.reactionsService.create(dto.type, user, undefined, comment.id);
+  ): Promise<ReactionResponseDto> {
+    const reaction = await this.reactionsService.create(
+      dto.type,
+      user,
+      undefined,
+      comment.id,
+    );
+    return ReactionResponseDto.fromEntity(reaction);
   }
 
   @Get('comments/:commentId/reactions')
-  getCommentReactions(@Param('commentId', CommentPipe) comment: CommentEntity) {
-    return this.reactionsService.findByComment(comment.id);
+  async getCommentReactions(
+    @Param('commentId', CommentPipe) comment: CommentEntity,
+  ): Promise<ReactionResponseDto[]> {
+    const reactions = await this.reactionsService.findByComment(comment.id);
+    return reactions.map(ReactionResponseDto.fromEntity);
   }
 
   @Delete('reactions/:reactionId')
@@ -958,7 +964,7 @@ export class ReactionsController {
       throw new ForbiddenException('You are not allowed to delete this reaction');
     }
 
-    return this.reactionsService.delete(reaction);
+    return await this.reactionsService.delete(reaction);
   }
 }
 
@@ -1136,33 +1142,25 @@ type: ReactionType;
 
 
 ### FILE: src/reactions/dto/reaction-response.dto.ts ###
-import { Exclude, Expose, Type } from 'class-transformer';
+import { Exclude, Expose, Type, plainToInstance } from 'class-transformer';
 import { UserResponseDto } from '../../users/dtos/user-response.dto';
+import { Reaction } from '../entities/reaction.entity';
 import { ReactionType } from '../entities/reaction.entity';
 
 @Exclude()
 export class ReactionResponseDto {
-  @Expose()
-  id: number;
+  @Expose() readonly id: number;
+  @Expose() readonly type: ReactionType;
+  @Expose() @Type(() => UserResponseDto) readonly user: UserResponseDto;
+  @Expose() readonly postId?: number | null;
+  @Expose() readonly commentId?: number | null;
+  @Expose() readonly createdAt: Date;
 
-  @Expose()
-  type: ReactionType;
-
-  @Expose()
-  @Type(() => UserResponseDto)
-  user: UserResponseDto;
-
-  @Expose()
-  postId?: number;
-
-  @Expose()
-  commentId?: number;
-
-  @Expose()
-  createdAt: Date;
-
-  constructor(partial: Partial<ReactionResponseDto>) {
-    Object.assign(this, partial);
+  static fromEntity(entity: Reaction): ReactionResponseDto {
+    return plainToInstance(ReactionResponseDto, {
+      ...entity,
+      user: entity.user ? UserResponseDto.fromEntity(entity.user) : null,
+    }, { excludeExtraneousValues: true });
   }
 }
 
@@ -1550,6 +1548,45 @@ export enum Action {
 ---
 
 
+### FILE: src/casl/casl.service.ts ###
+import { Injectable, ForbiddenException } from '@nestjs/common';
+import { CaslAbilityFactory, AppAbility } from './casl-ability.factory';
+import { Action } from './casl.types';
+
+@Injectable()
+export class CaslService {
+  constructor(private readonly caslAbilityFactory: CaslAbilityFactory) {}
+
+  /**
+   * Generates ability for a given user
+   */
+  createAbility(user: any): AppAbility {
+    return this.caslAbilityFactory.createForUser(user);
+  }
+
+  /**
+   * Checks if user can perform an action on a specific resource
+   * Throws ForbiddenException if not allowed
+   */
+  enforce<T>(user: any, action: string, resource: T): void {
+    const ability = this.createAbility(user);
+    if (!ability.can(action, resource)) {
+      throw new ForbiddenException('You are not allowed to perform this action');
+    }
+  }
+
+  /**
+   * Returns true/false without throwing
+   */
+  can<T>(user: any, action: Action, resource: T): boolean {
+    const ability = this.createAbility(user);
+    return ability.can(action, resource);
+  }
+}
+
+---
+
+
 ### FILE: src/casl/policies.guard.ts ###
 import { Injectable, CanActivate, ExecutionContext } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
@@ -1832,6 +1869,7 @@ import { PoliciesGuard } from 'src/casl/policies.guard';
 import { Action } from 'src/casl/casl.types';
 import { CaslAbilityFactory } from 'src/casl/casl-ability.factory';
 import { CheckPolicies } from 'src/casl';
+import { PostResponseDto } from './dto/post-response.dto';
 
 @Controller('posts')
 export class PostsController {
@@ -1841,23 +1879,25 @@ export class PostsController {
   ) { }
 
   @Get()
-  findAll(): Promise<PostEntity[]> {
-    return this.postsService.findAll();
+  async findAll(): Promise<PostResponseDto[]> {
+    const posts = await this.postsService.findAll();
+    return posts.map(PostResponseDto.fromEntity);
   }
 
   @Get(':id')
-  findOne(@Param('id', PostPipe) post: PostEntity) {
-    return post;
+  findOne(@Param('id', PostPipe) post: PostEntity): PostResponseDto {
+    return PostResponseDto.fromEntity(post);
   }
 
   @HttpPost()
   @UseGuards(JwtAuthGuard, PoliciesGuard)
   @CheckPolicies((ability) => ability.can(Action.Create, PostEntity))
-  create(
+  async create(
     @Body() dto: CreatePostDto,
     @GetUser() user: User,
-  ): Promise<PostEntity> {
-    return this.postsService.create(dto.title, dto.content, user);
+  ): Promise<PostResponseDto> {
+    const post = await this.postsService.create(dto.title, dto.content, user);
+    return PostResponseDto.fromEntity(post);
   }
 
   @Patch(':id')
@@ -1867,7 +1907,7 @@ export class PostsController {
     @Param('id', PostPipe) post: PostEntity,
     @Body() dto: UpdatePostDto,
     @GetUser() user: User,
-  ) {
+  ): Promise<PostResponseDto> {
     // 1. Generate the ability for the current user
     const ability = this.caslAbilityFactory.createForUser(user);
     // 2. Check permission against the SPECIFIC post instance
@@ -1875,7 +1915,8 @@ export class PostsController {
     if (!ability.can(Action.Update, post)) {
       throw new ForbiddenException('You are not allowed to update this post');
     }
-    return this.postsService.update(post, dto.title, dto.content);
+    const updatedPost = await this.postsService.update(post, dto.title, dto.content);
+    return PostResponseDto.fromEntity(updatedPost);
   }
 
   @Delete(':id')
@@ -1891,7 +1932,7 @@ export class PostsController {
     if (!ability.can(Action.Delete, post)) {
       throw new ForbiddenException('You are not allowed to delete this post');
     }
-    return this.postsService.remove(post);
+    return  await this.postsService.remove(post);
   }
 }
 ---
@@ -1912,32 +1953,35 @@ export class UpdatePostDto extends PartialType(CreatePostDto) {
 
 
 ### FILE: src/posts/dto/post-response.dto.ts ###
-import { Exclude, Expose, Type } from 'class-transformer';
+import { Exclude, Expose, Type, plainToInstance } from 'class-transformer';
 import { UserResponseDto } from '../../users/dtos/user-response.dto';
+import { Post } from '../entities/post.entity';
 import { ReactionType } from 'src/reactions/entities/reaction.entity';
-
 
 @Exclude()
 export class PostResponseDto {
-  @Expose() id: number;
-  @Expose() title: string;
-  @Expose() content: string;
-  @Expose() views: number;
-  @Expose() createdAt: Date;
-  @Expose() updatedAt: Date;
+  @Expose() readonly id: number;
+  @Expose() readonly title: string;
+  @Expose() readonly content: string;
+  @Expose() readonly views: number;
+  @Expose() readonly createdAt: Date;
+  @Expose() readonly updatedAt: Date;
 
-  @Expose() @Type(() => UserResponseDto)
-  author: UserResponseDto;
+  @Expose() @Type(() => UserResponseDto) readonly author: UserResponseDto;
 
-  @Expose() commentsCount: number;
-  @Expose() likesCount: number;
-  @Expose() dislikesCount: number;
-  @Expose() userReaction?: ReactionType | null; // current user's reaction
+  @Expose() readonly commentsCount: number;
+  @Expose() readonly likesCount: number;
+  @Expose() readonly dislikesCount: number;
+  @Expose() readonly userReaction?: ReactionType | null;
 
-  constructor(partial: Partial<PostResponseDto>) {
-    Object.assign(this, partial);
+  static fromEntity(entity: Post): PostResponseDto {
+    return plainToInstance(PostResponseDto, {
+      ...entity,
+      author: entity.author ? UserResponseDto.fromEntity(entity.author) : null,
+    }, { excludeExtraneousValues: true });
   }
 }
+
 ---
 
 
@@ -2139,31 +2183,44 @@ import { LocalAuthGuard } from './guards/local-auth.guard';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 import { EmailVerificationService } from 'src/email-verification/email-verification.service';
 import { AuthGuard } from '@nestjs/passport';
+import { UserResponseDto } from 'src/users/dtos/user-response.dto';
+import { User } from 'src/users/entities/user.entity';
 
 @Controller('auth')
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly emailVerificationService: EmailVerificationService,
-  ) {}
+  ) { }
 
   @Post('register')
   async register(@Body() dto: RegisterDto) {
     const user = await this.authService.register(dto.name, dto.email, dto.password);
     await this.emailVerificationService.sendVerificationEmail(user);
-    return { message: 'Registration successful. Please verify your email.' };
+    return {
+      message: 'Registration successful. Please verify your email.',
+      user: UserResponseDto.fromEntity(user),
+    };
   }
 
   @UseGuards(LocalAuthGuard)
   @Post('login')
-  login(@Req() req: any) {
-    return this.authService.signIn(req.user);
+  async login(@Req() req: { user: User }) {
+    const tokens = await this.authService.signIn(req.user);
+    return {
+      user: UserResponseDto.fromEntity(req.user),
+      ...tokens,
+    };
   }
 
   @UseGuards(JwtRefreshGuard)
   @Post('refresh')
-  refresh(@Req() req: any) {
-    return this.authService.renewTokens(req.user);
+  async refresh(@Req() req: { user: User }) {
+    const tokens = await this.authService.renewTokens(req.user);
+    return {
+      user: UserResponseDto.fromEntity(req.user),
+      ...tokens,
+    };
   }
 
   // Step 1: Redirect to Google OAuth
@@ -2176,8 +2233,13 @@ export class AuthController {
   // Step 2: Google callback → GoogleStrategy.validate() → req.user
   @Get('google/callback')
   @UseGuards(AuthGuard('google'))
-  async googleCallback(@Req() req: any) {
-    return this.authService.googleLogin(req.user);
+  async googleCallback(@Req() req: { user: any }) {
+    const user = await this.authService.googleLogin(req.user);
+    const tokens = await this.authService.signIn(user);
+    return {
+      user: UserResponseDto.fromEntity(user),
+      ...tokens,
+    };
   }
 }
 
@@ -2665,6 +2727,8 @@ import { CommentPipe } from 'src/common/pipes/comment.pipe';
 import { Post as PostEntity } from 'src/posts/entities/post.entity';
 import { PostPipe } from 'src/common/pipes/post.pipe';
 import { CaslAbilityFactory } from 'src/casl/casl-ability.factory';
+import { CommentResponseDto } from './dto/comment-response.dto';
+
 @Controller()
 export class CommentsController {
   constructor(
@@ -2673,50 +2737,58 @@ export class CommentsController {
   ) {}
 
   @Get('posts/:postId/comments')
-  findByPost(@Param('postId', PostPipe) post: PostEntity) {
-    return this.commentsService.findByPost(post.id);
+  async findByPost(
+    @Param('postId', PostPipe) post: PostEntity,
+  ): Promise<CommentResponseDto[]> {
+    const comments = await this.commentsService.findByPost(post.id);
+    return comments.map(CommentResponseDto.fromEntity);
   }
 
   @HttpPost('posts/:postId/comments')
   @UseGuards(JwtAuthGuard, PoliciesGuard)
   @CheckPolicies((ability) => ability.can(Action.Create, Comment))
-  createForPost(
+  async createForPost(
     @Param('postId', PostPipe) post: PostEntity,
     @Body() dto: CreateCommentDto,
     @GetUser() user: User,
-  ) {
-    return this.commentsService.createForPost(
+  ): Promise<CommentResponseDto> {
+    const comment = await this.commentsService.createForPost(
       post,
       dto.content,
       user,
       dto.parentId,
     );
+    return CommentResponseDto.fromEntity(comment);
   }
 
   @Get('comments/:id')
-  findOne(@Param('id', CommentPipe) comment: Comment) {
-    return comment;
+  findOne(@Param('id', CommentPipe) comment: Comment): CommentResponseDto {
+    return CommentResponseDto.fromEntity(comment);
   }
 
   @Patch('comments/:id')
   @UseGuards(JwtAuthGuard, PoliciesGuard)
   @CheckPolicies((ability) => ability.can(Action.Update, Comment))
-  update(
+  async update(
     @Param('id', CommentPipe) comment: Comment,
     @Body() dto: UpdateCommentDto,
     @GetUser() user: User,
-  ) {
+  ): Promise<CommentResponseDto> {
     const ability = this.caslAbilityFactory.createForUser(user);
     if (!ability.can(Action.Update, comment)) {
       throw new ForbiddenException('You are not allowed to update this comment');
     }
-    return this.commentsService.update(comment, dto.content);
+    const updatedComment = await this.commentsService.update(
+      comment,
+      dto.content,
+    );
+    return CommentResponseDto.fromEntity(updatedComment);
   }
 
   @Delete('comments/:id')
   @UseGuards(JwtAuthGuard, PoliciesGuard)
   @CheckPolicies((ability) => ability.can(Action.Delete, Comment))
-  remove(
+  async remove(
     @Param('id', CommentPipe) comment: Comment,
     @GetUser() user: User,
   ) {
@@ -2724,7 +2796,7 @@ export class CommentsController {
     if (!ability.can(Action.Delete, comment)) {
       throw new ForbiddenException('You are not allowed to delete this comment');
     }
-    return this.commentsService.remove(comment);
+    return await this.commentsService.remove(comment);
   }
 }
 
@@ -2802,33 +2874,35 @@ export class CommentsModule {}
 
 
 ### FILE: src/comments/dto/comment-response.dto.ts ###
-import { Exclude, Expose, Type } from 'class-transformer';
+import { Exclude, Expose, Type, plainToInstance } from 'class-transformer';
 import { UserResponseDto } from '../../users/dtos/user-response.dto';
+import { Comment } from '../entities/comment.entity';
 import { ReactionType } from 'src/reactions/entities/reaction.entity';
+
 @Exclude()
 export class CommentResponseDto {
-  @Expose() id: number;
-  @Expose() content: string;
-  @Expose() createdAt: Date;
-  @Expose() updatedAt: Date;
+  @Expose() readonly id: number;
+  @Expose() readonly content: string;
+  @Expose() readonly createdAt: Date;
+  @Expose() readonly updatedAt: Date;
 
-  @Expose() @Type(() => UserResponseDto)
-  author: UserResponseDto;
+  @Expose() @Type(() => UserResponseDto) readonly author: UserResponseDto;
+  @Expose() readonly postId: number;
+  @Expose() readonly parentId?: number;
+  @Expose() readonly likesCount: number;
+  @Expose() readonly dislikesCount: number;
+  @Expose() readonly userReaction?: ReactionType | null;
+  @Expose() @Type(() => CommentResponseDto) readonly replies?: CommentResponseDto[];
 
-  @Expose() postId: number;
-  @Expose() parentId?: number;
-
-  @Expose() likesCount: number;
-  @Expose() dislikesCount: number;
-  @Expose() userReaction?: ReactionType | null;
-
-  @Expose() @Type(() => CommentResponseDto)
-  replies?: CommentResponseDto[]; // optional nested
-
-  constructor(partial: Partial<CommentResponseDto>) {
-    Object.assign(this, partial);
+  static fromEntity(entity: Comment): CommentResponseDto {
+    return plainToInstance(CommentResponseDto, {
+      ...entity,
+      author: entity.author ? UserResponseDto.fromEntity(entity.author) : null,
+      replies: entity.replies?.map(r => CommentResponseDto.fromEntity(r)) ?? [],
+    }, { excludeExtraneousValues: true });
   }
 }
+
 ---
 
 

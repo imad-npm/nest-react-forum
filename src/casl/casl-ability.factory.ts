@@ -9,7 +9,7 @@ import { log } from 'console';
 
 
 
-type Subjects = InferSubjects<typeof Post | typeof Comment | typeof Reaction | typeof User> | 'all';
+export type Subjects = InferSubjects<typeof Post | typeof Comment | typeof Reaction | typeof User> | 'all';
 
 export type AppAbility = MongoAbility<[Action, Subjects]>;
 

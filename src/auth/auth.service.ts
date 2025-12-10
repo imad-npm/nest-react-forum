@@ -46,9 +46,7 @@ export class AuthService {
   // Sign in (called after successful local or refresh validation)
   // -------------------------------------------------------------------------
   async signIn(user: User) {
-    if (!user.emailVerifiedAt) {
-      throw new UnauthorizedException('Email not verified.');
-    }
+    
     return this.generateTokens(user);
   }
 
@@ -98,7 +96,11 @@ export class AuthService {
   // -------------------------------------------------------------------------
   // Refresh token flow
   // -------------------------------------------------------------------------
-  async renewTokens(user: User) {
+  async renewTokens(refreshToken: string) {
+    const payload = this.jwt.verify(refreshToken, {
+      secret: this.config.get<string>('JWT_REFRESH_SECRET'), // use ConfigService
+    });
+    const user = await this.userService.findOneById(payload.sub);
     return this.generateTokens(user);
   }
 

@@ -21,10 +21,10 @@ export class User {
   @Column({ type: 'datetime', nullable: true, default: null })
   emailVerifiedAt: Date | null; // 👈 NEW FIELD
 
-  @Column({ type: 'enum', enum: ['google', 'github'], nullable: true, default: null })
+  @Column({ type: 'simple-enum', enum: ['google', 'github'], nullable: true, default: null })
   provider: 'google' | 'github' | null;
 
-  @Column({ nullable: true })
+  @Column({  type: 'varchar',nullable: true })
   providerId: string | null; // Google's profile.id
 
   // Relations
