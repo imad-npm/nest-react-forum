@@ -658,9 +658,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { User } from './entities/user.entity';
-import { CreateUserDto } from './dtos/create-user.dto';
-import { UpdateUserDto } from './dtos/update-user.dto';
-
 
 @Injectable()
 export class UsersService {
@@ -689,22 +686,31 @@ export class UsersService {
   // ---------------------------------------
   // Create (OWN logic)
   // ---------------------------------------
-  async createUser(dto: CreateUserDto): Promise<User> {
+  async createUser(
+    name: string,
+    email: string,
+    password?: string | null,
+    provider?: 'google' | 'github' | null,
+    providerId?: string | null,
+    emailVerifiedAt?: Date | null,
+    picture?: string | null,
+  ): Promise<User> {
     const user = this.repo.create();
 
-    user.name = dto.name ;
-    user.email = dto.email ;
+    user.name = name;
+    user.email = email;
 
-    user.provider = dto.provider ?? null;
-    user.providerId = dto.providerId ?? null;
+    user.provider = provider ?? null;
+    user.providerId = providerId ?? null;
 
-    user.password = dto.password
-      ? await bcrypt.hash(dto.password, 10)
+    user.password = password
+      ? await bcrypt.hash(password, 10)
       : null;
 
     user.emailVerifiedAt =
-      dto.emailVerifiedAt ??
-      (dto.password ? null : new Date());
+      emailVerifiedAt ??
+      (password ? null : new Date());
+
 
     return this.repo.save(user);
   }
@@ -713,10 +719,21 @@ export class UsersService {
 // ---------------------------------------
 // Update (Slimmed logic)
 // ---------------------------------------
-async updateUser(user: User, dto: UpdateUserDto): Promise<User> {
-  const { password, ...rest } = dto; // Separate password for hashing
+async updateUser(
+  user: User,
+  updates: {
+    name?: string,
+    email?: string,
+    password?: string | null,
+    provider?: 'google' | 'github' | null,
+    providerId?: string | null,
+    emailVerifiedAt?: Date | null,
+    picture?: string | null,
+  }
+): Promise<User> {
+  const { password, ...rest } = updates; // Separate password for hashing
 
-  // 1. Update basic fields dynamically (only if they exist in dto)
+  // 1. Update basic fields dynamically (only if they exist in updates)
   Object.assign(user, rest);
   
   // 2. Handle password hashing separately if it exists
@@ -732,16 +749,16 @@ async updateUser(user: User, dto: UpdateUserDto): Promise<User> {
 }
 
 // ---------------------------------------
-  // Email verification
-  // ---------------------------------------
-  async markEmailAsVerified(id: number): Promise<void> {
-    const user = await this.findOneById(id);
+// Email verification
+// ---------------------------------------
+async markEmailAsVerified(id: number): Promise<void> {
+  const user = await this.findOneById(id);
 
-    if (!user.emailVerifiedAt) {
-      user.emailVerifiedAt = new Date();
-      await this.repo.save(user);
-    }
+  if (!user.emailVerifiedAt) {
+    user.emailVerifiedAt = new Date();
+    await this.repo.save(user);
   }
+}
 }
 
 ---
@@ -770,6 +787,34 @@ import { CreateUserDto } from './create-user.dto';
 
 // Makes all fields from CreateUserDto optional for update operations
 export class UpdateUserDto extends PartialType(CreateUserDto) {}
+
+---
+
+
+### FILE: src/users/dtos/user-response.dto.ts ###
+import { Exclude, Expose } from 'class-transformer';
+
+@Exclude()
+export class UserResponseDto {
+  @Expose()
+  id: number;
+
+  @Expose()
+  name: string;
+
+  @Expose()
+  email: string;
+
+  @Expose()
+  emailVerifiedAt: Date | null;
+
+  @Expose()
+  provider: string | null;
+
+  constructor(partial: Partial<UserResponseDto>) {
+    Object.assign(this, partial);
+  }
+}
 
 ---
 
@@ -835,7 +880,16 @@ export class User {
 
 
 ### FILE: src/reactions/reactions.controller.ts ###
-import { Controller, Post, Get, Body, Param, Delete, UseGuards, ForbiddenException } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Body,
+  Param,
+  Delete,
+  UseGuards,
+  ForbiddenException,
+} from '@nestjs/common';
 import { ReactionsService } from './reactions.service';
 import { CreateReactionDto } from './dto/create-reaction.dto';
 import { User } from 'src/users/entities/user.entity';
@@ -862,12 +916,12 @@ export class ReactionsController {
   @Post('posts/:postId/reactions')
   @UseGuards(JwtAuthGuard, PoliciesGuard)
   @CheckPolicies((ability) => ability.can(Action.Create, Reaction))
-  createPostReaction(
+  async createPostReaction(
     @Param('postId', PostPipe) post: PostEntity,
     @Body() dto: CreateReactionDto,
     @GetUser() user: User,
   ) {
-    return this.reactionsService.create({ dto, user, postId: post.id });
+    return this.reactionsService.create(dto.type, user, post.id);
   }
 
   @Get('posts/:postId/reactions')
@@ -878,12 +932,12 @@ export class ReactionsController {
   @Post('comments/:commentId/reactions')
   @UseGuards(JwtAuthGuard, PoliciesGuard)
   @CheckPolicies((ability) => ability.can(Action.Create, Reaction))
-  createCommentReaction(
+  async createCommentReaction(
     @Param('commentId', CommentPipe) comment: CommentEntity,
     @Body() dto: CreateReactionDto,
     @GetUser() user: User,
   ) {
-    return this.reactionsService.create({ dto, user, commentId: comment.id });
+    return this.reactionsService.create(dto.type, user, undefined, comment.id);
   }
 
   @Get('comments/:commentId/reactions')
@@ -894,13 +948,12 @@ export class ReactionsController {
   @Delete('reactions/:reactionId')
   @UseGuards(JwtAuthGuard, PoliciesGuard)
   @CheckPolicies((ability) => ability.can(Action.Delete, Reaction))
-  deleteReaction(
+  async deleteReaction(
     @Param('reactionId', ReactionPipe) reaction: Reaction,
     @GetUser() user: User,
   ) {
-    // Check permission against the SPECIFIC reaction instance
     const ability = this.caslAbilityFactory.createForUser(user);
-    
+
     if (!ability.can(Action.Delete, reaction)) {
       throw new ForbiddenException('You are not allowed to delete this reaction');
     }
@@ -914,11 +967,14 @@ export class ReactionsController {
 
 ### FILE: src/reactions/reactions.service.ts ###
 // src/reactions/reactions.service.ts
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Reaction, ReactionType } from './entities/reaction.entity';
-import { CreateReactionDto } from './dto/create-reaction.dto';
 import { User } from '../users/entities/user.entity';
 
 @Injectable()
@@ -929,26 +985,20 @@ export class ReactionsService {
   ) {}
 
   /**
-   * Create a new reaction.
-   * Does NOT toggle or update existing ones.
-   * If user already reacted → throws ForbiddenException (client should delete first)
+   * Create a new reaction (like/dislike) on post or comment
+   * One reaction per user per target allowed
    */
-  async create({
-    dto,
-    user,
-    postId,
-    commentId,
-  }: {
-    dto: CreateReactionDto;
-    user: User;
-    postId?: number;
-    commentId?: number;
-  }): Promise<Reaction> {
+  async create(
+    type: ReactionType,
+    user: User,
+    postId?: number,
+    commentId?: number,
+  ): Promise<Reaction> {
     if (!postId && !commentId) {
       throw new NotFoundException('Reaction must target a post or a comment.');
     }
 
-    // Check if user already has a reaction on this target
+    // Prevent duplicate reaction
     const existing = await this.repo.findOne({
       where: {
         user: { id: user.id },
@@ -962,20 +1012,16 @@ export class ReactionsService {
       );
     }
 
-    // Create new reaction
     const reaction = this.repo.create({
-      type: dto.type,
+      type,
       user,
       post: postId ? { id: postId } : null,
       comment: commentId ? { id: commentId } : null,
     });
 
-    return await this.repo.save(reaction);
+    return this.repo.save(reaction);
   }
 
-  /**
-   * Find all reactions for a post
-   */
   findByPost(postId: number) {
     return this.repo.find({
       where: { post: { id: postId } },
@@ -989,9 +1035,6 @@ export class ReactionsService {
     });
   }
 
-  /**
-   * Find all reactions for a comment
-   */
   findByComment(commentId: number) {
     return this.repo.find({
       where: { comment: { id: commentId } },
@@ -1005,19 +1048,10 @@ export class ReactionsService {
     });
   }
 
-  /**
-   * Delete a reaction by ID
-   * Only called from controller where @CheckAbility(Action.Delete, Reaction) ensures ownership
-   */
   async delete(reaction: Reaction): Promise<void> {
-  
-
     await this.repo.remove(reaction);
   }
 
-  /**
-   * Optional: Helper to get current user's reaction on a target (useful for frontend)
-   */
   async getUserReactionOnTarget(
     userId: number,
     postId?: number,
@@ -1096,6 +1130,40 @@ type: ReactionType;
 
   @UpdateDateColumn()
   updatedAt: Date;
+}
+
+---
+
+
+### FILE: src/reactions/dto/reaction-response.dto.ts ###
+import { Exclude, Expose, Type } from 'class-transformer';
+import { UserResponseDto } from '../../users/dtos/user-response.dto';
+import { ReactionType } from '../entities/reaction.entity';
+
+@Exclude()
+export class ReactionResponseDto {
+  @Expose()
+  id: number;
+
+  @Expose()
+  type: ReactionType;
+
+  @Expose()
+  @Type(() => UserResponseDto)
+  user: UserResponseDto;
+
+  @Expose()
+  postId?: number;
+
+  @Expose()
+  commentId?: number;
+
+  @Expose()
+  createdAt: Date;
+
+  constructor(partial: Partial<ReactionResponseDto>) {
+    Object.assign(this, partial);
+  }
 }
 
 ---
@@ -1649,8 +1717,6 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Post } from './entities/post.entity';
-import { CreatePostDto } from './dto/create-post.dto';
-import { UpdatePostDto } from './dto/update-post.dto';
 import { User } from 'src/users/entities/user.entity';
 
 @Injectable()
@@ -1673,20 +1739,18 @@ export class PostsService {
     });
   }
 
-  create(dto: CreatePostDto, author: User): Promise<Post> {
+  create(title: string, content: string, author: User): Promise<Post> {
     const post = this.postsRepository.create({
-      ...dto,
+      title,
+      content,
       author,
     });
-
     return this.postsRepository.save(post);
   }
 
-  async update(post: Post, dto: UpdatePostDto): Promise<Post> {
-   
-    Object.assign(post, dto);
-    console.log(dto);
-    
+  async update(post: Post, title?: string, content?: string): Promise<Post> {
+    if (title !== undefined) post.title = title;
+    if (content !== undefined) post.content = content;
     return this.postsRepository.save(post);
   }
 
@@ -1695,7 +1759,6 @@ export class PostsService {
     return !!res;
   }
 }
-
 ---
 
 
@@ -1767,7 +1830,7 @@ import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { PostPipe } from 'src/common/pipes/post.pipe';
 import { PoliciesGuard } from 'src/casl/policies.guard';
 import { Action } from 'src/casl/casl.types';
-import { AppAbility, CaslAbilityFactory } from 'src/casl/casl-ability.factory';
+import { CaslAbilityFactory } from 'src/casl/casl-ability.factory';
 import { CheckPolicies } from 'src/casl';
 
 @Controller('posts')
@@ -1794,7 +1857,7 @@ export class PostsController {
     @Body() dto: CreatePostDto,
     @GetUser() user: User,
   ): Promise<PostEntity> {
-    return this.postsService.create(dto, user);
+    return this.postsService.create(dto.title, dto.content, user);
   }
 
   @Patch(':id')
@@ -1807,14 +1870,12 @@ export class PostsController {
   ) {
     // 1. Generate the ability for the current user
     const ability = this.caslAbilityFactory.createForUser(user);
-
     // 2. Check permission against the SPECIFIC post instance
     // This triggers the rule: can(Action.Update, Post, { authorId: user.id })
     if (!ability.can(Action.Update, post)) {
       throw new ForbiddenException('You are not allowed to update this post');
     }
-
-    return this.postsService.update(post, dto);
+    return this.postsService.update(post, dto.title, dto.content);
   }
 
   @Delete(':id')
@@ -1826,16 +1887,13 @@ export class PostsController {
   ) {
     // 1. Generate the ability for the current user
     const ability = this.caslAbilityFactory.createForUser(user);
-
     // 2. Check permission against the SPECIFIC post instance
     if (!ability.can(Action.Delete, post)) {
       throw new ForbiddenException('You are not allowed to delete this post');
     }
-
     return this.postsService.remove(post);
   }
 }
-
 ---
 
 
@@ -1849,6 +1907,36 @@ import { CreatePostDto } from './create-post.dto';   // <-- 2. Make sure you imp
 export class UpdatePostDto extends PartialType(CreatePostDto) {
   // If you need to add custom validation or properties, they go here.
   // Otherwise, leave the body empty.
+}
+---
+
+
+### FILE: src/posts/dto/post-response.dto.ts ###
+import { Exclude, Expose, Type } from 'class-transformer';
+import { UserResponseDto } from '../../users/dtos/user-response.dto';
+import { ReactionType } from 'src/reactions/entities/reaction.entity';
+
+
+@Exclude()
+export class PostResponseDto {
+  @Expose() id: number;
+  @Expose() title: string;
+  @Expose() content: string;
+  @Expose() views: number;
+  @Expose() createdAt: Date;
+  @Expose() updatedAt: Date;
+
+  @Expose() @Type(() => UserResponseDto)
+  author: UserResponseDto;
+
+  @Expose() commentsCount: number;
+  @Expose() likesCount: number;
+  @Expose() dislikesCount: number;
+  @Expose() userReaction?: ReactionType | null; // current user's reaction
+
+  constructor(partial: Partial<PostResponseDto>) {
+    Object.assign(this, partial);
+  }
 }
 ---
 
@@ -1873,14 +1961,15 @@ export class CreatePostDto {
 
 ### FILE: src/auth/auth.service.ts ###
 // src/auth/auth.service.ts
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../users/users.service';
 import * as bcrypt from 'bcrypt';
-import { RegisterDto } from './dtos/register.dto';
-import { LoginDto } from './dtos/login.dto';
-import { EmailVerificationService } from 'src/email-verification/email-verification.service';
 import { User } from 'src/users/entities/user.entity';
 
 @Injectable()
@@ -1888,35 +1977,52 @@ export class AuthService {
   constructor(
     private readonly userService: UsersService,
     private readonly jwt: JwtService,
-    private readonly config: ConfigService, // inject ConfigService
-  ) { }
+    private readonly config: ConfigService,
+  ) {}
 
-  async register(dto: RegisterDto) {
-    const user = await this.userService.createUser(dto);
-    return user;
+  // -------------------------------------------------------------------------
+  // Register (local account)
+  // -------------------------------------------------------------------------
+  async register(name: string, email: string, password: string): Promise<User> {
+    return this.userService.createUser(
+      name,
+      email,
+      password, // will be hashed inside UsersService
+    );
   }
 
-  async validateUser(email: string, pass: string) {
+  // -------------------------------------------------------------------------
+  // Validate credentials (used by LocalStrategy)
+  // -------------------------------------------------------------------------
+  async validateUser(email: string, password: string): Promise<User | null> {
     const user = await this.userService.findByEmail(email);
 
-    if (!user || user.password === null) {
-      return null;
-    }
+    // Social-only accounts have no password
+    if (!user.password) return null;
 
-    const isMatch = await bcrypt.compare(pass, user.password);
+    const isMatch = await bcrypt.compare(password, user.password);
     return isMatch ? user : null;
   }
 
-  async login(dto: LoginDto) {
-    const user = await this.userService.findByEmail(dto.email);
-    // ← THIS IS THE CRITICAL LINE
+  // -------------------------------------------------------------------------
+  // Sign in (called after successful local or refresh validation)
+  // -------------------------------------------------------------------------
+  async signIn(user: User) {
     if (!user.emailVerifiedAt) {
       throw new UnauthorizedException('Email not verified.');
     }
     return this.generateTokens(user);
   }
-  // src/auth/auth.service.ts
-  async googleLogin(oauthUser: any) {
+
+  // -------------------------------------------------------------------------
+  // Google OAuth login / link
+  // -------------------------------------------------------------------------
+  async googleLogin(oauthUser: {
+    email: string;
+    fullName?: string;
+    id: string;
+    picture?: string;
+  }): Promise<User> {
     if (!oauthUser?.email) {
       throw new BadRequestException('Google account has no accessible email');
     }
@@ -1924,56 +2030,59 @@ export class AuthService {
     let user: User | null = null;
 
     try {
-      // If exists → load
       user = await this.userService.findByEmail(oauthUser.email);
-    } catch (_) {
-      user = null; // Not found
+    } catch {
+      user = null; // not found
     }
 
     if (!user) {
-      // CREATE a new user
-      return this.userService.createUser({
-        email: oauthUser.email,
-        name: oauthUser.fullName,
-        provider: 'google',
-        providerId: oauthUser.id,
-        emailVerifiedAt: new Date(),
-        picture: oauthUser.picture,
-      });
+      // First time → create new user
+      return this.userService.createUser(
+        oauthUser.fullName ?? oauthUser.email.split('@')[0],
+        oauthUser.email,
+        undefined, // no password
+        'google',
+        oauthUser.id,
+        new Date(), // email already verified by Google
+        oauthUser.picture,
+      );
     }
 
-    // UPDATE existing user
+    // Existing user → make sure provider data is up-to-date
     return this.userService.updateUser(user, {
-      name: oauthUser.fullName,
+      name: oauthUser.fullName ?? user.name,
       provider: 'google',
       providerId: oauthUser.id,
       emailVerifiedAt: user.emailVerifiedAt ?? new Date(),
     });
   }
 
-
-  async renewTokens(refreshToken: string) {
-    const payload = this.jwt.verify(refreshToken, {
-      secret: this.config.get<string>('JWT_REFRESH_SECRET'), // use ConfigService
-    });
-    const user = await this.userService.findOneById(payload.sub);
+  // -------------------------------------------------------------------------
+  // Refresh token flow
+  // -------------------------------------------------------------------------
+  async renewTokens(user: User) {
     return this.generateTokens(user);
   }
 
-  private generateTokens(user: any) {
+  // -------------------------------------------------------------------------
+  // Token generation (shared)
+  // -------------------------------------------------------------------------
+  private generateTokens(user: User) {
     const payload = { sub: user.id, email: user.email };
+
     const accessToken = this.jwt.sign(payload, {
-      secret: this.config.get<string>('JWT_ACCESS_SECRET'), // use ConfigService
+      secret: this.config.get<string>('JWT_ACCESS_SECRET'),
       expiresIn: '2h',
     });
+
     const refreshToken = this.jwt.sign(payload, {
-      secret: this.config.get<string>('JWT_REFRESH_SECRET'), // use ConfigService
+      secret: this.config.get<string>('JWT_REFRESH_SECRET'),
       expiresIn: '7d',
     });
+
     return { accessToken, refreshToken };
   }
 }
-
 ---
 
 
@@ -2023,45 +2132,41 @@ export class RefreshDto {
 
 
 ### FILE: src/auth/auth.controller.ts ###
-import { Controller, Post, Body, UseGuards, Request, Get, Req } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Get, Req } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { LoginDto } from './dtos/login.dto';
 import { RegisterDto } from './dtos/register.dto';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 import { EmailVerificationService } from 'src/email-verification/email-verification.service';
-import { RefreshDto } from './dtos/refresh.dto';
-import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { AuthGuard } from '@nestjs/passport';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService ,
-     private readonly emailVerificationService: EmailVerificationService,
-
+  constructor(
+    private readonly authService: AuthService,
+    private readonly emailVerificationService: EmailVerificationService,
   ) {}
 
   @Post('register')
   async register(@Body() dto: RegisterDto) {
-    const user= await this.authService.register(dto);
+    const user = await this.authService.register(dto.name, dto.email, dto.password);
     await this.emailVerificationService.sendVerificationEmail(user);
-  return { message: 'Registration successful. Please verify your email.' };
+    return { message: 'Registration successful. Please verify your email.' };
   }
 
   @UseGuards(LocalAuthGuard)
   @Post('login')
-  login(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
+  login(@Req() req: any) {
+    return this.authService.signIn(req.user);
   }
 
-  
   @UseGuards(JwtRefreshGuard)
- @Post('refresh')
-  refresh(@Body() dto :RefreshDto) {
-    return this.authService.renewTokens(dto.refreshToken);
-  } 
+  @Post('refresh')
+  refresh(@Req() req: any) {
+    return this.authService.renewTokens(req.user);
+  }
 
-    // Step 1: Redirect to Google OAuth
+  // Step 1: Redirect to Google OAuth
   @Get('google')
   @UseGuards(AuthGuard('google'))
   async googleAuth() {
@@ -2072,10 +2177,8 @@ export class AuthController {
   @Get('google/callback')
   @UseGuards(AuthGuard('google'))
   async googleCallback(@Req() req: any) {
-    const oauthUser = req.user;
-
-
-  return this.authService.googleLogin(req.user);  }
+    return this.authService.googleLogin(req.user);
+  }
 }
 
 ---
@@ -2470,8 +2573,6 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Comment } from './entities/comment.entity';
-import { CreateCommentDto } from './dto/create-comment.dto';
-import { UpdateCommentDto } from './dto/update-comment.dto';
 import { User } from 'src/users/entities/user.entity';
 import { Post } from 'src/posts/entities/post.entity';
 
@@ -2480,34 +2581,39 @@ export class CommentsService {
   constructor(
     @InjectRepository(Comment)
     private readonly commentRepo: Repository<Comment>,
-  ) {}
+  ) { }
 
   findByPost(postId: number) {
     return this.commentRepo.find({
       where: { post: { id: postId } },
-      relations: ['author', 'post'],
+      relations: ['author', 'post', 'parent'],
     });
   }
 
   findOne(id: number) {
     return this.commentRepo.findOne({
       where: { id },
-      relations: ['author', 'post'],
+      relations: ['author', 'post', 'parent'],
     });
   }
 
-  async createForPost(post: Post, dto: CreateCommentDto, user: User) {
+  async createForPost(
+    post: Post,
+    content: string,
+    user: User,
+    parentId?: number,
+  ) {
     const comment = this.commentRepo.create({
-      content: dto.content,
+      content,
       author: user,
     });
 
-    if (dto.parentId) {
+    if (parentId) {
       const parent = await this.commentRepo.findOne({
-        where: { id: dto.parentId },
+        where: { id: parentId },
         relations: ['post'],
       });
-      if (!parent) throw new NotFoundException();
+      if (!parent) throw new NotFoundException('Parent comment not found');
       comment.parent = parent;
       comment.post = parent.post;
     } else {
@@ -2517,8 +2623,10 @@ export class CommentsService {
     return this.commentRepo.save(comment);
   }
 
-  async update(comment: Comment, dto: UpdateCommentDto) {
-    Object.assign(comment, dto);
+  async update(comment: Comment, content?: string) {
+    if (content != undefined)
+      comment.content = content;
+
     return this.commentRepo.save(comment);
   }
 
@@ -2557,7 +2665,6 @@ import { CommentPipe } from 'src/common/pipes/comment.pipe';
 import { Post as PostEntity } from 'src/posts/entities/post.entity';
 import { PostPipe } from 'src/common/pipes/post.pipe';
 import { CaslAbilityFactory } from 'src/casl/casl-ability.factory';
-
 @Controller()
 export class CommentsController {
   constructor(
@@ -2578,7 +2685,12 @@ export class CommentsController {
     @Body() dto: CreateCommentDto,
     @GetUser() user: User,
   ) {
-    return this.commentsService.createForPost(post, dto, user);
+    return this.commentsService.createForPost(
+      post,
+      dto.content,
+      user,
+      dto.parentId,
+    );
   }
 
   @Get('comments/:id')
@@ -2594,14 +2706,11 @@ export class CommentsController {
     @Body() dto: UpdateCommentDto,
     @GetUser() user: User,
   ) {
-    // Check permission against the SPECIFIC comment instance
     const ability = this.caslAbilityFactory.createForUser(user);
-    
     if (!ability.can(Action.Update, comment)) {
       throw new ForbiddenException('You are not allowed to update this comment');
     }
-
-    return this.commentsService.update(comment, dto);
+    return this.commentsService.update(comment, dto.content);
   }
 
   @Delete('comments/:id')
@@ -2611,13 +2720,10 @@ export class CommentsController {
     @Param('id', CommentPipe) comment: Comment,
     @GetUser() user: User,
   ) {
-    // Check permission against the SPECIFIC comment instance
     const ability = this.caslAbilityFactory.createForUser(user);
-    
     if (!ability.can(Action.Delete, comment)) {
       throw new ForbiddenException('You are not allowed to delete this comment');
     }
-
     return this.commentsService.remove(comment);
   }
 }
@@ -2692,6 +2798,37 @@ CaslModule
 })
 export class CommentsModule {}
 
+---
+
+
+### FILE: src/comments/dto/comment-response.dto.ts ###
+import { Exclude, Expose, Type } from 'class-transformer';
+import { UserResponseDto } from '../../users/dtos/user-response.dto';
+import { ReactionType } from 'src/reactions/entities/reaction.entity';
+@Exclude()
+export class CommentResponseDto {
+  @Expose() id: number;
+  @Expose() content: string;
+  @Expose() createdAt: Date;
+  @Expose() updatedAt: Date;
+
+  @Expose() @Type(() => UserResponseDto)
+  author: UserResponseDto;
+
+  @Expose() postId: number;
+  @Expose() parentId?: number;
+
+  @Expose() likesCount: number;
+  @Expose() dislikesCount: number;
+  @Expose() userReaction?: ReactionType | null;
+
+  @Expose() @Type(() => CommentResponseDto)
+  replies?: CommentResponseDto[]; // optional nested
+
+  constructor(partial: Partial<CommentResponseDto>) {
+    Object.assign(this, partial);
+  }
+}
 ---
 
 
