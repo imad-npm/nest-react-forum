@@ -9,7 +9,6 @@ import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class EmailVerificationService {
-  private readonly EXPIRATION_MS = 15 * 60 * 1000; // 15 minutes
 
   constructor(
     @InjectRepository(EmailVerificationToken)
@@ -17,8 +16,12 @@ export class EmailVerificationService {
     private readonly configService: ConfigService,
     @Inject('IMailService')
     private readonly mailService: IMailService,
-  ) { }
+) {
+  this.EXPIRATION_MS = this.configService.get<number>('EMAIL_VERIFICATION_TOKEN_EXPIRATION', 15 * 60 * 1000);
+  }
+  EXPIRATION_MS : number
 
+  
   private async deleteExistingTokens(userId: number): Promise<void> {
     await this.tokenRepo.delete({ userId });
   }
