@@ -5,13 +5,16 @@ import { User } from './users/entities/user.entity';
 import { Comment } from './comments/entities/comment.entity';
 import { Reaction } from './reactions/entities/reaction.entity';
 import { EmailVerificationToken } from './email-verification/entities/email-verification-token.entity';
+import { PasswordResetToken } from './reset-password/entities/password-reset-token.entity';
 
 config(); // load .env manually
 
 export const AppDataSource = new DataSource({
   type: 'sqlite',
   database: process.env.DB_NAME ?? 'forum.db',
-  entities: [User, Post, Comment, Reaction, EmailVerificationToken],
+  entities: [User, Post, Comment, Reaction, 
+    PasswordResetToken,
+    EmailVerificationToken],
   synchronize: false,
   migrations: ['src/database/migrations/*.ts'],
   logging: true,

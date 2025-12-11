@@ -32,7 +32,9 @@ export class PasswordResetController {
       );
 
       return { message: 'Email sent if account exists' };
-    } catch {
+    } catch (err) {
+      console.log(err);
+      
       return { message: 'Email sent if account exists' };
     }
   }

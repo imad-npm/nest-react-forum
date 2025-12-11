@@ -18,6 +18,9 @@ import { AuthModule } from './auth/auth.module';
 import { CaslModule } from './casl/casl.module';
 import { EmailVerificationToken } from './email-verification/entities/email-verification-token.entity';
 
+import { ResetPasswordModule } from './reset-password/reset-password.module';
+import { PasswordResetToken } from './reset-password/entities/password-reset-token.entity';
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }), // loads .env globally
@@ -28,7 +31,8 @@ import { EmailVerificationToken } from './email-verification/entities/email-veri
       useFactory: (config: ConfigService) => ({
         type: config.get<'sqlite' | 'mysql'>('DB_TYPE', 'sqlite'),
         database: config.get<string>('DB_NAME', 'forum.db'),
-        entities: [User, Post, Comment, Reaction,EmailVerificationToken],
+        entities: [User, Post, Comment, Reaction,
+          EmailVerificationToken ,PasswordResetToken],
         migrations: ['./src/migrations/*.ts'],
         synchronize: false,
       }),
@@ -39,7 +43,8 @@ import { EmailVerificationToken } from './email-verification/entities/email-veri
     CommentsModule,
     ReactionsModule,
     AuthModule ,
-    CaslModule
+    CaslModule ,
+    ResetPasswordModule
   ],
   controllers: [AppController],
   providers: [AppService],
