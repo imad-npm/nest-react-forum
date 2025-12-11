@@ -2,7 +2,8 @@
 import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
 import { Post } from '../../posts/entities/post.entity';
 import { Comment } from '../../comments/entities/comment.entity';
-import { Reaction } from '../../reactions/entities/reaction.entity';
+import { PostReaction } from '../../reactions/entities/post-reaction.entity';
+import { CommentReaction } from '../../reactions/entities/comment-reaction.entity';
 
 @Entity('users')
 export class User {
@@ -34,6 +35,9 @@ export class User {
   @OneToMany(() => Comment, comment => comment.author)
   comments: Comment[];
 
-  @OneToMany(() => Reaction, reaction => reaction.user)
-  reactions: Reaction[];
+  @OneToMany(() => PostReaction, reaction => reaction.user)
+  postReactions: PostReaction[];
+
+  @OneToMany(() => CommentReaction, reaction => reaction.user)
+  commentReactions: CommentReaction[];
 }

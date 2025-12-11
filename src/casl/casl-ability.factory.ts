@@ -3,45 +3,44 @@ import { Injectable } from '@nestjs/common';
 import { User } from '../users/entities/user.entity';
 import { Post } from '../posts/entities/post.entity';
 import { Comment } from '../comments/entities/comment.entity';
-import { Reaction } from '../reactions/entities/reaction.entity';
+import { PostReaction } from '../reactions/entities/post-reaction.entity';
+import { CommentReaction } from '../reactions/entities/comment-reaction.entity';
 import { Action } from './casl.types';
-import { log } from 'console';
 
-
-
-export type Subjects = InferSubjects<typeof Post | typeof Comment | typeof Reaction | typeof User> | 'all';
+export type Subjects =
+  | InferSubjects<typeof Post | typeof Comment | typeof PostReaction | typeof CommentReaction | typeof User>
+  | 'all';
 
 export type AppAbility = MongoAbility<[Action, Subjects]>;
 
 @Injectable()
 export class CaslAbilityFactory {
   createForUser(user: User) {
-const { can, cannot, build } = new AbilityBuilder<AppAbility>(createMongoAbility);    // Class-level permissions (any post)
-    can(Action.Read, Post);
-    can(Action.Create, Post);
-    console.log(user);
-    
-    
-    // Instance-level permissions (only user's own posts)
-    can(Action.Update, Post, { authorId: user.id } );
-    can(Action.Delete, Post, { authorId: user.id } );
+    const { can, cannot, build } = new AbilityBuilder<AppAbility>(createMongoAbility);
 
-    // Class-level permissions (any comment)
+    // ---- Post Permissions ----
+    can(Action.Read, Post); // any post
+    can(Action.Create, Post); 
+    can(Action.Update, Post, { authorId: user.id }); // only own
+    can(Action.Delete, Post, { authorId: user.id });
+
+    // ---- Comment Permissions ----
     can(Action.Read, Comment);
     can(Action.Create, Comment);
-    
-    // Instance-level permissions (only user's own comments)
     can(Action.Update, Comment, { authorId: user.id });
     can(Action.Delete, Comment, { authorId: user.id });
 
-    // Reaction
-    can(Action.Create, Reaction);
-    can(Action.Delete, Reaction, { userId: user.id });
+    // ---- Reaction Permissions ----
+    // PostReaction
+    can(Action.Create, PostReaction);
+    can(Action.Delete, PostReaction, { userId: user.id });
 
-     return build({
-      // Read https://casl.js.org/v6/en/guide/subject-type-detection#use-classes-as-subject-types for details
-      detectSubjectType: (item) =>
-        item.constructor as ExtractSubjectType<Subjects>,
+    // CommentReaction
+    can(Action.Create, CommentReaction);
+    can(Action.Delete, CommentReaction, { userId: user.id });
+
+    return build({
+      detectSubjectType: (item) => item.constructor as ExtractSubjectType<Subjects>,
     });
   }
 }

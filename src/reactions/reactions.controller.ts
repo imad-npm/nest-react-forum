@@ -6,6 +6,7 @@ import {
   Param,
   Delete,
   UseGuards,
+  NotFoundException,
 } from '@nestjs/common';
 import { ReactionsService } from './reactions.service';
 import { CreateReactionDto } from './dto/create-reaction.dto';
@@ -13,14 +14,16 @@ import { User } from 'src/users/entities/user.entity';
 import { GetUser } from 'src/decorators/user.decorator';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { Action } from 'src/casl/casl.types';
-import { Reaction } from './entities/reaction.entity';
-import { ReactionPipe } from 'src/reactions/pipes/reaction.pipe';
+import { PostReaction } from './entities/post-reaction.entity';
+import { CommentReaction } from './entities/comment-reaction.entity';
 import { PostPipe } from 'src/posts/pipes/post.pipe';
 import { CommentPipe } from 'src/comments/pipes/comment.pipe';
 import { Post as PostEntity } from '../posts/entities/post.entity';
 import { Comment as CommentEntity } from '../comments/entities/comment.entity';
 import { CaslService } from 'src/casl/casl.service';
 import { ReactionResponseDto } from './dto/reaction-response.dto';
+import { PostReactionPipe } from './pipes/post-reaction.pipe';
+import { CommentReactionPipe } from './pipes/comment-reaction.pipe';
 
 @Controller()
 export class ReactionsController {
@@ -36,11 +39,12 @@ export class ReactionsController {
     @Body() dto: CreateReactionDto,
     @GetUser() user: User,
   ): Promise<ReactionResponseDto> {
-    this.caslService.enforce(user, Action.Create, Reaction);
+    this.caslService.enforce(user, Action.Create, PostReaction);
     const reaction = await this.reactionsService.create(
       dto.type,
       user,
       post.id,
+      undefined,
     );
     return ReactionResponseDto.fromEntity(reaction);
   }
@@ -60,7 +64,7 @@ export class ReactionsController {
     @Body() dto: CreateReactionDto,
     @GetUser() user: User,
   ): Promise<ReactionResponseDto> {
-    this.caslService.enforce(user, Action.Create, Reaction);
+    this.caslService.enforce(user, Action.Create, CommentReaction);
     const reaction = await this.reactionsService.create(
       dto.type,
       user,
@@ -78,13 +82,23 @@ export class ReactionsController {
     return reactions.map(ReactionResponseDto.fromEntity);
   }
 
-  @Delete('reactions/:reactionId')
+  @Delete('posts/:postId/reactions/:reactionId')
   @UseGuards(JwtAuthGuard)
-  async deleteReaction(
-    @Param('reactionId', ReactionPipe) reaction: Reaction,
+  async deletePostReaction(
+    @Param('reactionId', PostReactionPipe) reaction: PostReaction,
     @GetUser() user: User,
   ) {
     this.caslService.enforce(user, Action.Delete, reaction);
-    return await this.reactionsService.delete(reaction);
+    return await this.reactionsService.deletePostReaction(reaction.id);
+  }
+
+  @Delete('comments/:commentId/reactions/:reactionId')
+  @UseGuards(JwtAuthGuard)
+  async deleteCommentReaction(
+    @Param('reactionId', CommentReactionPipe) reaction: CommentReaction,
+    @GetUser() user: User,
+  ) {
+    this.caslService.enforce(user, Action.Delete, reaction);
+    return await this.reactionsService.deleteCommentReaction(reaction.id);
   }
 }

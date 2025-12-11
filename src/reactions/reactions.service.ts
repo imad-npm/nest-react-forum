@@ -6,14 +6,18 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Reaction, ReactionType } from './entities/reaction.entity';
+import { PostReaction } from './entities/post-reaction.entity';
+import { CommentReaction } from './entities/comment-reaction.entity';
 import { User } from '../users/entities/user.entity';
+import { ReactionType } from './reactions.types';
 
 @Injectable()
 export class ReactionsService {
   constructor(
-    @InjectRepository(Reaction)
-    private readonly repo: Repository<Reaction>,
+    @InjectRepository(PostReaction)
+    private readonly postReactionRepo: Repository<PostReaction>,
+    @InjectRepository(CommentReaction)
+    private readonly commentReactionRepo: Repository<CommentReaction>,
   ) {}
 
   /**
@@ -25,16 +29,25 @@ export class ReactionsService {
     user: User,
     postId?: number,
     commentId?: number,
-  ): Promise<Reaction> {
-    if (!postId && !commentId) {
+  ): Promise<PostReaction | CommentReaction> {
+    if (postId) {
+      return this.createPostReaction(type, user, postId);
+    } else if (commentId) {
+      return this.createCommentReaction(type, user, commentId);
+    } else {
       throw new NotFoundException('Reaction must target a post or a comment.');
     }
+  }
 
-    // Prevent duplicate reaction
-    const existing = await this.repo.findOne({
+  private async createPostReaction(
+    type: ReactionType,
+    user: User,
+    postId: number,
+  ): Promise<PostReaction> {
+    const existing = await this.postReactionRepo.findOne({
       where: {
-        user: { id: user.id },
-        ...(postId ? { post: { id: postId } } : { comment: { id: commentId } }),
+        userId: user.id,
+        postId: postId,
       },
     });
 
@@ -44,19 +57,45 @@ export class ReactionsService {
       );
     }
 
-    const reaction = this.repo.create({
+    const reaction = this.postReactionRepo.create({
       type,
       user,
-      post: postId ? { id: postId } : null,
-      comment: commentId ? { id: commentId } : null,
+      postId,
     });
 
-    return this.repo.save(reaction);
+    return this.postReactionRepo.save(reaction);
+  }
+
+  private async createCommentReaction(
+    type: ReactionType,
+    user: User,
+    commentId: number,
+  ): Promise<CommentReaction> {
+    const existing = await this.commentReactionRepo.findOne({
+      where: {
+        userId: user.id,
+        commentId: commentId,
+      },
+    });
+
+    if (existing) {
+      throw new ForbiddenException(
+        'You already reacted to this content. Remove your existing reaction first.',
+      );
+    }
+
+    const reaction = this.commentReactionRepo.create({
+      type,
+      user,
+      commentId,
+    });
+
+    return this.commentReactionRepo.save(reaction);
   }
 
   findByPost(postId: number) {
-    return this.repo.find({
-      where: { post: { id: postId } },
+    return this.postReactionRepo.find({
+      where: { postId: postId },
       relations: ['user'],
       select: {
         id: true,
@@ -68,8 +107,8 @@ export class ReactionsService {
   }
 
   findByComment(commentId: number) {
-    return this.repo.find({
-      where: { comment: { id: commentId } },
+    return this.commentReactionRepo.find({
+      where: { commentId: commentId },
       relations: ['user'],
       select: {
         id: true,
@@ -80,19 +119,34 @@ export class ReactionsService {
     });
   }
 
-  async delete(reaction: Reaction): Promise<void> {
-    await this.repo.remove(reaction);
+  async deletePostReaction(id: number): Promise<void> {
+    await this.postReactionRepo.delete(id);
   }
 
-  async getUserReactionOnTarget(
+  async deleteCommentReaction(id: number): Promise<void> {
+    await this.commentReactionRepo.delete(id);
+  }
+
+  async getUserReactionOnPost(
     userId: number,
-    postId?: number,
-    commentId?: number,
-  ): Promise<Reaction | null> {
-    return this.repo.findOne({
+    postId: number,
+  ): Promise<PostReaction | null> {
+    return this.postReactionRepo.findOne({
       where: {
-        user: { id: userId },
-        ...(postId ? { post: { id: postId } } : { comment: { id: commentId } }),
+        userId,
+        postId,
+      },
+    });
+  }
+
+  async getUserReactionOnComment(
+    userId: number,
+    commentId: number,
+  ): Promise<CommentReaction | null> {
+    return this.commentReactionRepo.findOne({
+      where: {
+        userId,
+        commentId,
       },
     });
   }

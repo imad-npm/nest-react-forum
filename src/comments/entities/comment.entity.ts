@@ -1,7 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn, UpdateDateColumn, DeleteDateColumn, OneToMany } from 'typeorm';
 import { Post } from '../../posts/entities/post.entity';
 import { User } from '../../users/entities/user.entity';
-import { Reaction } from '../../reactions/entities/reaction.entity';
+import { CommentReaction } from '../../reactions/entities/comment-reaction.entity';
 
 @Entity()
 export class Comment {
@@ -26,8 +26,8 @@ export class Comment {
   @OneToMany(() => Comment, comment => comment.parent)
   replies: Comment[];
 
-  @OneToMany(() => Reaction, reaction => reaction.comment)
-reactions: Reaction[];
+  @OneToMany(() => CommentReaction, reaction => reaction.comment)
+  reactions: CommentReaction[];
 
 
   @CreateDateColumn()
@@ -39,3 +39,4 @@ reactions: Reaction[];
   @DeleteDateColumn()
   deletedAt: Date;
 }
+
