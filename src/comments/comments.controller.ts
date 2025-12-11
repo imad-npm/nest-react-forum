@@ -7,6 +7,7 @@ import {
   Param,
   Body,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import { CommentsService } from './comments.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
@@ -21,6 +22,7 @@ import { Post as PostEntity } from 'src/posts/entities/post.entity';
 import { PostPipe } from 'src/posts/pipes/post.pipe';
 import { CaslService } from 'src/casl/casl.service';
 import { CommentResponseDto } from './dto/comment-response.dto';
+import { PaginationDto } from 'src/common/dto/pagination.dto';
 
 @Controller()
 export class CommentsController {
@@ -32,9 +34,19 @@ export class CommentsController {
   @Get('posts/:postId/comments')
   async findByPost(
     @Param('postId', PostPipe) post: PostEntity,
-  ): Promise<CommentResponseDto[]> {
-    const comments = await this.commentsService.findByPost(post.id);
-    return comments.map(CommentResponseDto.fromEntity);
+    @Query() query: PaginationDto,
+  ) {
+    const { data, count } = await this.commentsService.findByPost(
+      post.id,
+      query.page,
+      query.limit,
+    );
+    return {
+      data: data.map(CommentResponseDto.fromEntity),
+      count,
+      page: query.page,
+      pages: Math.ceil(count / query.limit),
+    };
   }
 
   @HttpPost('posts/:postId/comments')

@@ -7,6 +7,7 @@ import {
   Patch,
   Delete,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import { PostsService } from './posts.service';
 import { CreatePostDto } from './dto/create-post.dto';
@@ -19,6 +20,7 @@ import { PostPipe } from 'src/posts/pipes/post.pipe';
 import { Action } from 'src/casl/casl.types';
 import { CaslService } from 'src/casl/casl.service';
 import { PostResponseDto } from './dto/post-response.dto';
+import { PaginationDto } from 'src/common/dto/pagination.dto';
 
 @Controller('posts')
 export class PostsController {
@@ -28,9 +30,18 @@ export class PostsController {
   ) {}
 
   @Get()
-  async findAll(): Promise<PostResponseDto[]> {
-    const posts = await this.postsService.findAll();
-    return posts.map(PostResponseDto.fromEntity);
+  async findAll(@Query() query: PaginationDto) {
+    const { data, count } = await this.postsService.findAll(
+      query.page,
+      query.limit,
+    );
+
+    return {
+      data: data.map(PostResponseDto.fromEntity),
+      count,
+      page: query.page,
+      pages: Math.ceil(count / query.limit),
+    };
   }
 
   @Get(':id')

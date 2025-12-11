@@ -12,11 +12,18 @@ export class CommentsService {
     private readonly commentRepo: Repository<Comment>,
   ) { }
 
-  findByPost(postId: number) {
-    return this.commentRepo.find({
+  async findByPost(
+    postId: number,
+    page = 1,
+    limit = 10,
+  ): Promise<{ data: Comment[]; count: number }> {
+    const [data, count] = await this.commentRepo.findAndCount({
       where: { post: { id: postId } },
       relations: ['author', 'post', 'parent'],
+      take: limit,
+      skip: (page - 1) * limit,
     });
+    return { data, count };
   }
 
   findOne(id: number) {

@@ -11,10 +11,17 @@ export class PostsService {
     private postsRepository: Repository<Post>,
   ) {}
 
-  findAll(): Promise<Post[]> {
-    return this.postsRepository.find({
+  async findAll(page = 1, limit = 10): Promise<{
+    data: Post[];
+    count: number;
+  }> {
+    const [data, count] = await this.postsRepository.findAndCount({
       relations: ['author', 'comments', 'reactions'],
+      take: limit,
+      skip: (page - 1) * limit,
     });
+
+    return { data, count };
   }
 
   findOne(id: number): Promise<Post | null> {
