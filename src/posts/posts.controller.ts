@@ -15,7 +15,7 @@ import { Post as PostEntity } from './entities/post.entity';
 import { GetUser } from 'src/decorators/user.decorator';
 import { User } from 'src/users/entities/user.entity';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
-import { PostPipe } from 'src/common/pipes/post.pipe';
+import { PostPipe } from 'src/posts/pipes/post.pipe';
 import { Action } from 'src/casl/casl.types';
 import { CaslService } from 'src/casl/casl.service';
 import { PostResponseDto } from './dto/post-response.dto';

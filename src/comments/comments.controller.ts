@@ -16,9 +16,9 @@ import { User } from 'src/users/entities/user.entity';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { Action } from 'src/casl/casl.types';
 import { Comment } from './entities/comment.entity';
-import { CommentPipe } from 'src/common/pipes/comment.pipe';
+import { CommentPipe } from 'src/comments/pipes/comment.pipe';
 import { Post as PostEntity } from 'src/posts/entities/post.entity';
-import { PostPipe } from 'src/common/pipes/post.pipe';
+import { PostPipe } from 'src/posts/pipes/post.pipe';
 import { CaslService } from 'src/casl/casl.service';
 import { CommentResponseDto } from './dto/comment-response.dto';
 
