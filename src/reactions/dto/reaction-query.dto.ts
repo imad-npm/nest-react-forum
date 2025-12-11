@@ -1,7 +1,7 @@
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { IsOptional, IsEnum, IsInt } from 'class-validator';
 import { Type } from 'class-transformer';
-import { ReactionType } from '../entities/reaction.entity';
+import { ReactionType } from '../reactions.types';
 
 export class ReactionQueryDto extends PaginationDto {
   @IsOptional()

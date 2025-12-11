@@ -13,13 +13,14 @@ import { ReactionsModule } from './reactions/reactions.module';
 import { User } from './users/entities/user.entity';
 import { Post } from './posts/entities/post.entity';
 import { Comment } from './comments/entities/comment.entity';
-import { Reaction } from './reactions/entities/reaction.entity';
 import { AuthModule } from './auth/auth.module';
 import { CaslModule } from './casl/casl.module';
 import { EmailVerificationToken } from './email-verification/entities/email-verification-token.entity';
 
 import { ResetPasswordModule } from './reset-password/reset-password.module';
 import { PasswordResetToken } from './reset-password/entities/password-reset-token.entity';
+import { CommentReaction } from './reactions/entities/comment-reaction.entity';
+import { PostReaction } from './reactions/entities/post-reaction.entity';
 
 @Module({
   imports: [
@@ -31,7 +32,7 @@ import { PasswordResetToken } from './reset-password/entities/password-reset-tok
       useFactory: (config: ConfigService) => ({
         type: config.get<'sqlite' | 'mysql'>('DB_TYPE', 'sqlite'),
         database: config.get<string>('DB_NAME', 'forum.db'),
-        entities: [User, Post, Comment, Reaction,
+        entities: [User, Post, Comment, CommentReaction, PostReaction ,
           EmailVerificationToken ,PasswordResetToken],
         migrations: ['./src/migrations/*.ts'],
         synchronize: false,

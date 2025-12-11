@@ -2,9 +2,11 @@ import { seedUsers } from './user.seed';
 import { seedPosts } from './post.seed';
 import { seedComments } from './comment.seed';
 import { seedReactions } from './reaction.seed'; // <-- if you want to seed reactions
+import { AppDataSource } from '../../data-source';
 
 async function main() {
   try {
+await AppDataSource.initialize();
     // Seed users
     const users = await seedUsers();
 

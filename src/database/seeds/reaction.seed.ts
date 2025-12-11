@@ -1,6 +1,9 @@
 import { AppDataSource } from '../../data-source';
-import { reactionFactory } from '../factories/reaction.factory';
-import { Reaction } from '../../reactions/entities/reaction.entity';
+import { postReactionFactory } from '../factories/post-reaction.factory';
+import { commentReactionFactory } from '../factories/comment-reaction.factory';
+
+import { PostReaction } from '../../reactions/entities/post-reaction.entity';
+import { CommentReaction } from '../../reactions/entities/comment-reaction.entity';
 import { Post } from '../../posts/entities/post.entity';
 import { Comment } from '../../comments/entities/comment.entity';
 import { User } from '../../users/entities/user.entity';
@@ -8,36 +11,71 @@ import { User } from '../../users/entities/user.entity';
 /**
  * Seed Reactions for given posts and comments using provided users
  */
-export async function seedReactions(posts: Post[], comments: Comment[], users: User[]): Promise<Reaction[]> {
+export async function seedReactions(
+  posts: Post[],
+  comments: Comment[],
+  users: User[],
+): Promise<(PostReaction | CommentReaction)[]> {
   if (!users.length) {
     throw new Error('At least one user is required to seed reactions.');
   }
 
-  const reactionRepo = AppDataSource.getRepository(Reaction);
-  const reactions: Reaction[] = [];
+  const postReactionRepo = AppDataSource.getRepository(PostReaction);
+  const commentReactionRepo = AppDataSource.getRepository(CommentReaction);
 
-  // Generate Reactions for Posts (1-3 reactions per post)
-  posts.forEach(post => {
-    const numReactions = Math.floor(Math.random() * 3) + 1; 
-    for (let i = 0; i < numReactions; i++) {
-      // Pick a random user
+  const postReactionsToSave: PostReaction[] = [];
+  const commentReactionsToSave: CommentReaction[] = [];
+
+  /**
+   * Pick N users without duplicates
+   */
+  const pickRandomUniqueUsers = (count: number): User[] => {
+    const uniqueUsers = new Set<number>();
+    const picked: User[] = [];
+
+    while (uniqueUsers.size < count && uniqueUsers.size < users.length) {
       const user = users[Math.floor(Math.random() * users.length)];
-      reactions.push(reactionFactory(user, post, undefined));
+      if (!uniqueUsers.has(user.id)) {
+        uniqueUsers.add(user.id);
+        picked.push(user);
+      }
     }
-  });
 
-  // Generate Reactions for Comments (1-2 reactions per comment)
-  comments.forEach(comment => {
-    const numReactions = Math.floor(Math.random() * 2) + 1; 
-    for (let i = 0; i < numReactions; i++) {
-      const user = users[Math.floor(Math.random() * users.length)];
-      reactions.push(reactionFactory(user, undefined, comment));
+    return picked;
+  };
+
+  // ------------------------------------------------------------
+  // 🟦 Reactions for Posts (1–3 reactions per post)
+  // ------------------------------------------------------------
+  for (const post of posts) {
+    const numReactions = Math.floor(Math.random() * 3) + 1; // 1–3
+    const selectedUsers = pickRandomUniqueUsers(numReactions);
+
+    for (const user of selectedUsers) {
+      postReactionsToSave.push(postReactionFactory(user, post));
     }
-  });
+  }
 
-  await reactionRepo.save(reactions);
-  console.log(`Seeded ${reactions.length} reactions ✅`);
+  // ------------------------------------------------------------
+  // 🟩 Reactions for Comments (1–2 reactions per comment)
+  // ------------------------------------------------------------
+  for (const comment of comments) {
+    const numReactions = Math.floor(Math.random() * 2) + 1; // 1–2
+    const selectedUsers = pickRandomUniqueUsers(numReactions);
 
-  return reactions;
+    for (const user of selectedUsers) {
+      commentReactionsToSave.push(commentReactionFactory(user, comment));
+    }
+  }
+
+  // ------------------------------------------------------------
+  // 🟪 Save to DB
+  // ------------------------------------------------------------
+  const savedPostReactions = await postReactionRepo.save(postReactionsToSave);
+  const savedCommentReactions = await commentReactionRepo.save(commentReactionsToSave);
+
+  const all = [...savedPostReactions, ...savedCommentReactions];
+  console.log(`Seeded ${all.length} reactions ✅`);
+
+  return all;
 }
-

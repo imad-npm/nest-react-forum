@@ -9,8 +9,8 @@ export class ReactionResponseDto {
   @Expose() readonly id: number;
   @Expose() readonly type: ReactionType;
   @Expose() @Type(() => UserResponseDto) readonly user: UserResponseDto;
-  @Expose() readonly postId?: number;
-  @Expose() readonly commentId?: number;
+  @Expose()  postId?: number;
+  @Expose()  commentId?: number;
   @Expose() readonly createdAt: Date;
 
   static fromEntity(entity: PostReaction | CommentReaction): ReactionResponseDto {

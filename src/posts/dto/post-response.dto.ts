@@ -1,7 +1,7 @@
 import { Exclude, Expose, Type, plainToInstance } from 'class-transformer';
 import { UserResponseDto } from '../../users/dtos/user-response.dto';
 import { Post } from '../entities/post.entity';
-import { ReactionType } from 'src/reactions/entities/reaction.entity';
+import { PostReaction } from 'src/reactions/entities/post-reaction.entity';
 
 @Exclude()
 export class PostResponseDto {
@@ -17,7 +17,7 @@ export class PostResponseDto {
   @Expose() readonly commentsCount: number;
   @Expose() readonly likesCount: number;
   @Expose() readonly dislikesCount: number;
-  @Expose() readonly userReaction?: ReactionType | null;
+  @Expose() readonly userReaction?: PostReaction | null;
 
   static fromEntity(entity: Post): PostResponseDto {
     return plainToInstance(PostResponseDto, {
