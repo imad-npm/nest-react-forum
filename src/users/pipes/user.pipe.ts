@@ -1,24 +1,14 @@
 import { Injectable, PipeTransform, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { User } from '../../users/entities/user.entity';
+import { UsersService } from '../users.service';
+import { User } from '../entities/user.entity';
 
 @Injectable()
-export class UserPipe implements PipeTransform {
+export class UserPipe implements PipeTransform<string, Promise<User>> {
   constructor(
-    @InjectRepository(User)
-    private readonly repo: Repository<User>,
+    private readonly usersService: UsersService,
   ) {}
 
-  async transform(value: string) {
-    const user = await this.repo.findOne({
-      where: { id: +value },
-    });
-
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    return user;
+  async transform(value: string): Promise<User> {
+    return this.usersService.findOneById(+value);
   }
 }

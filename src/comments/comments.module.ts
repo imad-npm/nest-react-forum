@@ -15,5 +15,6 @@ CaslModule
   ],
   providers: [CommentsService],
   controllers: [CommentsController],
+  exports: [CommentsService],
 })
 export class CommentsModule {}

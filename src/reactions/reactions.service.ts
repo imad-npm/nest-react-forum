@@ -139,15 +139,19 @@ export class ReactionsService {
     });
   }
 
-  async getUserReactionOnComment(
-    userId: number,
-    commentId: number,
-  ): Promise<CommentReaction | null> {
-    return this.commentReactionRepo.findOne({
-      where: {
-        userId,
-        commentId,
-      },
-    });
+  async findPostReactionById(id: number): Promise<PostReaction> {
+    const reaction = await this.postReactionRepo.findOne({ where: { id }, relations: ['user'] });
+    if (!reaction) {
+      throw new NotFoundException('Post reaction not found');
+    }
+    return reaction;
+  }
+
+  async findCommentReactionById(id: number): Promise<CommentReaction> {
+    const reaction = await this.commentReactionRepo.findOne({ where: { id }, relations: ['user'] });
+    if (!reaction) {
+      throw new NotFoundException('Comment reaction not found');
+    }
+    return reaction;
   }
 }

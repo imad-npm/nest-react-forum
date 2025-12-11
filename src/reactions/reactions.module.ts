@@ -6,6 +6,7 @@ import { PostReaction } from './entities/post-reaction.entity';
 import { CommentReaction } from './entities/comment-reaction.entity';
 import { CaslModule } from 'src/casl/casl.module';
 import { PostsModule } from 'src/posts/posts.module';
+import { CommentsModule } from 'src/comments/comments.module';
 
 @Module({
   providers: [ReactionsService],
@@ -13,7 +14,9 @@ import { PostsModule } from 'src/posts/posts.module';
   imports: [
     TypeOrmModule.forFeature([PostReaction, CommentReaction]),
     CaslModule,
-    PostsModule
+    PostsModule,
+    CommentsModule
   ],
+  exports: [ReactionsService],
 })
 export class ReactionsModule {}

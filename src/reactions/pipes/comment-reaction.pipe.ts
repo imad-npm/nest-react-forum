@@ -1,25 +1,14 @@
 import { Injectable, PipeTransform, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { ReactionsService } from '../reactions.service';
 import { CommentReaction } from '../entities/comment-reaction.entity';
 
 @Injectable()
-export class CommentReactionPipe implements PipeTransform {
+export class CommentReactionPipe implements PipeTransform<string, Promise<CommentReaction>> {
   constructor(
-    @InjectRepository(CommentReaction)
-    private readonly repo: Repository<CommentReaction>,
+    private readonly reactionsService: ReactionsService,
   ) {}
 
-  async transform(value: string) {
-    const reaction = await this.repo.findOne({
-      where: { id: +value },
-      relations: ['user'],
-    });
-
-    if (!reaction) {
-      throw new NotFoundException('Comment reaction not found');
-    }
-
-    return reaction;
+  async transform(value: string): Promise<CommentReaction> {
+    return this.reactionsService.findCommentReactionById(+value);
   }
 }

@@ -1,25 +1,14 @@
 import { Injectable, PipeTransform, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { ReactionsService } from '../reactions.service';
 import { PostReaction } from '../entities/post-reaction.entity';
 
 @Injectable()
-export class PostReactionPipe implements PipeTransform {
+export class PostReactionPipe implements PipeTransform<string, Promise<PostReaction>> {
   constructor(
-    @InjectRepository(PostReaction)
-    private readonly repo: Repository<PostReaction>,
+    private readonly reactionsService: ReactionsService,
   ) {}
 
-  async transform(value: string) {
-    const reaction = await this.repo.findOne({
-      where: { id: +value },
-      relations: ['user'],
-    });
-
-    if (!reaction) {
-      throw new NotFoundException('Post reaction not found');
-    }
-
-    return reaction;
+  async transform(value: string): Promise<PostReaction> {
+    return this.reactionsService.findPostReactionById(+value);
   }
 }

@@ -1,20 +1,15 @@
 import { Injectable, PipeTransform, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Post } from '../../posts/entities/post.entity';
+import { PostsService } from '../posts.service';
+import { Post } from '../entities/post.entity';
 
 @Injectable()
-export class PostPipe implements PipeTransform {
+export class PostPipe implements PipeTransform<string, Promise<Post>> {
   constructor(
-    @InjectRepository(Post)
-    private readonly repo: Repository<Post>,
+    private readonly postsService: PostsService,
   ) {}
 
-  async transform(value: string) {
-    const post = await this.repo.findOne({
-      where: { id: +value },
-      relations: ['author'],
-    });
+  async transform(value: string): Promise<Post> {
+    const post = await this.postsService.findOne(+value);
 
     if (!post) {
       throw new NotFoundException('Post not found');
