@@ -22,7 +22,7 @@ import { Post as PostEntity } from 'src/posts/entities/post.entity';
 import { PostPipe } from 'src/posts/pipes/post.pipe';
 import { CaslService } from 'src/casl/casl.service';
 import { CommentResponseDto } from './dto/comment-response.dto';
-import { PaginationDto } from 'src/common/dto/pagination.dto';
+import { CommentQueryDto } from './dto/comment-query.dto';
 
 @Controller()
 export class CommentsController {
@@ -31,10 +31,27 @@ export class CommentsController {
     private readonly caslService: CaslService,
   ) {}
 
+  @Get('comments')
+  async findAll(@Query() query: CommentQueryDto) {
+    const { data, count } = await this.commentsService.findAll(
+      query.page,
+      query.limit,
+      query.search,
+      query.authorId,
+    );
+
+    return {
+      data: data.map(CommentResponseDto.fromEntity),
+      count,
+      page: query.page,
+      pages: Math.ceil(count / query.limit),
+    };
+  }
+
   @Get('posts/:postId/comments')
   async findByPost(
     @Param('postId', PostPipe) post: PostEntity,
-    @Query() query: PaginationDto,
+    @Query() query: CommentQueryDto,
   ) {
     const { data, count } = await this.commentsService.findByPost(
       post.id,

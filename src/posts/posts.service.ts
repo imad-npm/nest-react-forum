@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Brackets, Repository } from 'typeorm';
 import { Post } from './entities/post.entity';
 import { User } from 'src/users/entities/user.entity';
+import { PostSort } from './dto/post-query.dto';
 
 @Injectable()
 export class PostsService {
@@ -11,15 +12,53 @@ export class PostsService {
     private postsRepository: Repository<Post>,
   ) {}
 
-  async findAll(page = 1, limit = 10): Promise<{
+  async findAll(
+    page = 1,
+    limit = 10,
+    search?: string,
+    authorId?: number,
+    sort?: PostSort,
+  ): Promise<{
     data: Post[];
     count: number;
   }> {
-    const [data, count] = await this.postsRepository.findAndCount({
-      relations: ['author', 'comments', 'reactions'],
-      take: limit,
-      skip: (page - 1) * limit,
-    });
+    const query = this.postsRepository
+      .createQueryBuilder('post')
+      .leftJoinAndSelect('post.author', 'author')
+      .leftJoinAndSelect('post.comments', 'comments')
+      .leftJoinAndSelect('post.reactions', 'reactions');
+
+    if (search) {
+      query.where(
+        new Brackets((qb) => {
+          qb.where('post.title ILIKE :search', {
+            search: `%${search}%`,
+          }).orWhere('post.content ILIKE :search', { search: `%${search}%` });
+        }),
+      );
+    }
+
+    if (authorId) {
+      query.andWhere('post.author.id = :authorId', { authorId });
+    }
+
+    if (sort === PostSort.NEWEST) {
+      query.orderBy('post.createdAt', 'DESC');
+    } else if (sort === PostSort.OLDEST) {
+      query.orderBy('post.createdAt', 'ASC');
+    } else if (sort === PostSort.POPULAR) {
+      query
+        .addSelect('COUNT(reactions.id)', 'reactionCount')
+        .groupBy('post.id')
+        .orderBy('reactionCount', 'DESC');
+    } else {
+      query.orderBy('post.createdAt', 'DESC');
+    }
+
+    const [data, count] = await query
+      .take(limit)
+      .skip((page - 1) * limit)
+      .getManyAndCount();
 
     return { data, count };
   }

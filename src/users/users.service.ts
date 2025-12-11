@@ -1,7 +1,7 @@
 // src/users/users.service.ts
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Brackets, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { User } from './entities/user.entity';
 
@@ -11,6 +11,38 @@ export class UsersService {
     @InjectRepository(User)
     private readonly repo: Repository<User>,
   ) {}
+
+  async findAll(
+    page = 1,
+    limit = 10,
+    search?: string,
+    provider?: 'google' | 'github',
+  ): Promise<{ data: User[]; count: number }> {
+    const query = this.repo.createQueryBuilder('user');
+
+    if (search) {
+      query.where(
+        new Brackets((qb) => {
+          qb.where('user.name ILIKE :search', {
+            search: `%${search}%`,
+          }).orWhere('user.email ILIKE :search', { search: `%${search}%` });
+        }),
+      );
+    }
+
+    if (provider) {
+      query.andWhere('user.provider = :provider', { provider });
+    }
+
+    query.orderBy('user.createdAt', 'DESC');
+
+    const [data, count] = await query
+      .take(limit)
+      .skip((page - 1) * limit)
+      .getManyAndCount();
+
+    return { data, count };
+  }
 
   // ---------------------------------------
   // Base find helper (DRY but minimal)

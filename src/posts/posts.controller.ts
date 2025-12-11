@@ -20,7 +20,7 @@ import { PostPipe } from 'src/posts/pipes/post.pipe';
 import { Action } from 'src/casl/casl.types';
 import { CaslService } from 'src/casl/casl.service';
 import { PostResponseDto } from './dto/post-response.dto';
-import { PaginationDto } from 'src/common/dto/pagination.dto';
+import { PostQueryDto } from './dto/post-query.dto';
 
 @Controller('posts')
 export class PostsController {
@@ -30,10 +30,13 @@ export class PostsController {
   ) {}
 
   @Get()
-  async findAll(@Query() query: PaginationDto) {
+  async findAll(@Query() query: PostQueryDto) {
     const { data, count } = await this.postsService.findAll(
       query.page,
       query.limit,
+      query.search,
+      query.authorId,
+      query.sort,
     );
 
     return {

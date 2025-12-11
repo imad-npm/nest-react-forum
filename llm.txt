@@ -744,7 +744,7 @@ export class UserPipe implements PipeTransform {
 // src/users/users.service.ts
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Brackets, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { User } from './entities/user.entity';
 
@@ -754,6 +754,38 @@ export class UsersService {
     @InjectRepository(User)
     private readonly repo: Repository<User>,
   ) {}
+
+  async findAll(
+    page = 1,
+    limit = 10,
+    search?: string,
+    provider?: 'google' | 'github',
+  ): Promise<{ data: User[]; count: number }> {
+    const query = this.repo.createQueryBuilder('user');
+
+    if (search) {
+      query.where(
+        new Brackets((qb) => {
+          qb.where('user.name ILIKE :search', {
+            search: `%${search}%`,
+          }).orWhere('user.email ILIKE :search', { search: `%${search}%` });
+        }),
+      );
+    }
+
+    if (provider) {
+      query.andWhere('user.provider = :provider', { provider });
+    }
+
+    query.orderBy('user.createdAt', 'DESC');
+
+    const [data, count] = await query
+      .take(limit)
+      .skip((page - 1) * limit)
+      .getManyAndCount();
+
+    return { data, count };
+  }
 
   // ---------------------------------------
   // Base find helper (DRY but minimal)
@@ -869,6 +901,23 @@ export class CreateUserDto {
 ---
 
 
+### FILE: src/users/dtos/user-query.dto.ts ###
+import { PaginationDto } from '../../common/dto/pagination.dto';
+import { IsOptional, IsString, IsEnum } from 'class-validator';
+
+export class UserQueryDto extends PaginationDto {
+  @IsOptional()
+  @IsString()
+  search?: string; // Filter by name or email
+
+  @IsOptional()
+  @IsEnum(['google', 'github'])
+  provider?: 'google' | 'github';
+}
+
+---
+
+
 ### FILE: src/users/dtos/update-user.dto.ts ###
 // src/users/dtos/update-user.dto.ts
 import { PartialType } from '@nestjs/mapped-types';
@@ -905,9 +954,11 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
 import { UsersService } from './users.service';
+import { UsersController } from './users.controller';
 
 @Module({
   imports: [TypeOrmModule.forFeature([User])],
+  controllers: [UsersController],
   providers: [UsersService],
   exports: [UsersService], // Export the service so it can be injected elsewhere
 })
@@ -955,6 +1006,37 @@ export class User {
 
   @OneToMany(() => Reaction, reaction => reaction.user)
   reactions: Reaction[];
+}
+
+---
+
+
+### FILE: src/users/users.controller.ts ###
+import { Controller, Get, Query } from '@nestjs/common';
+import { UsersService } from './users.service';
+import { UserQueryDto } from './dtos/user-query.dto';
+import { UserResponseDto } from './dtos/user-response.dto';
+
+@Controller('users')
+export class UsersController {
+  constructor(private readonly usersService: UsersService) {}
+
+  @Get()
+  async findAll(@Query() query: UserQueryDto) {
+    const { data, count } = await this.usersService.findAll(
+      query.page,
+      query.limit,
+      query.search,
+      query.provider,
+    );
+
+    return {
+      data: data.map(UserResponseDto.fromEntity),
+      count,
+      page: query.page,
+      pages: Math.ceil(count / query.limit),
+    };
+  }
 }
 
 ---
@@ -1255,6 +1337,26 @@ type: ReactionType;
 ---
 
 
+### FILE: src/reactions/dto/reaction-query.dto.ts ###
+import { PaginationDto } from '../../common/dto/pagination.dto';
+import { IsOptional, IsEnum, IsInt } from 'class-validator';
+import { Type } from 'class-transformer';
+import { ReactionType } from '../entities/reaction.entity';
+
+export class ReactionQueryDto extends PaginationDto {
+  @IsOptional()
+  @IsEnum(ReactionType)
+  type?: ReactionType;
+
+  @IsOptional()
+  @IsInt()
+  @Type(() => Number)
+  userId?: number;
+}
+
+---
+
+
 ### FILE: src/reactions/dto/reaction-response.dto.ts ###
 import { Exclude, Expose, Type, plainToInstance } from 'class-transformer';
 import { UserResponseDto } from '../../users/dtos/user-response.dto';
@@ -1297,6 +1399,27 @@ import { ReactionType } from '../entities/reaction.entity';
 export class CreateReactionDto {
   @IsEnum(ReactionType)
   type: ReactionType;
+}
+
+---
+
+
+### FILE: src/common/dto/pagination.dto.ts ###
+import { Type } from 'class-transformer';
+import { IsInt, Min, IsOptional } from 'class-validator';
+
+export class PaginationDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page: number = 1;   // default 1
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  limit: number = 10; // default 10
 }
 
 ---
@@ -1785,9 +1908,10 @@ export class PostsModule {}
 ### FILE: src/posts/posts.service.ts ###
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Brackets, Repository } from 'typeorm';
 import { Post } from './entities/post.entity';
 import { User } from 'src/users/entities/user.entity';
+import { PostSort } from './dto/post-query.dto';
 
 @Injectable()
 export class PostsService {
@@ -1796,10 +1920,55 @@ export class PostsService {
     private postsRepository: Repository<Post>,
   ) {}
 
-  findAll(): Promise<Post[]> {
-    return this.postsRepository.find({
-      relations: ['author', 'comments', 'reactions'],
-    });
+  async findAll(
+    page = 1,
+    limit = 10,
+    search?: string,
+    authorId?: number,
+    sort?: PostSort,
+  ): Promise<{
+    data: Post[];
+    count: number;
+  }> {
+    const query = this.postsRepository
+      .createQueryBuilder('post')
+      .leftJoinAndSelect('post.author', 'author')
+      .leftJoinAndSelect('post.comments', 'comments')
+      .leftJoinAndSelect('post.reactions', 'reactions');
+
+    if (search) {
+      query.where(
+        new Brackets((qb) => {
+          qb.where('post.title ILIKE :search', {
+            search: `%${search}%`,
+          }).orWhere('post.content ILIKE :search', { search: `%${search}%` });
+        }),
+      );
+    }
+
+    if (authorId) {
+      query.andWhere('post.author.id = :authorId', { authorId });
+    }
+
+    if (sort === PostSort.NEWEST) {
+      query.orderBy('post.createdAt', 'DESC');
+    } else if (sort === PostSort.OLDEST) {
+      query.orderBy('post.createdAt', 'ASC');
+    } else if (sort === PostSort.POPULAR) {
+      query
+        .addSelect('COUNT(reactions.id)', 'reactionCount')
+        .groupBy('post.id')
+        .orderBy('reactionCount', 'DESC');
+    } else {
+      query.orderBy('post.createdAt', 'DESC');
+    }
+
+    const [data, count] = await query
+      .take(limit)
+      .skip((page - 1) * limit)
+      .getManyAndCount();
+
+    return { data, count };
   }
 
   findOne(id: number): Promise<Post | null> {
@@ -1888,6 +2057,7 @@ import {
   Patch,
   Delete,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import { PostsService } from './posts.service';
 import { CreatePostDto } from './dto/create-post.dto';
@@ -1900,6 +2070,7 @@ import { PostPipe } from 'src/posts/pipes/post.pipe';
 import { Action } from 'src/casl/casl.types';
 import { CaslService } from 'src/casl/casl.service';
 import { PostResponseDto } from './dto/post-response.dto';
+import { PostQueryDto } from './dto/post-query.dto';
 
 @Controller('posts')
 export class PostsController {
@@ -1909,9 +2080,21 @@ export class PostsController {
   ) {}
 
   @Get()
-  async findAll(): Promise<PostResponseDto[]> {
-    const posts = await this.postsService.findAll();
-    return posts.map(PostResponseDto.fromEntity);
+  async findAll(@Query() query: PostQueryDto) {
+    const { data, count } = await this.postsService.findAll(
+      query.page,
+      query.limit,
+      query.search,
+      query.authorId,
+      query.sort,
+    );
+
+    return {
+      data: data.map(PostResponseDto.fromEntity),
+      count,
+      page: query.page,
+      pages: Math.ceil(count / query.limit),
+    };
   }
 
   @Get(':id')
@@ -1967,6 +2150,35 @@ export class UpdatePostDto extends PartialType(CreatePostDto) {
   // If you need to add custom validation or properties, they go here.
   // Otherwise, leave the body empty.
 }
+---
+
+
+### FILE: src/posts/dto/post-query.dto.ts ###
+import { PaginationDto } from '../../common/dto/pagination.dto';
+import { IsOptional, IsString, IsInt, IsEnum } from 'class-validator';
+import { Type } from 'class-transformer';
+
+export enum PostSort {
+  NEWEST = 'newest',
+  POPULAR = 'popular',
+  OLDEST = 'oldest',
+}
+
+export class PostQueryDto extends PaginationDto {
+  @IsOptional()
+  @IsString()
+  search?: string; // Filter by title or content
+
+  @IsOptional()
+  @IsInt()
+  @Type(() => Number)
+  authorId?: number;
+
+  @IsOptional()
+  @IsEnum(PostSort)
+  sort?: PostSort;
+}
+
 ---
 
 
@@ -2912,7 +3124,7 @@ export class CommentPipe implements PipeTransform {
 ### FILE: src/comments/comments.service.ts ###
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Brackets, Repository } from 'typeorm';
 import { Comment } from './entities/comment.entity';
 import { User } from 'src/users/entities/user.entity';
 import { Post } from 'src/posts/entities/post.entity';
@@ -2924,11 +3136,48 @@ export class CommentsService {
     private readonly commentRepo: Repository<Comment>,
   ) { }
 
-  findByPost(postId: number) {
-    return this.commentRepo.find({
+  async findAll(
+    page = 1,
+    limit = 10,
+    search?: string,
+    authorId?: number,
+  ): Promise<{ data: Comment[]; count: number }> {
+    const query = this.commentRepo
+      .createQueryBuilder('comment')
+      .leftJoinAndSelect('comment.author', 'author')
+      .leftJoinAndSelect('comment.post', 'post')
+      .leftJoinAndSelect('comment.parent', 'parent');
+
+    if (search) {
+      query.where('comment.content ILIKE :search', { search: `%${search}%` });
+    }
+
+    if (authorId) {
+      query.andWhere('comment.author.id = :authorId', { authorId });
+    }
+
+    query.orderBy('comment.createdAt', 'DESC');
+
+    const [data, count] = await query
+      .take(limit)
+      .skip((page - 1) * limit)
+      .getManyAndCount();
+
+    return { data, count };
+  }
+
+  async findByPost(
+    postId: number,
+    page = 1,
+    limit = 10,
+  ): Promise<{ data: Comment[]; count: number }> {
+    const [data, count] = await this.commentRepo.findAndCount({
       where: { post: { id: postId } },
       relations: ['author', 'post', 'parent'],
+      take: limit,
+      skip: (page - 1) * limit,
     });
+    return { data, count };
   }
 
   findOne(id: number) {
@@ -2990,6 +3239,7 @@ import {
   Param,
   Body,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import { CommentsService } from './comments.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
@@ -3004,6 +3254,7 @@ import { Post as PostEntity } from 'src/posts/entities/post.entity';
 import { PostPipe } from 'src/posts/pipes/post.pipe';
 import { CaslService } from 'src/casl/casl.service';
 import { CommentResponseDto } from './dto/comment-response.dto';
+import { CommentQueryDto } from './dto/comment-query.dto';
 
 @Controller()
 export class CommentsController {
@@ -3012,12 +3263,39 @@ export class CommentsController {
     private readonly caslService: CaslService,
   ) {}
 
+  @Get('comments')
+  async findAll(@Query() query: CommentQueryDto) {
+    const { data, count } = await this.commentsService.findAll(
+      query.page,
+      query.limit,
+      query.search,
+      query.authorId,
+    );
+
+    return {
+      data: data.map(CommentResponseDto.fromEntity),
+      count,
+      page: query.page,
+      pages: Math.ceil(count / query.limit),
+    };
+  }
+
   @Get('posts/:postId/comments')
   async findByPost(
     @Param('postId', PostPipe) post: PostEntity,
-  ): Promise<CommentResponseDto[]> {
-    const comments = await this.commentsService.findByPost(post.id);
-    return comments.map(CommentResponseDto.fromEntity);
+    @Query() query: CommentQueryDto,
+  ) {
+    const { data, count } = await this.commentsService.findByPost(
+      post.id,
+      query.page,
+      query.limit,
+    );
+    return {
+      data: data.map(CommentResponseDto.fromEntity),
+      count,
+      page: query.page,
+      pages: Math.ceil(count / query.limit),
+    };
   }
 
   @HttpPost('posts/:postId/comments')
@@ -3169,6 +3447,25 @@ export class CommentResponseDto {
       replies: entity.replies?.map(r => CommentResponseDto.fromEntity(r)) ?? [],
     }, { excludeExtraneousValues: true });
   }
+}
+
+---
+
+
+### FILE: src/comments/dto/comment-query.dto.ts ###
+import { PaginationDto } from '../../common/dto/pagination.dto';
+import { IsOptional, IsString, IsInt } from 'class-validator';
+import { Type } from 'class-transformer';
+
+export class CommentQueryDto extends PaginationDto {
+  @IsOptional()
+  @IsString()
+  search?: string; // Filter by content
+
+  @IsOptional()
+  @IsInt()
+  @Type(() => Number)
+  authorId?: number;
 }
 
 ---

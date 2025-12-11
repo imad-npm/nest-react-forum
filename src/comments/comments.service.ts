@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Brackets, Repository } from 'typeorm';
 import { Comment } from './entities/comment.entity';
 import { User } from 'src/users/entities/user.entity';
 import { Post } from 'src/posts/entities/post.entity';
@@ -11,6 +11,36 @@ export class CommentsService {
     @InjectRepository(Comment)
     private readonly commentRepo: Repository<Comment>,
   ) { }
+
+  async findAll(
+    page = 1,
+    limit = 10,
+    search?: string,
+    authorId?: number,
+  ): Promise<{ data: Comment[]; count: number }> {
+    const query = this.commentRepo
+      .createQueryBuilder('comment')
+      .leftJoinAndSelect('comment.author', 'author')
+      .leftJoinAndSelect('comment.post', 'post')
+      .leftJoinAndSelect('comment.parent', 'parent');
+
+    if (search) {
+      query.where('comment.content ILIKE :search', { search: `%${search}%` });
+    }
+
+    if (authorId) {
+      query.andWhere('comment.author.id = :authorId', { authorId });
+    }
+
+    query.orderBy('comment.createdAt', 'DESC');
+
+    const [data, count] = await query
+      .take(limit)
+      .skip((page - 1) * limit)
+      .getManyAndCount();
+
+    return { data, count };
+  }
 
   async findByPost(
     postId: number,
