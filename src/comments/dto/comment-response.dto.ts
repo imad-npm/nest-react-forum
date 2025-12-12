@@ -16,13 +16,22 @@ export class CommentResponseDto {
   @Expose() readonly likesCount: number;
   @Expose() readonly dislikesCount: number;
   @Expose() readonly userReaction?: CommentReaction | null;
-  @Expose() @Type(() => CommentResponseDto) readonly replies?: CommentResponseDto[];
+  @Expose()
+  @Type(() => CommentResponseDto)
+  readonly replies?: CommentResponseDto[];
 
   static fromEntity(entity: Comment): CommentResponseDto {
-    return plainToInstance(CommentResponseDto, {
-      ...entity,
-      author: entity.author ? UserResponseDto.fromEntity(entity.author) : null,
-      replies: entity.replies?.map(r => CommentResponseDto.fromEntity(r)) ?? [],
-    }, { excludeExtraneousValues: true });
+    return plainToInstance(
+      CommentResponseDto,
+      {
+        ...entity,
+        author: entity.author
+          ? UserResponseDto.fromEntity(entity.author)
+          : null,
+        replies:
+          entity.replies?.map((r) => CommentResponseDto.fromEntity(r)) ?? [],
+      },
+      { excludeExtraneousValues: true },
+    );
   }
 }

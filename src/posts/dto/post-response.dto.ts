@@ -20,9 +20,15 @@ export class PostResponseDto {
   @Expose() readonly userReaction?: PostReaction | null;
 
   static fromEntity(entity: Post): PostResponseDto {
-    return plainToInstance(PostResponseDto, {
-      ...entity,
-      author: entity.author ? UserResponseDto.fromEntity(entity.author) : null,
-    }, { excludeExtraneousValues: true });
+    return plainToInstance(
+      PostResponseDto,
+      {
+        ...entity,
+        author: entity.author
+          ? UserResponseDto.fromEntity(entity.author)
+          : null,
+      },
+      { excludeExtraneousValues: true },
+    );
   }
 }

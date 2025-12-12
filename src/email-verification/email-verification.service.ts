@@ -1,4 +1,9 @@
-import { Injectable, BadRequestException, InternalServerErrorException, Inject } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  InternalServerErrorException,
+  Inject,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { randomUUID } from 'crypto';
@@ -9,19 +14,20 @@ import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class EmailVerificationService {
-
   constructor(
     @InjectRepository(EmailVerificationToken)
     private readonly tokenRepo: Repository<EmailVerificationToken>,
     private readonly configService: ConfigService,
     @Inject('IMailService')
     private readonly mailService: IMailService,
-) {
-  this.EXPIRATION_MS = this.configService.get<number>('EMAIL_VERIFICATION_TOKEN_EXPIRATION', 15 * 60 * 1000);
+  ) {
+    this.EXPIRATION_MS = this.configService.get<number>(
+      'EMAIL_VERIFICATION_TOKEN_EXPIRATION',
+      15 * 60 * 1000,
+    );
   }
-  EXPIRATION_MS : number
+  EXPIRATION_MS: number;
 
-  
   private async deleteExistingTokens(userId: number): Promise<void> {
     await this.tokenRepo.delete({ userId });
   }
@@ -55,12 +61,14 @@ export class EmailVerificationService {
       await this.mailService.sendEmail(
         user.email,
         'Verify Your Email',
-        'verify-email',       // templateName (templates/verify-email.hbs)
-        { name: user.name, verifyUrl } // context for the template
+        'verify-email', // templateName (templates/verify-email.hbs)
+        { name: user.name, verifyUrl }, // context for the template
       );
     } catch (err) {
       console.error('Error sending verification email:', err);
-      throw new InternalServerErrorException('Failed to send verification email');
+      throw new InternalServerErrorException(
+        'Failed to send verification email',
+      );
     }
   }
 

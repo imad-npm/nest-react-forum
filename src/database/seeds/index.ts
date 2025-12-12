@@ -6,7 +6,7 @@ import { AppDataSource } from '../../data-source';
 
 async function main() {
   try {
-await AppDataSource.initialize();
+    await AppDataSource.initialize();
     // Seed users
     const users = await seedUsers();
 

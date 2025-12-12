@@ -1,6 +1,10 @@
 import { Injectable, ForbiddenException } from '@nestjs/common';
 // 1. Import 'Subjects' from your CASL ability factory
-import { CaslAbilityFactory, AppAbility, Subjects } from './casl-ability.factory';
+import {
+  CaslAbilityFactory,
+  AppAbility,
+  Subjects,
+} from './casl-ability.factory';
 import { Action } from './casl.types';
 
 @Injectable()
@@ -23,7 +27,9 @@ export class CaslService {
     const ability = this.getAbility(user);
 
     if (!ability.can(action, resource)) {
-      throw new ForbiddenException('You are not allowed to perform this action');
+      throw new ForbiddenException(
+        'You are not allowed to perform this action',
+      );
     }
   }
 

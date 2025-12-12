@@ -9,7 +9,7 @@ import { ReactionType } from '../../reactions/reactions.types';
  */
 export function postReactionFactory(user: User, post: Post): PostReaction {
   const reaction = new PostReaction();
-  
+
   reaction.user = user;
   reaction.post = post;
 

@@ -16,7 +16,7 @@ export async function seedComments(users: User[], posts: Post[]) {
   await commentRepo.save(comments);
   console.log('Seeded 30 comments ✅');
 
-    return comments; // <-- important!
+  return comments; // <-- important!
 }
 
 if (require.main === module) seedComments([], []);

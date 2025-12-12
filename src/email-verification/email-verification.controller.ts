@@ -1,4 +1,11 @@
-import { Controller, Post, Body, BadRequestException, Query, Get } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  BadRequestException,
+  Query,
+  Get,
+} from '@nestjs/common';
 import { EmailVerificationService } from './email-verification.service';
 import { SendVerificationDto } from './dto/send-verification.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
@@ -44,6 +51,4 @@ export class EmailVerificationController {
       throw new BadRequestException('Invalid or expired verification token.');
     }
   }
-
-
 }

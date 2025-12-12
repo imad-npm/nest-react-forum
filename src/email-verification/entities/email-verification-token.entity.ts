@@ -1,6 +1,10 @@
-
 // src/email-verification/entities/email-verification-token.entity.ts
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+} from 'typeorm';
 
 @Entity('email_verification_tokens')
 export class EmailVerificationToken {

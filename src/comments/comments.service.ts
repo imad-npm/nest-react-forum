@@ -10,7 +10,7 @@ export class CommentsService {
   constructor(
     @InjectRepository(Comment)
     private readonly commentRepo: Repository<Comment>,
-  ) { }
+  ) {}
 
   async findAll(
     page = 1,
@@ -90,8 +90,7 @@ export class CommentsService {
   }
 
   async update(comment: Comment, content?: string) {
-    if (content != undefined)
-      comment.content = content;
+    if (content != undefined) comment.content = content;
 
     return this.commentRepo.save(comment);
   }

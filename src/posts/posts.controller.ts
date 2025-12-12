@@ -49,6 +49,7 @@ export class PostsController {
 
   @Get(':id')
   findOne(@Param('id', PostPipe) post: PostEntity): PostResponseDto {
+    this.postsService.update({ post, views: post.views + 1 });
     return PostResponseDto.fromEntity(post);
   }
 
@@ -71,11 +72,11 @@ export class PostsController {
     @GetUser() user: User,
   ): Promise<PostResponseDto> {
     this.caslService.enforce(user, Action.Update, post);
-    const updatedPost = await this.postsService.update(
+    const updatedPost = await this.postsService.update({
       post,
-      dto.title,
-      dto.content,
-    );
+      title: dto.title,
+      content: dto.content,
+    });
     return PostResponseDto.fromEntity(updatedPost);
   }
 

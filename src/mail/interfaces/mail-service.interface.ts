@@ -3,6 +3,6 @@ export interface IMailService {
     to: string,
     subject: string,
     templateName: string,
-    context: any
+    context: any,
   ): Promise<void>;
 }

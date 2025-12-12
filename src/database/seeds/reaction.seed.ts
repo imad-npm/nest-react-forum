@@ -72,7 +72,9 @@ export async function seedReactions(
   // 🟪 Save to DB
   // ------------------------------------------------------------
   const savedPostReactions = await postReactionRepo.save(postReactionsToSave);
-  const savedCommentReactions = await commentReactionRepo.save(commentReactionsToSave);
+  const savedCommentReactions = await commentReactionRepo.save(
+    commentReactionsToSave,
+  );
 
   const all = [...savedPostReactions, ...savedCommentReactions];
   console.log(`Seeded ${all.length} reactions ✅`);

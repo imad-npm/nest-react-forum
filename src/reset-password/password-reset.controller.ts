@@ -22,29 +22,31 @@ export class PasswordResetController {
       if (!user) return { message: 'Email sent if account exists' };
 
       const { token } = await this.resetService.generateToken(user.id);
-      
-      const resetLink = this.resetService.generateResetLink(token)
+
+      const resetLink = this.resetService.generateResetLink(token);
       await this.mailService.sendEmail(
         user.email,
         'Reset Your Password',
         'reset-password',
-        { name: user.name, resetLink }
+        { name: user.name, resetLink },
       );
 
       return { message: 'Email sent if account exists' };
     } catch (err) {
       console.log(err);
-      
+
       return { message: 'Email sent if account exists' };
     }
   }
 
   @Post('reset')
   async reset(@Body() dto: ResetDto) {
-    const userId = await this.resetService.validateAndGetUserId(dto.token);
+    const userId = await this.resetService.validateToken(dto.token);
     const user = await this.usersService.findOneById(userId);
-    
-    await this.usersService.updateUser(user, { password: dto.password });
+
+    await this.usersService.updateUser( 
+      { user,
+         password: dto.password });
     return { message: 'Password updated' };
   }
 }

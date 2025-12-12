@@ -6,7 +6,8 @@ import { UsersService } from 'src/users/users.service';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
-  constructor(config: ConfigService,
+  constructor(
+    config: ConfigService,
     private readonly userService: UsersService,
   ) {
     super({
@@ -16,7 +17,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   }
 
   // Hypothetical improvement
-  async validate(payload: { sub: number, email: string }) {
+  async validate(payload: { sub: number; email: string }) {
     // 1. Check database for active user
     const user = await this.userService.findOneById(payload.sub);
 

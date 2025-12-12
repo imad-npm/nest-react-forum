@@ -8,11 +8,11 @@ import { UsersModule } from 'src/users/users.module';
 import { MailModule } from 'src/mail/mail.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([EmailVerificationToken]) ,
-  UsersModule ,
-  MailModule
-
-],
+  imports: [
+    TypeOrmModule.forFeature([EmailVerificationToken]),
+    UsersModule,
+    MailModule,
+  ],
   controllers: [EmailVerificationController],
   providers: [EmailVerificationService],
   exports: [EmailVerificationService],

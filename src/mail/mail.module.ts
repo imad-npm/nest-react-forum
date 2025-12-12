@@ -13,7 +13,7 @@ import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handleba
           host: config.get('SMTP_HOST'),
           port: config.get('SMTP_PORT'),
           secure: false,
-         /* auth: {
+          /* auth: {
             user: config.get('SMTP_USER'),
             pass: config.get('SMTP_PASS'),
           },*/
@@ -37,4 +37,4 @@ import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handleba
   ],
   exports: ['IMailService'],
 })
-export class MailModule { }
+export class MailModule {}

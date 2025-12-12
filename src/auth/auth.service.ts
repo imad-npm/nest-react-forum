@@ -46,7 +46,6 @@ export class AuthService {
   // Sign in (called after successful local or refresh validation)
   // -------------------------------------------------------------------------
   async signIn(user: User) {
-    
     return this.generateTokens(user);
   }
 
@@ -85,7 +84,7 @@ export class AuthService {
     }
 
     // Existing user → make sure provider data is up-to-date
-    return this.userService.updateUser(user, {
+    return this.userService.updateUser({user ,
       name: oauthUser.fullName ?? user.name,
       provider: 'google',
       providerId: oauthUser.id,
@@ -107,20 +106,19 @@ export class AuthService {
   // -------------------------------------------------------------------------
   // Token generation (shared)
   // -------------------------------------------------------------------------
- private generateTokens(user: User) {
-  const payload = { sub: user.id, email: user.email };
+  private generateTokens(user: User) {
+    const payload = { sub: user.id, email: user.email };
 
-  const accessToken = this.jwt.sign(payload, {
-    secret: this.config.get<string>('JWT_ACCESS_SECRET'),
-    expiresIn: this.config.get('JWT_ACCESS_EXPIRES_IN') ?? '2h',
-  });
+    const accessToken = this.jwt.sign(payload, {
+      secret: this.config.get<string>('JWT_ACCESS_SECRET'),
+      expiresIn: this.config.get('JWT_ACCESS_EXPIRES_IN') ?? '2h',
+    });
 
-  const refreshToken = this.jwt.sign(payload, {
-    secret: this.config.get<string>('JWT_REFRESH_SECRET'),
-    expiresIn: this.config.get('JWT_REFRESH_EXPIRES_IN') ?? '7d',
-  });
+    const refreshToken = this.jwt.sign(payload, {
+      secret: this.config.get<string>('JWT_REFRESH_SECRET'),
+      expiresIn: this.config.get('JWT_REFRESH_EXPIRES_IN') ?? '7d',
+    });
 
-  return { accessToken, refreshToken };
-}
-
+    return { accessToken, refreshToken };
+  }
 }

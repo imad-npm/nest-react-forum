@@ -22,22 +22,27 @@ export class User {
   @Column({ type: 'datetime', nullable: true, default: null })
   emailVerifiedAt: Date | null; // 👈 NEW FIELD
 
-  @Column({ type: 'simple-enum', enum: ['google', 'github'], nullable: true, default: null })
+  @Column({
+    type: 'simple-enum',
+    enum: ['google', 'github'],
+    nullable: true,
+    default: null,
+  })
   provider: 'google' | 'github' | null;
 
-  @Column({  type: 'varchar',nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   providerId: string | null; // Google's profile.id
 
   // Relations
-  @OneToMany(() => Post, post => post.author)
+  @OneToMany(() => Post, (post) => post.author)
   posts: Post[];
 
-  @OneToMany(() => Comment, comment => comment.author)
+  @OneToMany(() => Comment, (comment) => comment.author)
   comments: Comment[];
 
-  @OneToMany(() => PostReaction, reaction => reaction.user)
+  @OneToMany(() => PostReaction, (reaction) => reaction.user)
   postReactions: PostReaction[];
 
-  @OneToMany(() => CommentReaction, reaction => reaction.user)
+  @OneToMany(() => CommentReaction, (reaction) => reaction.user)
   commentReactions: CommentReaction[];
 }

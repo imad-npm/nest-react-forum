@@ -81,60 +81,63 @@ export class UsersService {
     user.provider = provider ?? null;
     user.providerId = providerId ?? null;
 
-    user.password = password
-      ? await bcrypt.hash(password, 10)
-      : null;
+    user.password = password ? await bcrypt.hash(password, 10) : null;
 
-    user.emailVerifiedAt =
-      emailVerifiedAt ??
-      (password ? null : new Date());
-
+    user.emailVerifiedAt = emailVerifiedAt ?? (password ? null : new Date());
 
     return this.repo.save(user);
   }
 
-  
-// ---------------------------------------
-// Update (Slimmed logic)
-// ---------------------------------------
-async updateUser(
-  user: User,
-  updates: {
-    name?: string,
-    email?: string,
-    password?: string | null,
-    provider?: 'google' | 'github' | null,
-    providerId?: string | null,
-    emailVerifiedAt?: Date | null,
-    picture?: string | null,
-  }
-): Promise<User> {
-  const { password, ...rest } = updates; // Separate password for hashing
+  // ---------------------------------------
+  // Update (Slimmed logic)
+  // ---------------------------------------
+ 
+async updateUser({
+  user,
+  name,
+  email,
+  password,
+  provider,
+  providerId,
+  emailVerifiedAt,
+  picture,
+}: {
+  user: User;
+  name?: string;
+  email?: string;
+  password?: string | null;
+  provider?: 'google' | 'github' | null;
+  providerId?: string | null;
+  emailVerifiedAt?: Date | null;
+  picture?: string | null;
+}): Promise<User> {
+  // 1. Update basic fields dynamically
+  Object.assign(user, {
+    ...(name !== undefined && { name }),
+    ...(email !== undefined && { email }),
+    ...(provider !== undefined && { provider }),
+    ...(providerId !== undefined && { providerId }),
+    ...(emailVerifiedAt !== undefined && { emailVerifiedAt }),
+    ...(picture !== undefined && { picture }),
+  });
 
-  // 1. Update basic fields dynamically (only if they exist in updates)
-  Object.assign(user, rest);
-  
-  // 2. Handle password hashing separately if it exists
+  // 2. Handle password hashing separately
   if (password !== undefined) {
-    user.password = password
-      ? await bcrypt.hash(password, 10)
-      : null;
+    user.password = password ? await bcrypt.hash(password, 10) : null;
   }
 
-  // TypeORM's save handles both creation and update, 
-  // and only updates fields that have changed.
+  // 3. Save updated user
   return this.repo.save(user);
 }
+  // ---------------------------------------
+  // Email verification
+  // ---------------------------------------
+  async markEmailAsVerified(id: number): Promise<void> {
+    const user = await this.findOneById(id);
 
-// ---------------------------------------
-// Email verification
-// ---------------------------------------
-async markEmailAsVerified(id: number): Promise<void> {
-  const user = await this.findOneById(id);
-
-  if (!user.emailVerifiedAt) {
-    user.emailVerifiedAt = new Date();
-    await this.repo.save(user);
+    if (!user.emailVerifiedAt) {
+      user.emailVerifiedAt = new Date();
+      await this.repo.save(user);
+    }
   }
-}
 }

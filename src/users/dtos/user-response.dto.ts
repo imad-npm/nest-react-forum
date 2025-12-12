@@ -10,6 +10,8 @@ export class UserResponseDto {
   @Expose() readonly provider: string | null;
 
   static fromEntity(entity: User): UserResponseDto {
-    return plainToInstance(UserResponseDto, entity, { excludeExtraneousValues: true });
+    return plainToInstance(UserResponseDto, entity, {
+      excludeExtraneousValues: true,
+    });
   }
 }

@@ -78,10 +78,21 @@ export class PostsService {
     });
     return this.postsRepository.save(post);
   }
-
-  async update(post: Post, title?: string, content?: string): Promise<Post> {
+  async update({
+    post,
+    title,
+    content,
+    views,
+  }: {
+    post: Post;
+    title?: string;
+    content?: string;
+    views?: number;
+  }): Promise<Post> {
     if (title !== undefined) post.title = title;
     if (content !== undefined) post.content = content;
+    if (views !== undefined) post.views = views;
+
     return this.postsRepository.save(post);
   }
 

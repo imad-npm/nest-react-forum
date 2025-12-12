@@ -1,4 +1,12 @@
-import { Controller, Post, Body, UseGuards, Get, Req, UnauthorizedException } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  UseGuards,
+  Get,
+  Req,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dtos/register.dto';
 import { LocalAuthGuard } from './guards/local-auth.guard';
@@ -14,11 +22,15 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly emailVerificationService: EmailVerificationService,
-  ) { }
+  ) {}
 
   @Post('register')
   async register(@Body() dto: RegisterDto) {
-    const user = await this.authService.register(dto.name, dto.email, dto.password);
+    const user = await this.authService.register(
+      dto.name,
+      dto.email,
+      dto.password,
+    );
     await this.emailVerificationService.sendVerificationEmail(user);
     return {
       message: 'Registration successful. Please verify your email.',
@@ -29,11 +41,12 @@ export class AuthController {
   @UseGuards(LocalAuthGuard)
   @Post('login')
   async login(@Req() req: { user: User }) {
-
     if (!req.user.emailVerifiedAt) {
       await this.emailVerificationService.sendVerificationEmail(req.user);
 
-      throw new UnauthorizedException('Email not verified. Verification email sent.');
+      throw new UnauthorizedException(
+        'Email not verified. Verification email sent.',
+      );
     }
     const tokens = await this.authService.signIn(req.user);
     return {
@@ -51,7 +64,6 @@ export class AuthController {
       ...tokens,
     };
   }
-
 
   // Step 1: Redirect to Google OAuth
   @Get('google')
@@ -71,6 +83,4 @@ export class AuthController {
       ...tokens,
     };
   }
-
-
 }

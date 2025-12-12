@@ -1,4 +1,13 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany, ManyToOne, CreateDateColumn, UpdateDateColumn, DeleteDateColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  OneToMany,
+  ManyToOne,
+  CreateDateColumn,
+  UpdateDateColumn,
+  DeleteDateColumn,
+} from 'typeorm';
 import { Comment } from '../../comments/entities/comment.entity';
 import { User } from '../../users/entities/user.entity';
 import { PostReaction } from '../../reactions/entities/post-reaction.entity';
@@ -14,21 +23,23 @@ export class Post {
   @Column()
   content: string;
 
-  @ManyToOne(() => User, user => user.posts, { nullable: false, onDelete: 'CASCADE' })
+  @ManyToOne(() => User, (user) => user.posts, {
+    nullable: false,
+    onDelete: 'CASCADE',
+  })
   author: User;
-   // FK explicite
+  // FK explicite
   @Column()
-  authorId: number
+  authorId: number;
 
-  @OneToMany(() => Comment, comment => comment.post)
+  @OneToMany(() => Comment, (comment) => comment.post)
   comments: Comment[];
 
   @Column({ default: 0 })
   views: number;
 
-  @OneToMany(() => PostReaction, reaction => reaction.post)
+  @OneToMany(() => PostReaction, (reaction) => reaction.post)
   reactions: PostReaction[];
-
 
   @CreateDateColumn()
   createdAt: Date;

@@ -4,9 +4,7 @@ import { Comment } from '../entities/comment.entity';
 
 @Injectable()
 export class CommentPipe implements PipeTransform<string, Promise<Comment>> {
-  constructor(
-    private readonly commentsService: CommentsService,
-  ) {}
+  constructor(private readonly commentsService: CommentsService) {}
 
   async transform(value: string): Promise<Comment> {
     const comment = await this.commentsService.findOne(+value);

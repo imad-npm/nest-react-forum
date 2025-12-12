@@ -1,4 +1,12 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  CreateDateColumn,
+  UpdateDateColumn,
+  Index,
+} from 'typeorm';
 import { Comment } from '../../comments/entities/comment.entity'; // Corrected path
 import { User } from '../../users/entities/user.entity';
 import { ReactionType } from '../../reactions/reactions.types'; // Assuming ReactionType is still needed and will be moved or re-defined
@@ -15,13 +23,17 @@ export class CommentReaction {
   })
   type: ReactionType;
 
-  @ManyToOne(() => Comment, comment => comment.reactions, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Comment, (comment) => comment.reactions, {
+    onDelete: 'CASCADE',
+  })
   comment: Comment;
 
   @Column()
   commentId: number;
 
-  @ManyToOne(() => User, user => user.commentReactions, { onDelete: 'CASCADE' })
+  @ManyToOne(() => User, (user) => user.commentReactions, {
+    onDelete: 'CASCADE',
+  })
   user: User;
 
   @Column()

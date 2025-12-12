@@ -9,10 +9,9 @@ import { MailModule } from 'src/mail/mail.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([PasswordResetToken]),
-  MailModule ,
-  UsersModule
-] 
-  ,
+    MailModule,
+    UsersModule,
+  ],
   controllers: [PasswordResetController],
   providers: [PasswordResetService],
   exports: [PasswordResetService],

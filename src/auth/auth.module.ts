@@ -20,7 +20,7 @@ import { GoogleStrategy } from './strategies/google.strategy';
       secret: process.env.JWT_ACCESS_SECRET,
       signOptions: { expiresIn: '15m' },
     }),
-    EmailVerificationModule
+    EmailVerificationModule,
   ],
   controllers: [AuthController],
   providers: [
@@ -28,7 +28,7 @@ import { GoogleStrategy } from './strategies/google.strategy';
     LocalStrategy,
     JwtStrategy,
     JwtRefreshStrategy,
-    GoogleStrategy
+    GoogleStrategy,
   ],
   exports: [AuthService],
 })

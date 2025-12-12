@@ -7,13 +7,15 @@ import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class PasswordResetService {
-  private readonly TOKEN_EXPIRATION_MINUTES = 15;
+  private  TOKEN_EXPIRATION_MINUTES : number;
 
   constructor(
     @InjectRepository(PasswordResetToken)
     private repo: Repository<PasswordResetToken>,
-        private config: ConfigService,
-  ) {}
+    private config: ConfigService,
+  ) {
+    this.TOKEN_EXPIRATION_MINUTES=config.get<number>("TOKEN_EXPIRATION_MINUTES") ?? 15
+  }
 
   /** Public API **/
 
@@ -26,7 +28,7 @@ export class PasswordResetService {
     return { token, expiresAt };
   }
 
-  async validateAndGetUserId(token: string) {
+  async validateToken(token: string) {
     const tokenRow = await this.findValidToken(token);
 
     if (!tokenRow) throw new BadRequestException('Invalid or expired token');
@@ -36,9 +38,12 @@ export class PasswordResetService {
     return tokenRow.userId;
   }
 
-    public generateResetLink(token: string): string {
-    const frontendUrl = this.config.get<string>('APP_DOMAIN', 'http://localhost:3000');
-    const resetPath =  '/reset-password';
+  public generateResetLink(token: string): string {
+    const frontendUrl = this.config.get<string>(
+      'APP_DOMAIN',
+      'http://localhost:3000',
+    );
+    const resetPath = '/reset-password';
     return `${frontendUrl}${resetPath}?token=${token}`;
   }
   /** Private helpers **/
@@ -57,7 +62,9 @@ export class PasswordResetService {
     await this.repo.save(entity);
   }
 
-  private async findValidToken(token: string): Promise<PasswordResetToken | null> {
+  private async findValidToken(
+    token: string,
+  ): Promise<PasswordResetToken | null> {
     return this.repo.findOne({
       where: { token, expiresAt: MoreThan(new Date()) },
     });

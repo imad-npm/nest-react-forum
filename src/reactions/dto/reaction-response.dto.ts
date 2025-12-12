@@ -9,15 +9,21 @@ export class ReactionResponseDto {
   @Expose() readonly id: number;
   @Expose() readonly type: ReactionType;
   @Expose() @Type(() => UserResponseDto) readonly user: UserResponseDto;
-  @Expose()  postId?: number;
-  @Expose()  commentId?: number;
+  @Expose() postId?: number;
+  @Expose() commentId?: number;
   @Expose() readonly createdAt: Date;
 
-  static fromEntity(entity: PostReaction | CommentReaction): ReactionResponseDto {
-    const dto = plainToInstance(ReactionResponseDto, {
-      ...entity,
-      user: entity.user ? UserResponseDto.fromEntity(entity.user) : null,
-    }, { excludeExtraneousValues: true });
+  static fromEntity(
+    entity: PostReaction | CommentReaction,
+  ): ReactionResponseDto {
+    const dto = plainToInstance(
+      ReactionResponseDto,
+      {
+        ...entity,
+        user: entity.user ? UserResponseDto.fromEntity(entity.user) : null,
+      },
+      { excludeExtraneousValues: true },
+    );
 
     if ('postId' in entity) {
       dto.postId = entity.postId;

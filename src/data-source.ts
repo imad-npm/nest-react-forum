@@ -13,9 +13,15 @@ config(); // load .env manually
 export const AppDataSource = new DataSource({
   type: 'sqlite',
   database: process.env.DB_NAME ?? 'forum.db',
-  entities: [User, Post, Comment, PostReaction, CommentReaction,
+  entities: [
+    User,
+    Post,
+    Comment,
+    PostReaction,
+    CommentReaction,
     PasswordResetToken,
-    EmailVerificationToken],
+    EmailVerificationToken,
+  ],
   synchronize: false,
   migrations: ['src/database/migrations/*.ts'],
   logging: true,

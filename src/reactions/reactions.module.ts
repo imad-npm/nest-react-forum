@@ -15,7 +15,7 @@ import { CommentsModule } from 'src/comments/comments.module';
     TypeOrmModule.forFeature([PostReaction, CommentReaction]),
     CaslModule,
     PostsModule,
-    CommentsModule
+    CommentsModule,
   ],
   exports: [ReactionsService],
 })
