@@ -193,8 +193,11 @@ if (require.main === module) seedPosts([]);
 
 ### FILE: src/database/seeds/reaction.seed.ts ###
 import { AppDataSource } from '../../data-source';
-import { reactionFactory } from '../factories/reaction.factory';
-import { Reaction } from '../../reactions/entities/reaction.entity';
+import { postReactionFactory } from '../factories/post-reaction.factory';
+import { commentReactionFactory } from '../factories/comment-reaction.factory';
+
+import { PostReaction } from '../../reactions/entities/post-reaction.entity';
+import { CommentReaction } from '../../reactions/entities/comment-reaction.entity';
 import { Post } from '../../posts/entities/post.entity';
 import { Comment } from '../../comments/entities/comment.entity';
 import { User } from '../../users/entities/user.entity';
@@ -202,39 +205,76 @@ import { User } from '../../users/entities/user.entity';
 /**
  * Seed Reactions for given posts and comments using provided users
  */
-export async function seedReactions(posts: Post[], comments: Comment[], users: User[]): Promise<Reaction[]> {
+export async function seedReactions(
+  posts: Post[],
+  comments: Comment[],
+  users: User[],
+): Promise<(PostReaction | CommentReaction)[]> {
   if (!users.length) {
     throw new Error('At least one user is required to seed reactions.');
   }
 
-  const reactionRepo = AppDataSource.getRepository(Reaction);
-  const reactions: Reaction[] = [];
+  const postReactionRepo = AppDataSource.getRepository(PostReaction);
+  const commentReactionRepo = AppDataSource.getRepository(CommentReaction);
 
-  // Generate Reactions for Posts (1-3 reactions per post)
-  posts.forEach(post => {
-    const numReactions = Math.floor(Math.random() * 3) + 1; 
-    for (let i = 0; i < numReactions; i++) {
-      // Pick a random user
+  const postReactionsToSave: PostReaction[] = [];
+  const commentReactionsToSave: CommentReaction[] = [];
+
+  /**
+   * Pick N users without duplicates
+   */
+  const pickRandomUniqueUsers = (count: number): User[] => {
+    const uniqueUsers = new Set<number>();
+    const picked: User[] = [];
+
+    while (uniqueUsers.size < count && uniqueUsers.size < users.length) {
       const user = users[Math.floor(Math.random() * users.length)];
-      reactions.push(reactionFactory(user, post, undefined));
+      if (!uniqueUsers.has(user.id)) {
+        uniqueUsers.add(user.id);
+        picked.push(user);
+      }
     }
-  });
 
-  // Generate Reactions for Comments (1-2 reactions per comment)
-  comments.forEach(comment => {
-    const numReactions = Math.floor(Math.random() * 2) + 1; 
-    for (let i = 0; i < numReactions; i++) {
-      const user = users[Math.floor(Math.random() * users.length)];
-      reactions.push(reactionFactory(user, undefined, comment));
+    return picked;
+  };
+
+  // ------------------------------------------------------------
+  // 🟦 Reactions for Posts (1–3 reactions per post)
+  // ------------------------------------------------------------
+  for (const post of posts) {
+    const numReactions = Math.floor(Math.random() * 3) + 1; // 1–3
+    const selectedUsers = pickRandomUniqueUsers(numReactions);
+
+    for (const user of selectedUsers) {
+      postReactionsToSave.push(postReactionFactory(user, post));
     }
-  });
+  }
 
-  await reactionRepo.save(reactions);
-  console.log(`Seeded ${reactions.length} reactions ✅`);
+  // ------------------------------------------------------------
+  // 🟩 Reactions for Comments (1–2 reactions per comment)
+  // ------------------------------------------------------------
+  for (const comment of comments) {
+    const numReactions = Math.floor(Math.random() * 2) + 1; // 1–2
+    const selectedUsers = pickRandomUniqueUsers(numReactions);
 
-  return reactions;
+    for (const user of selectedUsers) {
+      commentReactionsToSave.push(commentReactionFactory(user, comment));
+    }
+  }
+
+  // ------------------------------------------------------------
+  // 🟪 Save to DB
+  // ------------------------------------------------------------
+  const savedPostReactions = await postReactionRepo.save(postReactionsToSave);
+  const savedCommentReactions = await commentReactionRepo.save(
+    commentReactionsToSave,
+  );
+
+  const all = [...savedPostReactions, ...savedCommentReactions];
+  console.log(`Seeded ${all.length} reactions ✅`);
+
+  return all;
 }
-
 
 ---
 
@@ -247,18 +287,16 @@ import * as bcrypt from 'bcrypt';
 import { use } from 'passport';
 
 export async function seedUsers() {
-
   const userRepo = AppDataSource.getRepository(User);
 
-  const users: User[] = Array.from({ length: 5 })
-  .map(() => userFactory());
+  const users: User[] = Array.from({ length: 5 }).map(() => userFactory());
 
   const user = new User();
   user.name = 'Test User';
   user.email = 'test@example.com';
   user.password = bcrypt.hashSync('password123', 10);
 
-  users.push(user)
+  users.push(user);
 
   await userRepo.save(users);
   console.log('Seeded 5 users ✅');
@@ -290,7 +328,7 @@ export async function seedComments(users: User[], posts: Post[]) {
   await commentRepo.save(comments);
   console.log('Seeded 30 comments ✅');
 
-    return comments; // <-- important!
+  return comments; // <-- important!
 }
 
 if (require.main === module) seedComments([], []);
@@ -303,9 +341,11 @@ import { seedUsers } from './user.seed';
 import { seedPosts } from './post.seed';
 import { seedComments } from './comment.seed';
 import { seedReactions } from './reaction.seed'; // <-- if you want to seed reactions
+import { AppDataSource } from '../../data-source';
 
 async function main() {
   try {
+    await AppDataSource.initialize();
     // Seed users
     const users = await seedUsers();
 
@@ -332,40 +372,6 @@ main();
 ---
 
 
-### FILE: src/database/factories/reaction.factory.ts ###
-import { Reaction, ReactionType } from '../../reactions/entities/reaction.entity';
-import { Post } from '../../posts/entities/post.entity';
-import { Comment } from '../../comments/entities/comment.entity';
-import { User } from '../../users/entities/user.entity'; // <-- ADDED USER IMPORT
-import { faker } from '@faker-js/faker';
-
-/**
- * Creates a Reaction object. Requires a User (user) and either a Post or a Comment target.
- */
-export function reactionFactory(user: User, post?: Post, comment?: Comment): Reaction {
-  if (!post && !comment) {
-    throw new Error('Reaction factory must be called with a Post or a Comment.');
-  }
-
-  const reaction = new Reaction();
-  
-  // Assign the reaction author
-  reaction.user = user;
-
-  // Randomly assign a reaction type
-  const types = Object.values(ReactionType);
-  reaction.type = faker.helpers.arrayElement(types);
-
-  // Assign the target entity (polymorphism via nullable columns)
-  reaction.post = post ?? null;
-  reaction.comment = comment ?? null;
-
-  return reaction;
-}
-
----
-
-
 ### FILE: src/database/factories/user.factory.ts ###
 import { User } from '../../users/entities/user.entity';
 import { faker } from '@faker-js/faker';
@@ -384,6 +390,34 @@ export function userFactory(): User {
   user.password = bcrypt.hashSync(plainPassword, saltRounds);
 
   return user;
+}
+
+---
+
+
+### FILE: src/database/factories/comment-reaction.factory.ts ###
+import { CommentReaction } from '../../reactions/entities/comment-reaction.entity';
+import { Comment } from '../../comments/entities/comment.entity';
+import { User } from '../../users/entities/user.entity';
+import { faker } from '@faker-js/faker';
+import { ReactionType } from '../../reactions/reactions.types';
+
+/**
+ * Creates a CommentReaction object.
+ */
+export function commentReactionFactory(
+  user: User,
+  comment: Comment,
+): CommentReaction {
+  const reaction = new CommentReaction();
+
+  reaction.user = user;
+  reaction.comment = comment;
+
+  const types = Object.values(ReactionType);
+  reaction.type = faker.helpers.arrayElement(types);
+
+  return reaction;
 }
 
 ---
@@ -422,258 +456,534 @@ export function commentFactory(author: User, post: Post): Comment {
 ---
 
 
+### FILE: src/database/factories/post-reaction.factory.ts ###
+import { PostReaction } from '../../reactions/entities/post-reaction.entity';
+import { Post } from '../../posts/entities/post.entity';
+import { User } from '../../users/entities/user.entity';
+import { faker } from '@faker-js/faker';
+import { ReactionType } from '../../reactions/reactions.types';
+
+/**
+ * Creates a PostReaction object.
+ */
+export function postReactionFactory(user: User, post: Post): PostReaction {
+  const reaction = new PostReaction();
+
+  reaction.user = user;
+  reaction.post = post;
+
+  const types = Object.values(ReactionType);
+  reaction.type = faker.helpers.arrayElement(types);
+
+  return reaction;
+}
+
+---
+
+
+### FILE: src/database/migrations/1765490375370-refactor-reactions.ts ###
+import { MigrationInterface, QueryRunner } from 'typeorm';
+
+export class RefactorReactions1765490375370 implements MigrationInterface {
+  name = 'RefactorReactions1765490375370';
+
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(
+      `CREATE TABLE "post_reactions" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "type" varchar CHECK( "type" IN ('like','dislike') ) NOT NULL, "postId" integer NOT NULL, "userId" integer NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')))`,
+    );
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX "IDX_452ad3c5abe99f67a3b482f65e" ON "post_reactions" ("postId", "userId") `,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "comment_reactions" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "type" varchar CHECK( "type" IN ('like','dislike') ) NOT NULL, "commentId" integer NOT NULL, "userId" integer NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')))`,
+    );
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX "IDX_4f7d4bdbc66f63d75b26740a4a" ON "comment_reactions" ("commentId", "userId") `,
+    );
+    await queryRunner.query(`DROP INDEX "IDX_452ad3c5abe99f67a3b482f65e"`);
+    await queryRunner.query(
+      `CREATE TABLE "temporary_post_reactions" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "type" varchar CHECK( "type" IN ('like','dislike') ) NOT NULL, "postId" integer NOT NULL, "userId" integer NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), CONSTRAINT "FK_b8f6756d160de241ea96a768254" FOREIGN KEY ("postId") REFERENCES "post" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_d7d9db2320c356f8d32eae9d752" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`,
+    );
+    await queryRunner.query(
+      `INSERT INTO "temporary_post_reactions"("id", "type", "postId", "userId", "createdAt", "updatedAt") SELECT "id", "type", "postId", "userId", "createdAt", "updatedAt" FROM "post_reactions"`,
+    );
+    await queryRunner.query(`DROP TABLE "post_reactions"`);
+    await queryRunner.query(
+      `ALTER TABLE "temporary_post_reactions" RENAME TO "post_reactions"`,
+    );
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX "IDX_452ad3c5abe99f67a3b482f65e" ON "post_reactions" ("postId", "userId") `,
+    );
+    await queryRunner.query(`DROP INDEX "IDX_4f7d4bdbc66f63d75b26740a4a"`);
+    await queryRunner.query(
+      `CREATE TABLE "temporary_comment_reactions" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "type" varchar CHECK( "type" IN ('like','dislike') ) NOT NULL, "commentId" integer NOT NULL, "userId" integer NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), CONSTRAINT "FK_ab02238d3deb62cba37aa8047dd" FOREIGN KEY ("commentId") REFERENCES "comment" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_b9fbc058a6dd52aec6c76f9b58a" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`,
+    );
+    await queryRunner.query(
+      `INSERT INTO "temporary_comment_reactions"("id", "type", "commentId", "userId", "createdAt", "updatedAt") SELECT "id", "type", "commentId", "userId", "createdAt", "updatedAt" FROM "comment_reactions"`,
+    );
+    await queryRunner.query(`DROP TABLE "comment_reactions"`);
+    await queryRunner.query(
+      `ALTER TABLE "temporary_comment_reactions" RENAME TO "comment_reactions"`,
+    );
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX "IDX_4f7d4bdbc66f63d75b26740a4a" ON "comment_reactions" ("commentId", "userId") `,
+    );
+  }
+
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`DROP INDEX "IDX_4f7d4bdbc66f63d75b26740a4a"`);
+    await queryRunner.query(
+      `ALTER TABLE "comment_reactions" RENAME TO "temporary_comment_reactions"`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "comment_reactions" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "type" varchar CHECK( "type" IN ('like','dislike') ) NOT NULL, "commentId" integer NOT NULL, "userId" integer NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')))`,
+    );
+    await queryRunner.query(
+      `INSERT INTO "comment_reactions"("id", "type", "commentId", "userId", "createdAt", "updatedAt") SELECT "id", "type", "commentId", "userId", "createdAt", "updatedAt" FROM "temporary_comment_reactions"`,
+    );
+    await queryRunner.query(`DROP TABLE "temporary_comment_reactions"`);
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX "IDX_4f7d4bdbc66f63d75b26740a4a" ON "comment_reactions" ("commentId", "userId") `,
+    );
+    await queryRunner.query(`DROP INDEX "IDX_452ad3c5abe99f67a3b482f65e"`);
+    await queryRunner.query(
+      `ALTER TABLE "post_reactions" RENAME TO "temporary_post_reactions"`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "post_reactions" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "type" varchar CHECK( "type" IN ('like','dislike') ) NOT NULL, "postId" integer NOT NULL, "userId" integer NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')))`,
+    );
+    await queryRunner.query(
+      `INSERT INTO "post_reactions"("id", "type", "postId", "userId", "createdAt", "updatedAt") SELECT "id", "type", "postId", "userId", "createdAt", "updatedAt" FROM "temporary_post_reactions"`,
+    );
+    await queryRunner.query(`DROP TABLE "temporary_post_reactions"`);
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX "IDX_452ad3c5abe99f67a3b482f65e" ON "post_reactions" ("postId", "userId") `,
+    );
+    await queryRunner.query(`DROP INDEX "IDX_4f7d4bdbc66f63d75b26740a4a"`);
+    await queryRunner.query(`DROP TABLE "comment_reactions"`);
+    await queryRunner.query(`DROP INDEX "IDX_452ad3c5abe99f67a3b482f65e"`);
+    await queryRunner.query(`DROP TABLE "post_reactions"`);
+  }
+}
+
+---
+
+
 ### FILE: src/database/migrations/1764720178421-inital.ts ###
-import { MigrationInterface, QueryRunner } from "typeorm";
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class Inital1764720178421 implements MigrationInterface {
-    name = 'Inital1764720178421'
+  name = 'Inital1764720178421';
 
-    public async up(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`CREATE TABLE "user" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar NOT NULL, "email" varchar NOT NULL, CONSTRAINT "UQ_e12875dfb3b1d92d7d7c5377e22" UNIQUE ("email"))`);
-        await queryRunner.query(`CREATE TABLE "comment" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "content" varchar NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer, "authorId" integer NOT NULL)`);
-        await queryRunner.query(`CREATE TABLE "post" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "title" varchar NOT NULL, "content" varchar NOT NULL, "authorId" integer NOT NULL)`);
-        await queryRunner.query(`CREATE TABLE "temporary_comment" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "content" varchar NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer, "authorId" integer NOT NULL, CONSTRAINT "FK_94a85bb16d24033a2afdd5df060" FOREIGN KEY ("postId") REFERENCES "post" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_276779da446413a0d79598d4fbd" FOREIGN KEY ("authorId") REFERENCES "user" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`);
-        await queryRunner.query(`INSERT INTO "temporary_comment"("id", "content", "createdAt", "postId", "authorId") SELECT "id", "content", "createdAt", "postId", "authorId" FROM "comment"`);
-        await queryRunner.query(`DROP TABLE "comment"`);
-        await queryRunner.query(`ALTER TABLE "temporary_comment" RENAME TO "comment"`);
-        await queryRunner.query(`CREATE TABLE "temporary_post" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "title" varchar NOT NULL, "content" varchar NOT NULL, "authorId" integer NOT NULL, CONSTRAINT "FK_c6fb082a3114f35d0cc27c518e0" FOREIGN KEY ("authorId") REFERENCES "user" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`);
-        await queryRunner.query(`INSERT INTO "temporary_post"("id", "title", "content", "authorId") SELECT "id", "title", "content", "authorId" FROM "post"`);
-        await queryRunner.query(`DROP TABLE "post"`);
-        await queryRunner.query(`ALTER TABLE "temporary_post" RENAME TO "post"`);
-    }
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(
+      `CREATE TABLE "user" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar NOT NULL, "email" varchar NOT NULL, CONSTRAINT "UQ_e12875dfb3b1d92d7d7c5377e22" UNIQUE ("email"))`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "comment" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "content" varchar NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer, "authorId" integer NOT NULL)`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "post" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "title" varchar NOT NULL, "content" varchar NOT NULL, "authorId" integer NOT NULL)`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "temporary_comment" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "content" varchar NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer, "authorId" integer NOT NULL, CONSTRAINT "FK_94a85bb16d24033a2afdd5df060" FOREIGN KEY ("postId") REFERENCES "post" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_276779da446413a0d79598d4fbd" FOREIGN KEY ("authorId") REFERENCES "user" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`,
+    );
+    await queryRunner.query(
+      `INSERT INTO "temporary_comment"("id", "content", "createdAt", "postId", "authorId") SELECT "id", "content", "createdAt", "postId", "authorId" FROM "comment"`,
+    );
+    await queryRunner.query(`DROP TABLE "comment"`);
+    await queryRunner.query(
+      `ALTER TABLE "temporary_comment" RENAME TO "comment"`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "temporary_post" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "title" varchar NOT NULL, "content" varchar NOT NULL, "authorId" integer NOT NULL, CONSTRAINT "FK_c6fb082a3114f35d0cc27c518e0" FOREIGN KEY ("authorId") REFERENCES "user" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`,
+    );
+    await queryRunner.query(
+      `INSERT INTO "temporary_post"("id", "title", "content", "authorId") SELECT "id", "title", "content", "authorId" FROM "post"`,
+    );
+    await queryRunner.query(`DROP TABLE "post"`);
+    await queryRunner.query(`ALTER TABLE "temporary_post" RENAME TO "post"`);
+  }
 
-    public async down(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`ALTER TABLE "post" RENAME TO "temporary_post"`);
-        await queryRunner.query(`CREATE TABLE "post" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "title" varchar NOT NULL, "content" varchar NOT NULL, "authorId" integer NOT NULL)`);
-        await queryRunner.query(`INSERT INTO "post"("id", "title", "content", "authorId") SELECT "id", "title", "content", "authorId" FROM "temporary_post"`);
-        await queryRunner.query(`DROP TABLE "temporary_post"`);
-        await queryRunner.query(`ALTER TABLE "comment" RENAME TO "temporary_comment"`);
-        await queryRunner.query(`CREATE TABLE "comment" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "content" varchar NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer, "authorId" integer NOT NULL)`);
-        await queryRunner.query(`INSERT INTO "comment"("id", "content", "createdAt", "postId", "authorId") SELECT "id", "content", "createdAt", "postId", "authorId" FROM "temporary_comment"`);
-        await queryRunner.query(`DROP TABLE "temporary_comment"`);
-        await queryRunner.query(`DROP TABLE "post"`);
-        await queryRunner.query(`DROP TABLE "comment"`);
-        await queryRunner.query(`DROP TABLE "user"`);
-    }
-
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`ALTER TABLE "post" RENAME TO "temporary_post"`);
+    await queryRunner.query(
+      `CREATE TABLE "post" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "title" varchar NOT NULL, "content" varchar NOT NULL, "authorId" integer NOT NULL)`,
+    );
+    await queryRunner.query(
+      `INSERT INTO "post"("id", "title", "content", "authorId") SELECT "id", "title", "content", "authorId" FROM "temporary_post"`,
+    );
+    await queryRunner.query(`DROP TABLE "temporary_post"`);
+    await queryRunner.query(
+      `ALTER TABLE "comment" RENAME TO "temporary_comment"`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "comment" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "content" varchar NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer, "authorId" integer NOT NULL)`,
+    );
+    await queryRunner.query(
+      `INSERT INTO "comment"("id", "content", "createdAt", "postId", "authorId") SELECT "id", "content", "createdAt", "postId", "authorId" FROM "temporary_comment"`,
+    );
+    await queryRunner.query(`DROP TABLE "temporary_comment"`);
+    await queryRunner.query(`DROP TABLE "post"`);
+    await queryRunner.query(`DROP TABLE "comment"`);
+    await queryRunner.query(`DROP TABLE "user"`);
+  }
 }
 
 ---
 
 
 ### FILE: src/database/migrations/1764783033004-AddReactions.ts ###
-import { MigrationInterface, QueryRunner } from "typeorm";
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class AddReactions1764783033004 implements MigrationInterface {
-    name = 'AddReactions1764783033004'
+  name = 'AddReactions1764783033004';
 
-    public async up(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`CREATE TABLE "reaction" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "type" varchar CHECK( "type" IN ('like','dislike') ) NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer, "commentId" integer, "userId" integer NOT NULL)`);
-        await queryRunner.query(`CREATE TABLE "temporary_comment" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "content" varchar NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer, "authorId" integer NOT NULL, "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, "parentId" integer, CONSTRAINT "FK_276779da446413a0d79598d4fbd" FOREIGN KEY ("authorId") REFERENCES "user" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_94a85bb16d24033a2afdd5df060" FOREIGN KEY ("postId") REFERENCES "post" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`);
-        await queryRunner.query(`INSERT INTO "temporary_comment"("id", "content", "createdAt", "postId", "authorId") SELECT "id", "content", "createdAt", "postId", "authorId" FROM "comment"`);
-        await queryRunner.query(`DROP TABLE "comment"`);
-        await queryRunner.query(`ALTER TABLE "temporary_comment" RENAME TO "comment"`);
-        await queryRunner.query(`CREATE TABLE "temporary_post" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "title" varchar NOT NULL, "content" varchar NOT NULL, "authorId" integer NOT NULL, "views" integer NOT NULL DEFAULT (0), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, CONSTRAINT "FK_c6fb082a3114f35d0cc27c518e0" FOREIGN KEY ("authorId") REFERENCES "user" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`);
-        await queryRunner.query(`INSERT INTO "temporary_post"("id", "title", "content", "authorId") SELECT "id", "title", "content", "authorId" FROM "post"`);
-        await queryRunner.query(`DROP TABLE "post"`);
-        await queryRunner.query(`ALTER TABLE "temporary_post" RENAME TO "post"`);
-        await queryRunner.query(`CREATE TABLE "temporary_reaction" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "type" varchar CHECK( "type" IN ('like','dislike') ) NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer, "commentId" integer, "userId" integer NOT NULL, CONSTRAINT "FK_dc3aeb83dc815f9f22ebfa7785f" FOREIGN KEY ("postId") REFERENCES "post" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_4584f851fc6471f517d9dad8966" FOREIGN KEY ("commentId") REFERENCES "comment" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_e58a09ab17e3ce4c47a1a330ae1" FOREIGN KEY ("userId") REFERENCES "user" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`);
-        await queryRunner.query(`INSERT INTO "temporary_reaction"("id", "type", "createdAt", "updatedAt", "postId", "commentId", "userId") SELECT "id", "type", "createdAt", "updatedAt", "postId", "commentId", "userId" FROM "reaction"`);
-        await queryRunner.query(`DROP TABLE "reaction"`);
-        await queryRunner.query(`ALTER TABLE "temporary_reaction" RENAME TO "reaction"`);
-        await queryRunner.query(`CREATE TABLE "temporary_comment" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "content" varchar NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer, "authorId" integer NOT NULL, "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, "parentId" integer, CONSTRAINT "FK_276779da446413a0d79598d4fbd" FOREIGN KEY ("authorId") REFERENCES "user" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_94a85bb16d24033a2afdd5df060" FOREIGN KEY ("postId") REFERENCES "post" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_e3aebe2bd1c53467a07109be596" FOREIGN KEY ("parentId") REFERENCES "comment" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`);
-        await queryRunner.query(`INSERT INTO "temporary_comment"("id", "content", "createdAt", "postId", "authorId", "updatedAt", "deletedAt", "parentId") SELECT "id", "content", "createdAt", "postId", "authorId", "updatedAt", "deletedAt", "parentId" FROM "comment"`);
-        await queryRunner.query(`DROP TABLE "comment"`);
-        await queryRunner.query(`ALTER TABLE "temporary_comment" RENAME TO "comment"`);
-    }
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(
+      `CREATE TABLE "reaction" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "type" varchar CHECK( "type" IN ('like','dislike') ) NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer, "commentId" integer, "userId" integer NOT NULL)`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "temporary_comment" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "content" varchar NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer, "authorId" integer NOT NULL, "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, "parentId" integer, CONSTRAINT "FK_276779da446413a0d79598d4fbd" FOREIGN KEY ("authorId") REFERENCES "user" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_94a85bb16d24033a2afdd5df060" FOREIGN KEY ("postId") REFERENCES "post" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`,
+    );
+    await queryRunner.query(
+      `INSERT INTO "temporary_comment"("id", "content", "createdAt", "postId", "authorId") SELECT "id", "content", "createdAt", "postId", "authorId" FROM "comment"`,
+    );
+    await queryRunner.query(`DROP TABLE "comment"`);
+    await queryRunner.query(
+      `ALTER TABLE "temporary_comment" RENAME TO "comment"`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "temporary_post" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "title" varchar NOT NULL, "content" varchar NOT NULL, "authorId" integer NOT NULL, "views" integer NOT NULL DEFAULT (0), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, CONSTRAINT "FK_c6fb082a3114f35d0cc27c518e0" FOREIGN KEY ("authorId") REFERENCES "user" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`,
+    );
+    await queryRunner.query(
+      `INSERT INTO "temporary_post"("id", "title", "content", "authorId") SELECT "id", "title", "content", "authorId" FROM "post"`,
+    );
+    await queryRunner.query(`DROP TABLE "post"`);
+    await queryRunner.query(`ALTER TABLE "temporary_post" RENAME TO "post"`);
+    await queryRunner.query(
+      `CREATE TABLE "temporary_reaction" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "type" varchar CHECK( "type" IN ('like','dislike') ) NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer, "commentId" integer, "userId" integer NOT NULL, CONSTRAINT "FK_dc3aeb83dc815f9f22ebfa7785f" FOREIGN KEY ("postId") REFERENCES "post" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_4584f851fc6471f517d9dad8966" FOREIGN KEY ("commentId") REFERENCES "comment" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_e58a09ab17e3ce4c47a1a330ae1" FOREIGN KEY ("userId") REFERENCES "user" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`,
+    );
+    await queryRunner.query(
+      `INSERT INTO "temporary_reaction"("id", "type", "createdAt", "updatedAt", "postId", "commentId", "userId") SELECT "id", "type", "createdAt", "updatedAt", "postId", "commentId", "userId" FROM "reaction"`,
+    );
+    await queryRunner.query(`DROP TABLE "reaction"`);
+    await queryRunner.query(
+      `ALTER TABLE "temporary_reaction" RENAME TO "reaction"`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "temporary_comment" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "content" varchar NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer, "authorId" integer NOT NULL, "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, "parentId" integer, CONSTRAINT "FK_276779da446413a0d79598d4fbd" FOREIGN KEY ("authorId") REFERENCES "user" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_94a85bb16d24033a2afdd5df060" FOREIGN KEY ("postId") REFERENCES "post" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_e3aebe2bd1c53467a07109be596" FOREIGN KEY ("parentId") REFERENCES "comment" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`,
+    );
+    await queryRunner.query(
+      `INSERT INTO "temporary_comment"("id", "content", "createdAt", "postId", "authorId", "updatedAt", "deletedAt", "parentId") SELECT "id", "content", "createdAt", "postId", "authorId", "updatedAt", "deletedAt", "parentId" FROM "comment"`,
+    );
+    await queryRunner.query(`DROP TABLE "comment"`);
+    await queryRunner.query(
+      `ALTER TABLE "temporary_comment" RENAME TO "comment"`,
+    );
+  }
 
-    public async down(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`ALTER TABLE "comment" RENAME TO "temporary_comment"`);
-        await queryRunner.query(`CREATE TABLE "comment" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "content" varchar NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer, "authorId" integer NOT NULL, "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, "parentId" integer, CONSTRAINT "FK_276779da446413a0d79598d4fbd" FOREIGN KEY ("authorId") REFERENCES "user" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_94a85bb16d24033a2afdd5df060" FOREIGN KEY ("postId") REFERENCES "post" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`);
-        await queryRunner.query(`INSERT INTO "comment"("id", "content", "createdAt", "postId", "authorId", "updatedAt", "deletedAt", "parentId") SELECT "id", "content", "createdAt", "postId", "authorId", "updatedAt", "deletedAt", "parentId" FROM "temporary_comment"`);
-        await queryRunner.query(`DROP TABLE "temporary_comment"`);
-        await queryRunner.query(`ALTER TABLE "reaction" RENAME TO "temporary_reaction"`);
-        await queryRunner.query(`CREATE TABLE "reaction" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "type" varchar CHECK( "type" IN ('like','dislike') ) NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer, "commentId" integer, "userId" integer NOT NULL)`);
-        await queryRunner.query(`INSERT INTO "reaction"("id", "type", "createdAt", "updatedAt", "postId", "commentId", "userId") SELECT "id", "type", "createdAt", "updatedAt", "postId", "commentId", "userId" FROM "temporary_reaction"`);
-        await queryRunner.query(`DROP TABLE "temporary_reaction"`);
-        await queryRunner.query(`ALTER TABLE "post" RENAME TO "temporary_post"`);
-        await queryRunner.query(`CREATE TABLE "post" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "title" varchar NOT NULL, "content" varchar NOT NULL, "authorId" integer NOT NULL, CONSTRAINT "FK_c6fb082a3114f35d0cc27c518e0" FOREIGN KEY ("authorId") REFERENCES "user" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`);
-        await queryRunner.query(`INSERT INTO "post"("id", "title", "content", "authorId") SELECT "id", "title", "content", "authorId" FROM "temporary_post"`);
-        await queryRunner.query(`DROP TABLE "temporary_post"`);
-        await queryRunner.query(`ALTER TABLE "comment" RENAME TO "temporary_comment"`);
-        await queryRunner.query(`CREATE TABLE "comment" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "content" varchar NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer, "authorId" integer NOT NULL, CONSTRAINT "FK_276779da446413a0d79598d4fbd" FOREIGN KEY ("authorId") REFERENCES "user" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_94a85bb16d24033a2afdd5df060" FOREIGN KEY ("postId") REFERENCES "post" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`);
-        await queryRunner.query(`INSERT INTO "comment"("id", "content", "createdAt", "postId", "authorId") SELECT "id", "content", "createdAt", "postId", "authorId" FROM "temporary_comment"`);
-        await queryRunner.query(`DROP TABLE "temporary_comment"`);
-        await queryRunner.query(`DROP TABLE "reaction"`);
-    }
-
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(
+      `ALTER TABLE "comment" RENAME TO "temporary_comment"`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "comment" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "content" varchar NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer, "authorId" integer NOT NULL, "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, "parentId" integer, CONSTRAINT "FK_276779da446413a0d79598d4fbd" FOREIGN KEY ("authorId") REFERENCES "user" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_94a85bb16d24033a2afdd5df060" FOREIGN KEY ("postId") REFERENCES "post" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`,
+    );
+    await queryRunner.query(
+      `INSERT INTO "comment"("id", "content", "createdAt", "postId", "authorId", "updatedAt", "deletedAt", "parentId") SELECT "id", "content", "createdAt", "postId", "authorId", "updatedAt", "deletedAt", "parentId" FROM "temporary_comment"`,
+    );
+    await queryRunner.query(`DROP TABLE "temporary_comment"`);
+    await queryRunner.query(
+      `ALTER TABLE "reaction" RENAME TO "temporary_reaction"`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "reaction" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "type" varchar CHECK( "type" IN ('like','dislike') ) NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer, "commentId" integer, "userId" integer NOT NULL)`,
+    );
+    await queryRunner.query(
+      `INSERT INTO "reaction"("id", "type", "createdAt", "updatedAt", "postId", "commentId", "userId") SELECT "id", "type", "createdAt", "updatedAt", "postId", "commentId", "userId" FROM "temporary_reaction"`,
+    );
+    await queryRunner.query(`DROP TABLE "temporary_reaction"`);
+    await queryRunner.query(`ALTER TABLE "post" RENAME TO "temporary_post"`);
+    await queryRunner.query(
+      `CREATE TABLE "post" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "title" varchar NOT NULL, "content" varchar NOT NULL, "authorId" integer NOT NULL, CONSTRAINT "FK_c6fb082a3114f35d0cc27c518e0" FOREIGN KEY ("authorId") REFERENCES "user" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`,
+    );
+    await queryRunner.query(
+      `INSERT INTO "post"("id", "title", "content", "authorId") SELECT "id", "title", "content", "authorId" FROM "temporary_post"`,
+    );
+    await queryRunner.query(`DROP TABLE "temporary_post"`);
+    await queryRunner.query(
+      `ALTER TABLE "comment" RENAME TO "temporary_comment"`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "comment" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "content" varchar NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer, "authorId" integer NOT NULL, CONSTRAINT "FK_276779da446413a0d79598d4fbd" FOREIGN KEY ("authorId") REFERENCES "user" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_94a85bb16d24033a2afdd5df060" FOREIGN KEY ("postId") REFERENCES "post" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`,
+    );
+    await queryRunner.query(
+      `INSERT INTO "comment"("id", "content", "createdAt", "postId", "authorId") SELECT "id", "content", "createdAt", "postId", "authorId" FROM "temporary_comment"`,
+    );
+    await queryRunner.query(`DROP TABLE "temporary_comment"`);
+    await queryRunner.query(`DROP TABLE "reaction"`);
+  }
 }
 
 ---
 
 
 ### FILE: src/database/migrations/1765214825123-addVerifrokesTable.ts ###
-import { MigrationInterface, QueryRunner } from "typeorm";
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class AddVerifrokesTable1765214825123 implements MigrationInterface {
-    name = 'AddVerifrokesTable1765214825123'
+  name = 'AddVerifrokesTable1765214825123';
 
-    public async up(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`CREATE TABLE "email_verification_tokens" ("id" varchar PRIMARY KEY NOT NULL, "token" varchar NOT NULL, "userId" integer NOT NULL, "expiresAt" datetime NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), CONSTRAINT "UQ_3d1613f95c6a564a3b588d161ae" UNIQUE ("token"))`);
-    }
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(
+      `CREATE TABLE "email_verification_tokens" ("id" varchar PRIMARY KEY NOT NULL, "token" varchar NOT NULL, "userId" integer NOT NULL, "expiresAt" datetime NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), CONSTRAINT "UQ_3d1613f95c6a564a3b588d161ae" UNIQUE ("token"))`,
+    );
+  }
 
-    public async down(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`DROP TABLE "email_verification_tokens"`);
-    }
-
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`DROP TABLE "email_verification_tokens"`);
+  }
 }
 
 ---
 
 
 ### FILE: src/database/migrations/1765377593735-AddOauthcols.ts ###
-import { MigrationInterface, QueryRunner } from "typeorm";
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class AddOauthcols1765377593735 implements MigrationInterface {
-    name = 'AddOauthcols1765377593735'
+  name = 'AddOauthcols1765377593735';
 
-    public async up(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`CREATE TABLE "temporary_users" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(100) NOT NULL, "email" varchar(100) NOT NULL, "password" varchar NOT NULL, "emailVerifiedAt" datetime, "provider" varchar CHECK( "provider" IN ('google','github') ), "providerId" varchar, CONSTRAINT "UQ_97672ac88f789774dd47f7c8be3" UNIQUE ("email"))`);
-        await queryRunner.query(`INSERT INTO "temporary_users"("id", "name", "email", "password", "emailVerifiedAt") SELECT "id", "name", "email", "password", "emailVerifiedAt" FROM "users"`);
-        await queryRunner.query(`DROP TABLE "users"`);
-        await queryRunner.query(`ALTER TABLE "temporary_users" RENAME TO "users"`);
-        await queryRunner.query(`CREATE TABLE "temporary_users" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(100) NOT NULL, "email" varchar(100) NOT NULL, "password" varchar, "emailVerifiedAt" datetime, "provider" varchar CHECK( "provider" IN ('google','github') ), "providerId" varchar, CONSTRAINT "UQ_97672ac88f789774dd47f7c8be3" UNIQUE ("email"))`);
-        await queryRunner.query(`INSERT INTO "temporary_users"("id", "name", "email", "password", "emailVerifiedAt", "provider", "providerId") SELECT "id", "name", "email", "password", "emailVerifiedAt", "provider", "providerId" FROM "users"`);
-        await queryRunner.query(`DROP TABLE "users"`);
-        await queryRunner.query(`ALTER TABLE "temporary_users" RENAME TO "users"`);
-    }
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(
+      `CREATE TABLE "temporary_users" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(100) NOT NULL, "email" varchar(100) NOT NULL, "password" varchar NOT NULL, "emailVerifiedAt" datetime, "provider" varchar CHECK( "provider" IN ('google','github') ), "providerId" varchar, CONSTRAINT "UQ_97672ac88f789774dd47f7c8be3" UNIQUE ("email"))`,
+    );
+    await queryRunner.query(
+      `INSERT INTO "temporary_users"("id", "name", "email", "password", "emailVerifiedAt") SELECT "id", "name", "email", "password", "emailVerifiedAt" FROM "users"`,
+    );
+    await queryRunner.query(`DROP TABLE "users"`);
+    await queryRunner.query(`ALTER TABLE "temporary_users" RENAME TO "users"`);
+    await queryRunner.query(
+      `CREATE TABLE "temporary_users" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(100) NOT NULL, "email" varchar(100) NOT NULL, "password" varchar, "emailVerifiedAt" datetime, "provider" varchar CHECK( "provider" IN ('google','github') ), "providerId" varchar, CONSTRAINT "UQ_97672ac88f789774dd47f7c8be3" UNIQUE ("email"))`,
+    );
+    await queryRunner.query(
+      `INSERT INTO "temporary_users"("id", "name", "email", "password", "emailVerifiedAt", "provider", "providerId") SELECT "id", "name", "email", "password", "emailVerifiedAt", "provider", "providerId" FROM "users"`,
+    );
+    await queryRunner.query(`DROP TABLE "users"`);
+    await queryRunner.query(`ALTER TABLE "temporary_users" RENAME TO "users"`);
+  }
 
-    public async down(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`ALTER TABLE "users" RENAME TO "temporary_users"`);
-        await queryRunner.query(`CREATE TABLE "users" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(100) NOT NULL, "email" varchar(100) NOT NULL, "password" varchar NOT NULL, "emailVerifiedAt" datetime, "provider" varchar CHECK( "provider" IN ('google','github') ), "providerId" varchar, CONSTRAINT "UQ_97672ac88f789774dd47f7c8be3" UNIQUE ("email"))`);
-        await queryRunner.query(`INSERT INTO "users"("id", "name", "email", "password", "emailVerifiedAt", "provider", "providerId") SELECT "id", "name", "email", "password", "emailVerifiedAt", "provider", "providerId" FROM "temporary_users"`);
-        await queryRunner.query(`DROP TABLE "temporary_users"`);
-        await queryRunner.query(`ALTER TABLE "users" RENAME TO "temporary_users"`);
-        await queryRunner.query(`CREATE TABLE "users" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(100) NOT NULL, "email" varchar(100) NOT NULL, "password" varchar NOT NULL, "emailVerifiedAt" datetime, CONSTRAINT "UQ_97672ac88f789774dd47f7c8be3" UNIQUE ("email"))`);
-        await queryRunner.query(`INSERT INTO "users"("id", "name", "email", "password", "emailVerifiedAt") SELECT "id", "name", "email", "password", "emailVerifiedAt" FROM "temporary_users"`);
-        await queryRunner.query(`DROP TABLE "temporary_users"`);
-    }
-
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`ALTER TABLE "users" RENAME TO "temporary_users"`);
+    await queryRunner.query(
+      `CREATE TABLE "users" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(100) NOT NULL, "email" varchar(100) NOT NULL, "password" varchar NOT NULL, "emailVerifiedAt" datetime, "provider" varchar CHECK( "provider" IN ('google','github') ), "providerId" varchar, CONSTRAINT "UQ_97672ac88f789774dd47f7c8be3" UNIQUE ("email"))`,
+    );
+    await queryRunner.query(
+      `INSERT INTO "users"("id", "name", "email", "password", "emailVerifiedAt", "provider", "providerId") SELECT "id", "name", "email", "password", "emailVerifiedAt", "provider", "providerId" FROM "temporary_users"`,
+    );
+    await queryRunner.query(`DROP TABLE "temporary_users"`);
+    await queryRunner.query(`ALTER TABLE "users" RENAME TO "temporary_users"`);
+    await queryRunner.query(
+      `CREATE TABLE "users" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(100) NOT NULL, "email" varchar(100) NOT NULL, "password" varchar NOT NULL, "emailVerifiedAt" datetime, CONSTRAINT "UQ_97672ac88f789774dd47f7c8be3" UNIQUE ("email"))`,
+    );
+    await queryRunner.query(
+      `INSERT INTO "users"("id", "name", "email", "password", "emailVerifiedAt") SELECT "id", "name", "email", "password", "emailVerifiedAt" FROM "temporary_users"`,
+    );
+    await queryRunner.query(`DROP TABLE "temporary_users"`);
+  }
 }
 
 ---
 
 
 ### FILE: src/database/migrations/1765457240708-addResetPasswordTokenTable.ts ###
-import { MigrationInterface, QueryRunner } from "typeorm";
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class AddResetPasswordTokenTable1765457240708 implements MigrationInterface {
-    name = 'AddResetPasswordTokenTable1765457240708'
+  name = 'AddResetPasswordTokenTable1765457240708';
 
-    public async up(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`CREATE TABLE "password_reset_tokens" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "userId" integer NOT NULL, "token" varchar NOT NULL, "expiresAt" datetime NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')))`);
-        await queryRunner.query(`CREATE INDEX "IDX_d6a19d4b4f6c62dcd29daa497e" ON "password_reset_tokens" ("userId") `);
-        await queryRunner.query(`CREATE INDEX "IDX_ab673f0e63eac966762155508e" ON "password_reset_tokens" ("token") `);
-    }
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(
+      `CREATE TABLE "password_reset_tokens" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "userId" integer NOT NULL, "token" varchar NOT NULL, "expiresAt" datetime NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')))`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_d6a19d4b4f6c62dcd29daa497e" ON "password_reset_tokens" ("userId") `,
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_ab673f0e63eac966762155508e" ON "password_reset_tokens" ("token") `,
+    );
+  }
 
-    public async down(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`DROP INDEX "IDX_ab673f0e63eac966762155508e"`);
-        await queryRunner.query(`DROP INDEX "IDX_d6a19d4b4f6c62dcd29daa497e"`);
-        await queryRunner.query(`DROP TABLE "password_reset_tokens"`);
-    }
-
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`DROP INDEX "IDX_ab673f0e63eac966762155508e"`);
+    await queryRunner.query(`DROP INDEX "IDX_d6a19d4b4f6c62dcd29daa497e"`);
+    await queryRunner.query(`DROP TABLE "password_reset_tokens"`);
+  }
 }
 
 ---
 
 
 ### FILE: src/database/migrations/1764871406438-addingColsToUser.ts ###
-import { MigrationInterface, QueryRunner } from "typeorm";
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class AddingColsToUser1764871406438 implements MigrationInterface {
-    name = 'AddingColsToUser1764871406438'
+  name = 'AddingColsToUser1764871406438';
 
-    public async up(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`CREATE TABLE "temporary_reaction" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "type" varchar CHECK( "type" IN ('like','dislike') ) NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer, "commentId" integer, "userId" integer NOT NULL, CONSTRAINT "FK_4584f851fc6471f517d9dad8966" FOREIGN KEY ("commentId") REFERENCES "comment" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_dc3aeb83dc815f9f22ebfa7785f" FOREIGN KEY ("postId") REFERENCES "post" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION)`);
-        await queryRunner.query(`INSERT INTO "temporary_reaction"("id", "type", "createdAt", "updatedAt", "postId", "commentId", "userId") SELECT "id", "type", "createdAt", "updatedAt", "postId", "commentId", "userId" FROM "reaction"`);
-        await queryRunner.query(`DROP TABLE "reaction"`);
-        await queryRunner.query(`ALTER TABLE "temporary_reaction" RENAME TO "reaction"`);
-        await queryRunner.query(`CREATE TABLE "temporary_comment" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "content" varchar NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer, "authorId" integer NOT NULL, "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, "parentId" integer, CONSTRAINT "FK_e3aebe2bd1c53467a07109be596" FOREIGN KEY ("parentId") REFERENCES "comment" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_94a85bb16d24033a2afdd5df060" FOREIGN KEY ("postId") REFERENCES "post" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`);
-        await queryRunner.query(`INSERT INTO "temporary_comment"("id", "content", "createdAt", "postId", "authorId", "updatedAt", "deletedAt", "parentId") SELECT "id", "content", "createdAt", "postId", "authorId", "updatedAt", "deletedAt", "parentId" FROM "comment"`);
-        await queryRunner.query(`DROP TABLE "comment"`);
-        await queryRunner.query(`ALTER TABLE "temporary_comment" RENAME TO "comment"`);
-        await queryRunner.query(`CREATE TABLE "temporary_post" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "title" varchar NOT NULL, "content" varchar NOT NULL, "authorId" integer NOT NULL, "views" integer NOT NULL DEFAULT (0), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime)`);
-        await queryRunner.query(`INSERT INTO "temporary_post"("id", "title", "content", "authorId", "views", "createdAt", "updatedAt", "deletedAt") SELECT "id", "title", "content", "authorId", "views", "createdAt", "updatedAt", "deletedAt" FROM "post"`);
-        await queryRunner.query(`DROP TABLE "post"`);
-        await queryRunner.query(`ALTER TABLE "temporary_post" RENAME TO "post"`);
-        await queryRunner.query(`CREATE TABLE "users" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(100) NOT NULL, "email" varchar(100) NOT NULL, "password" varchar NOT NULL, CONSTRAINT "UQ_97672ac88f789774dd47f7c8be3" UNIQUE ("email"))`);
-        await queryRunner.query(`CREATE TABLE "temporary_reaction" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "type" varchar CHECK( "type" IN ('like','dislike') ) NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer, "commentId" integer, "userId" integer NOT NULL, CONSTRAINT "FK_4584f851fc6471f517d9dad8966" FOREIGN KEY ("commentId") REFERENCES "comment" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_dc3aeb83dc815f9f22ebfa7785f" FOREIGN KEY ("postId") REFERENCES "post" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_e58a09ab17e3ce4c47a1a330ae1" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`);
-        await queryRunner.query(`INSERT INTO "temporary_reaction"("id", "type", "createdAt", "updatedAt", "postId", "commentId", "userId") SELECT "id", "type", "createdAt", "updatedAt", "postId", "commentId", "userId" FROM "reaction"`);
-        await queryRunner.query(`DROP TABLE "reaction"`);
-        await queryRunner.query(`ALTER TABLE "temporary_reaction" RENAME TO "reaction"`);
-        await queryRunner.query(`CREATE TABLE "temporary_comment" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "content" varchar NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer, "authorId" integer NOT NULL, "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, "parentId" integer, CONSTRAINT "FK_e3aebe2bd1c53467a07109be596" FOREIGN KEY ("parentId") REFERENCES "comment" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_94a85bb16d24033a2afdd5df060" FOREIGN KEY ("postId") REFERENCES "post" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_276779da446413a0d79598d4fbd" FOREIGN KEY ("authorId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`);
-        await queryRunner.query(`INSERT INTO "temporary_comment"("id", "content", "createdAt", "postId", "authorId", "updatedAt", "deletedAt", "parentId") SELECT "id", "content", "createdAt", "postId", "authorId", "updatedAt", "deletedAt", "parentId" FROM "comment"`);
-        await queryRunner.query(`DROP TABLE "comment"`);
-        await queryRunner.query(`ALTER TABLE "temporary_comment" RENAME TO "comment"`);
-        await queryRunner.query(`CREATE TABLE "temporary_post" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "title" varchar NOT NULL, "content" varchar NOT NULL, "authorId" integer NOT NULL, "views" integer NOT NULL DEFAULT (0), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, CONSTRAINT "FK_c6fb082a3114f35d0cc27c518e0" FOREIGN KEY ("authorId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`);
-        await queryRunner.query(`INSERT INTO "temporary_post"("id", "title", "content", "authorId", "views", "createdAt", "updatedAt", "deletedAt") SELECT "id", "title", "content", "authorId", "views", "createdAt", "updatedAt", "deletedAt" FROM "post"`);
-        await queryRunner.query(`DROP TABLE "post"`);
-        await queryRunner.query(`ALTER TABLE "temporary_post" RENAME TO "post"`);
-    }
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(
+      `CREATE TABLE "temporary_reaction" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "type" varchar CHECK( "type" IN ('like','dislike') ) NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer, "commentId" integer, "userId" integer NOT NULL, CONSTRAINT "FK_4584f851fc6471f517d9dad8966" FOREIGN KEY ("commentId") REFERENCES "comment" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_dc3aeb83dc815f9f22ebfa7785f" FOREIGN KEY ("postId") REFERENCES "post" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION)`,
+    );
+    await queryRunner.query(
+      `INSERT INTO "temporary_reaction"("id", "type", "createdAt", "updatedAt", "postId", "commentId", "userId") SELECT "id", "type", "createdAt", "updatedAt", "postId", "commentId", "userId" FROM "reaction"`,
+    );
+    await queryRunner.query(`DROP TABLE "reaction"`);
+    await queryRunner.query(
+      `ALTER TABLE "temporary_reaction" RENAME TO "reaction"`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "temporary_comment" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "content" varchar NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer, "authorId" integer NOT NULL, "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, "parentId" integer, CONSTRAINT "FK_e3aebe2bd1c53467a07109be596" FOREIGN KEY ("parentId") REFERENCES "comment" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_94a85bb16d24033a2afdd5df060" FOREIGN KEY ("postId") REFERENCES "post" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`,
+    );
+    await queryRunner.query(
+      `INSERT INTO "temporary_comment"("id", "content", "createdAt", "postId", "authorId", "updatedAt", "deletedAt", "parentId") SELECT "id", "content", "createdAt", "postId", "authorId", "updatedAt", "deletedAt", "parentId" FROM "comment"`,
+    );
+    await queryRunner.query(`DROP TABLE "comment"`);
+    await queryRunner.query(
+      `ALTER TABLE "temporary_comment" RENAME TO "comment"`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "temporary_post" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "title" varchar NOT NULL, "content" varchar NOT NULL, "authorId" integer NOT NULL, "views" integer NOT NULL DEFAULT (0), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime)`,
+    );
+    await queryRunner.query(
+      `INSERT INTO "temporary_post"("id", "title", "content", "authorId", "views", "createdAt", "updatedAt", "deletedAt") SELECT "id", "title", "content", "authorId", "views", "createdAt", "updatedAt", "deletedAt" FROM "post"`,
+    );
+    await queryRunner.query(`DROP TABLE "post"`);
+    await queryRunner.query(`ALTER TABLE "temporary_post" RENAME TO "post"`);
+    await queryRunner.query(
+      `CREATE TABLE "users" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(100) NOT NULL, "email" varchar(100) NOT NULL, "password" varchar NOT NULL, CONSTRAINT "UQ_97672ac88f789774dd47f7c8be3" UNIQUE ("email"))`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "temporary_reaction" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "type" varchar CHECK( "type" IN ('like','dislike') ) NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer, "commentId" integer, "userId" integer NOT NULL, CONSTRAINT "FK_4584f851fc6471f517d9dad8966" FOREIGN KEY ("commentId") REFERENCES "comment" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_dc3aeb83dc815f9f22ebfa7785f" FOREIGN KEY ("postId") REFERENCES "post" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_e58a09ab17e3ce4c47a1a330ae1" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`,
+    );
+    await queryRunner.query(
+      `INSERT INTO "temporary_reaction"("id", "type", "createdAt", "updatedAt", "postId", "commentId", "userId") SELECT "id", "type", "createdAt", "updatedAt", "postId", "commentId", "userId" FROM "reaction"`,
+    );
+    await queryRunner.query(`DROP TABLE "reaction"`);
+    await queryRunner.query(
+      `ALTER TABLE "temporary_reaction" RENAME TO "reaction"`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "temporary_comment" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "content" varchar NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer, "authorId" integer NOT NULL, "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, "parentId" integer, CONSTRAINT "FK_e3aebe2bd1c53467a07109be596" FOREIGN KEY ("parentId") REFERENCES "comment" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_94a85bb16d24033a2afdd5df060" FOREIGN KEY ("postId") REFERENCES "post" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_276779da446413a0d79598d4fbd" FOREIGN KEY ("authorId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`,
+    );
+    await queryRunner.query(
+      `INSERT INTO "temporary_comment"("id", "content", "createdAt", "postId", "authorId", "updatedAt", "deletedAt", "parentId") SELECT "id", "content", "createdAt", "postId", "authorId", "updatedAt", "deletedAt", "parentId" FROM "comment"`,
+    );
+    await queryRunner.query(`DROP TABLE "comment"`);
+    await queryRunner.query(
+      `ALTER TABLE "temporary_comment" RENAME TO "comment"`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "temporary_post" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "title" varchar NOT NULL, "content" varchar NOT NULL, "authorId" integer NOT NULL, "views" integer NOT NULL DEFAULT (0), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, CONSTRAINT "FK_c6fb082a3114f35d0cc27c518e0" FOREIGN KEY ("authorId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`,
+    );
+    await queryRunner.query(
+      `INSERT INTO "temporary_post"("id", "title", "content", "authorId", "views", "createdAt", "updatedAt", "deletedAt") SELECT "id", "title", "content", "authorId", "views", "createdAt", "updatedAt", "deletedAt" FROM "post"`,
+    );
+    await queryRunner.query(`DROP TABLE "post"`);
+    await queryRunner.query(`ALTER TABLE "temporary_post" RENAME TO "post"`);
+  }
 
-    public async down(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`ALTER TABLE "post" RENAME TO "temporary_post"`);
-        await queryRunner.query(`CREATE TABLE "post" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "title" varchar NOT NULL, "content" varchar NOT NULL, "authorId" integer NOT NULL, "views" integer NOT NULL DEFAULT (0), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime)`);
-        await queryRunner.query(`INSERT INTO "post"("id", "title", "content", "authorId", "views", "createdAt", "updatedAt", "deletedAt") SELECT "id", "title", "content", "authorId", "views", "createdAt", "updatedAt", "deletedAt" FROM "temporary_post"`);
-        await queryRunner.query(`DROP TABLE "temporary_post"`);
-        await queryRunner.query(`ALTER TABLE "comment" RENAME TO "temporary_comment"`);
-        await queryRunner.query(`CREATE TABLE "comment" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "content" varchar NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer, "authorId" integer NOT NULL, "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, "parentId" integer, CONSTRAINT "FK_e3aebe2bd1c53467a07109be596" FOREIGN KEY ("parentId") REFERENCES "comment" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_94a85bb16d24033a2afdd5df060" FOREIGN KEY ("postId") REFERENCES "post" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`);
-        await queryRunner.query(`INSERT INTO "comment"("id", "content", "createdAt", "postId", "authorId", "updatedAt", "deletedAt", "parentId") SELECT "id", "content", "createdAt", "postId", "authorId", "updatedAt", "deletedAt", "parentId" FROM "temporary_comment"`);
-        await queryRunner.query(`DROP TABLE "temporary_comment"`);
-        await queryRunner.query(`ALTER TABLE "reaction" RENAME TO "temporary_reaction"`);
-        await queryRunner.query(`CREATE TABLE "reaction" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "type" varchar CHECK( "type" IN ('like','dislike') ) NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer, "commentId" integer, "userId" integer NOT NULL, CONSTRAINT "FK_4584f851fc6471f517d9dad8966" FOREIGN KEY ("commentId") REFERENCES "comment" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_dc3aeb83dc815f9f22ebfa7785f" FOREIGN KEY ("postId") REFERENCES "post" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION)`);
-        await queryRunner.query(`INSERT INTO "reaction"("id", "type", "createdAt", "updatedAt", "postId", "commentId", "userId") SELECT "id", "type", "createdAt", "updatedAt", "postId", "commentId", "userId" FROM "temporary_reaction"`);
-        await queryRunner.query(`DROP TABLE "temporary_reaction"`);
-        await queryRunner.query(`DROP TABLE "users"`);
-        await queryRunner.query(`ALTER TABLE "post" RENAME TO "temporary_post"`);
-        await queryRunner.query(`CREATE TABLE "post" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "title" varchar NOT NULL, "content" varchar NOT NULL, "authorId" integer NOT NULL, "views" integer NOT NULL DEFAULT (0), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, CONSTRAINT "FK_c6fb082a3114f35d0cc27c518e0" FOREIGN KEY ("authorId") REFERENCES "user" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`);
-        await queryRunner.query(`INSERT INTO "post"("id", "title", "content", "authorId", "views", "createdAt", "updatedAt", "deletedAt") SELECT "id", "title", "content", "authorId", "views", "createdAt", "updatedAt", "deletedAt" FROM "temporary_post"`);
-        await queryRunner.query(`DROP TABLE "temporary_post"`);
-        await queryRunner.query(`ALTER TABLE "comment" RENAME TO "temporary_comment"`);
-        await queryRunner.query(`CREATE TABLE "comment" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "content" varchar NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer, "authorId" integer NOT NULL, "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, "parentId" integer, CONSTRAINT "FK_e3aebe2bd1c53467a07109be596" FOREIGN KEY ("parentId") REFERENCES "comment" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_94a85bb16d24033a2afdd5df060" FOREIGN KEY ("postId") REFERENCES "post" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_276779da446413a0d79598d4fbd" FOREIGN KEY ("authorId") REFERENCES "user" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`);
-        await queryRunner.query(`INSERT INTO "comment"("id", "content", "createdAt", "postId", "authorId", "updatedAt", "deletedAt", "parentId") SELECT "id", "content", "createdAt", "postId", "authorId", "updatedAt", "deletedAt", "parentId" FROM "temporary_comment"`);
-        await queryRunner.query(`DROP TABLE "temporary_comment"`);
-        await queryRunner.query(`ALTER TABLE "reaction" RENAME TO "temporary_reaction"`);
-        await queryRunner.query(`CREATE TABLE "reaction" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "type" varchar CHECK( "type" IN ('like','dislike') ) NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer, "commentId" integer, "userId" integer NOT NULL, CONSTRAINT "FK_e58a09ab17e3ce4c47a1a330ae1" FOREIGN KEY ("userId") REFERENCES "user" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_4584f851fc6471f517d9dad8966" FOREIGN KEY ("commentId") REFERENCES "comment" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_dc3aeb83dc815f9f22ebfa7785f" FOREIGN KEY ("postId") REFERENCES "post" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION)`);
-        await queryRunner.query(`INSERT INTO "reaction"("id", "type", "createdAt", "updatedAt", "postId", "commentId", "userId") SELECT "id", "type", "createdAt", "updatedAt", "postId", "commentId", "userId" FROM "temporary_reaction"`);
-        await queryRunner.query(`DROP TABLE "temporary_reaction"`);
-    }
-
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`ALTER TABLE "post" RENAME TO "temporary_post"`);
+    await queryRunner.query(
+      `CREATE TABLE "post" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "title" varchar NOT NULL, "content" varchar NOT NULL, "authorId" integer NOT NULL, "views" integer NOT NULL DEFAULT (0), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime)`,
+    );
+    await queryRunner.query(
+      `INSERT INTO "post"("id", "title", "content", "authorId", "views", "createdAt", "updatedAt", "deletedAt") SELECT "id", "title", "content", "authorId", "views", "createdAt", "updatedAt", "deletedAt" FROM "temporary_post"`,
+    );
+    await queryRunner.query(`DROP TABLE "temporary_post"`);
+    await queryRunner.query(
+      `ALTER TABLE "comment" RENAME TO "temporary_comment"`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "comment" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "content" varchar NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer, "authorId" integer NOT NULL, "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, "parentId" integer, CONSTRAINT "FK_e3aebe2bd1c53467a07109be596" FOREIGN KEY ("parentId") REFERENCES "comment" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_94a85bb16d24033a2afdd5df060" FOREIGN KEY ("postId") REFERENCES "post" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`,
+    );
+    await queryRunner.query(
+      `INSERT INTO "comment"("id", "content", "createdAt", "postId", "authorId", "updatedAt", "deletedAt", "parentId") SELECT "id", "content", "createdAt", "postId", "authorId", "updatedAt", "deletedAt", "parentId" FROM "temporary_comment"`,
+    );
+    await queryRunner.query(`DROP TABLE "temporary_comment"`);
+    await queryRunner.query(
+      `ALTER TABLE "reaction" RENAME TO "temporary_reaction"`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "reaction" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "type" varchar CHECK( "type" IN ('like','dislike') ) NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer, "commentId" integer, "userId" integer NOT NULL, CONSTRAINT "FK_4584f851fc6471f517d9dad8966" FOREIGN KEY ("commentId") REFERENCES "comment" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_dc3aeb83dc815f9f22ebfa7785f" FOREIGN KEY ("postId") REFERENCES "post" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION)`,
+    );
+    await queryRunner.query(
+      `INSERT INTO "reaction"("id", "type", "createdAt", "updatedAt", "postId", "commentId", "userId") SELECT "id", "type", "createdAt", "updatedAt", "postId", "commentId", "userId" FROM "temporary_reaction"`,
+    );
+    await queryRunner.query(`DROP TABLE "temporary_reaction"`);
+    await queryRunner.query(`DROP TABLE "users"`);
+    await queryRunner.query(`ALTER TABLE "post" RENAME TO "temporary_post"`);
+    await queryRunner.query(
+      `CREATE TABLE "post" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "title" varchar NOT NULL, "content" varchar NOT NULL, "authorId" integer NOT NULL, "views" integer NOT NULL DEFAULT (0), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, CONSTRAINT "FK_c6fb082a3114f35d0cc27c518e0" FOREIGN KEY ("authorId") REFERENCES "user" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`,
+    );
+    await queryRunner.query(
+      `INSERT INTO "post"("id", "title", "content", "authorId", "views", "createdAt", "updatedAt", "deletedAt") SELECT "id", "title", "content", "authorId", "views", "createdAt", "updatedAt", "deletedAt" FROM "temporary_post"`,
+    );
+    await queryRunner.query(`DROP TABLE "temporary_post"`);
+    await queryRunner.query(
+      `ALTER TABLE "comment" RENAME TO "temporary_comment"`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "comment" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "content" varchar NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer, "authorId" integer NOT NULL, "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, "parentId" integer, CONSTRAINT "FK_e3aebe2bd1c53467a07109be596" FOREIGN KEY ("parentId") REFERENCES "comment" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_94a85bb16d24033a2afdd5df060" FOREIGN KEY ("postId") REFERENCES "post" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_276779da446413a0d79598d4fbd" FOREIGN KEY ("authorId") REFERENCES "user" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`,
+    );
+    await queryRunner.query(
+      `INSERT INTO "comment"("id", "content", "createdAt", "postId", "authorId", "updatedAt", "deletedAt", "parentId") SELECT "id", "content", "createdAt", "postId", "authorId", "updatedAt", "deletedAt", "parentId" FROM "temporary_comment"`,
+    );
+    await queryRunner.query(`DROP TABLE "temporary_comment"`);
+    await queryRunner.query(
+      `ALTER TABLE "reaction" RENAME TO "temporary_reaction"`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "reaction" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "type" varchar CHECK( "type" IN ('like','dislike') ) NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer, "commentId" integer, "userId" integer NOT NULL, CONSTRAINT "FK_e58a09ab17e3ce4c47a1a330ae1" FOREIGN KEY ("userId") REFERENCES "user" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_4584f851fc6471f517d9dad8966" FOREIGN KEY ("commentId") REFERENCES "comment" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_dc3aeb83dc815f9f22ebfa7785f" FOREIGN KEY ("postId") REFERENCES "post" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION)`,
+    );
+    await queryRunner.query(
+      `INSERT INTO "reaction"("id", "type", "createdAt", "updatedAt", "postId", "commentId", "userId") SELECT "id", "type", "createdAt", "updatedAt", "postId", "commentId", "userId" FROM "temporary_reaction"`,
+    );
+    await queryRunner.query(`DROP TABLE "temporary_reaction"`);
+  }
 }
 
 ---
 
 
 ### FILE: src/database/migrations/1765209236854-AddEmailVerifiedColumn.ts ###
-import { MigrationInterface, QueryRunner } from "typeorm";
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class AddEmailVerifiedColumn1765209236854 implements MigrationInterface {
-    name = 'AddEmailVerifiedColumn1765209236854'
+  name = 'AddEmailVerifiedColumn1765209236854';
 
-    public async up(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`CREATE TABLE "temporary_users" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(100) NOT NULL, "email" varchar(100) NOT NULL, "password" varchar NOT NULL, "emailVerifiedAt" datetime, CONSTRAINT "UQ_97672ac88f789774dd47f7c8be3" UNIQUE ("email"))`);
-        await queryRunner.query(`INSERT INTO "temporary_users"("id", "name", "email", "password") SELECT "id", "name", "email", "password" FROM "users"`);
-        await queryRunner.query(`DROP TABLE "users"`);
-        await queryRunner.query(`ALTER TABLE "temporary_users" RENAME TO "users"`);
-    }
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(
+      `CREATE TABLE "temporary_users" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(100) NOT NULL, "email" varchar(100) NOT NULL, "password" varchar NOT NULL, "emailVerifiedAt" datetime, CONSTRAINT "UQ_97672ac88f789774dd47f7c8be3" UNIQUE ("email"))`,
+    );
+    await queryRunner.query(
+      `INSERT INTO "temporary_users"("id", "name", "email", "password") SELECT "id", "name", "email", "password" FROM "users"`,
+    );
+    await queryRunner.query(`DROP TABLE "users"`);
+    await queryRunner.query(`ALTER TABLE "temporary_users" RENAME TO "users"`);
+  }
 
-    public async down(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`ALTER TABLE "users" RENAME TO "temporary_users"`);
-        await queryRunner.query(`CREATE TABLE "users" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(100) NOT NULL, "email" varchar(100) NOT NULL, "password" varchar NOT NULL, CONSTRAINT "UQ_97672ac88f789774dd47f7c8be3" UNIQUE ("email"))`);
-        await queryRunner.query(`INSERT INTO "users"("id", "name", "email", "password") SELECT "id", "name", "email", "password" FROM "temporary_users"`);
-        await queryRunner.query(`DROP TABLE "temporary_users"`);
-    }
-
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`ALTER TABLE "users" RENAME TO "temporary_users"`);
+    await queryRunner.query(
+      `CREATE TABLE "users" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(100) NOT NULL, "email" varchar(100) NOT NULL, "password" varchar NOT NULL, CONSTRAINT "UQ_97672ac88f789774dd47f7c8be3" UNIQUE ("email"))`,
+    );
+    await queryRunner.query(
+      `INSERT INTO "users"("id", "name", "email", "password") SELECT "id", "name", "email", "password" FROM "temporary_users"`,
+    );
+    await queryRunner.query(`DROP TABLE "temporary_users"`);
+  }
 }
 
 ---
@@ -713,27 +1023,15 @@ bootstrap();
 
 ### FILE: src/users/pipes/user.pipe.ts ###
 import { Injectable, PipeTransform, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { User } from '../../users/entities/user.entity';
+import { UsersService } from '../users.service';
+import { User } from '../entities/user.entity';
 
 @Injectable()
-export class UserPipe implements PipeTransform {
-  constructor(
-    @InjectRepository(User)
-    private readonly repo: Repository<User>,
-  ) {}
+export class UserPipe implements PipeTransform<string, Promise<User>> {
+  constructor(private readonly usersService: UsersService) {}
 
-  async transform(value: string) {
-    const user = await this.repo.findOne({
-      where: { id: +value },
-    });
-
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    return user;
+  async transform(value: string): Promise<User> {
+    return this.usersService.findOneById(+value);
   }
 }
 
@@ -824,62 +1122,65 @@ export class UsersService {
     user.provider = provider ?? null;
     user.providerId = providerId ?? null;
 
-    user.password = password
-      ? await bcrypt.hash(password, 10)
-      : null;
+    user.password = password ? await bcrypt.hash(password, 10) : null;
 
-    user.emailVerifiedAt =
-      emailVerifiedAt ??
-      (password ? null : new Date());
-
+    user.emailVerifiedAt = emailVerifiedAt ?? (password ? null : new Date());
 
     return this.repo.save(user);
   }
 
-  
-// ---------------------------------------
-// Update (Slimmed logic)
-// ---------------------------------------
-async updateUser(
-  user: User,
-  updates: {
-    name?: string,
-    email?: string,
-    password?: string | null,
-    provider?: 'google' | 'github' | null,
-    providerId?: string | null,
-    emailVerifiedAt?: Date | null,
-    picture?: string | null,
-  }
-): Promise<User> {
-  const { password, ...rest } = updates; // Separate password for hashing
+  // ---------------------------------------
+  // Update (Slimmed logic)
+  // ---------------------------------------
+ 
+async updateUser({
+  user,
+  name,
+  email,
+  password,
+  provider,
+  providerId,
+  emailVerifiedAt,
+  picture,
+}: {
+  user: User;
+  name?: string;
+  email?: string;
+  password?: string | null;
+  provider?: 'google' | 'github' | null;
+  providerId?: string | null;
+  emailVerifiedAt?: Date | null;
+  picture?: string | null;
+}): Promise<User> {
+  // 1. Update basic fields dynamically
+  Object.assign(user, {
+    ...(name !== undefined && { name }),
+    ...(email !== undefined && { email }),
+    ...(provider !== undefined && { provider }),
+    ...(providerId !== undefined && { providerId }),
+    ...(emailVerifiedAt !== undefined && { emailVerifiedAt }),
+    ...(picture !== undefined && { picture }),
+  });
 
-  // 1. Update basic fields dynamically (only if they exist in updates)
-  Object.assign(user, rest);
-  
-  // 2. Handle password hashing separately if it exists
+  // 2. Handle password hashing separately
   if (password !== undefined) {
-    user.password = password
-      ? await bcrypt.hash(password, 10)
-      : null;
+    user.password = password ? await bcrypt.hash(password, 10) : null;
   }
 
-  // TypeORM's save handles both creation and update, 
-  // and only updates fields that have changed.
+  // 3. Save updated user
   return this.repo.save(user);
 }
+  // ---------------------------------------
+  // Email verification
+  // ---------------------------------------
+  async markEmailAsVerified(id: number): Promise<void> {
+    const user = await this.findOneById(id);
 
-// ---------------------------------------
-// Email verification
-// ---------------------------------------
-async markEmailAsVerified(id: number): Promise<void> {
-  const user = await this.findOneById(id);
-
-  if (!user.emailVerifiedAt) {
-    user.emailVerifiedAt = new Date();
-    await this.repo.save(user);
+    if (!user.emailVerifiedAt) {
+      user.emailVerifiedAt = new Date();
+      await this.repo.save(user);
+    }
   }
-}
 }
 
 ---
@@ -942,7 +1243,9 @@ export class UserResponseDto {
   @Expose() readonly provider: string | null;
 
   static fromEntity(entity: User): UserResponseDto {
-    return plainToInstance(UserResponseDto, entity, { excludeExtraneousValues: true });
+    return plainToInstance(UserResponseDto, entity, {
+      excludeExtraneousValues: true,
+    });
   }
 }
 
@@ -972,7 +1275,8 @@ export class UsersModule {}
 import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
 import { Post } from '../../posts/entities/post.entity';
 import { Comment } from '../../comments/entities/comment.entity';
-import { Reaction } from '../../reactions/entities/reaction.entity';
+import { PostReaction } from '../../reactions/entities/post-reaction.entity';
+import { CommentReaction } from '../../reactions/entities/comment-reaction.entity';
 
 @Entity('users')
 export class User {
@@ -991,21 +1295,29 @@ export class User {
   @Column({ type: 'datetime', nullable: true, default: null })
   emailVerifiedAt: Date | null; // 👈 NEW FIELD
 
-  @Column({ type: 'simple-enum', enum: ['google', 'github'], nullable: true, default: null })
+  @Column({
+    type: 'simple-enum',
+    enum: ['google', 'github'],
+    nullable: true,
+    default: null,
+  })
   provider: 'google' | 'github' | null;
 
-  @Column({  type: 'varchar',nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   providerId: string | null; // Google's profile.id
 
   // Relations
-  @OneToMany(() => Post, post => post.author)
+  @OneToMany(() => Post, (post) => post.author)
   posts: Post[];
 
-  @OneToMany(() => Comment, comment => comment.author)
+  @OneToMany(() => Comment, (comment) => comment.author)
   comments: Comment[];
 
-  @OneToMany(() => Reaction, reaction => reaction.user)
-  reactions: Reaction[];
+  @OneToMany(() => PostReaction, (reaction) => reaction.user)
+  postReactions: PostReaction[];
+
+  @OneToMany(() => CommentReaction, (reaction) => reaction.user)
+  commentReactions: CommentReaction[];
 }
 
 ---
@@ -1042,30 +1354,40 @@ export class UsersController {
 ---
 
 
-### FILE: src/reactions/pipes/reaction.pipe.ts ###
+### FILE: src/reactions/pipes/post-reaction.pipe.ts ###
 import { Injectable, PipeTransform, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Reaction } from '../../reactions/entities/reaction.entity';
+import { ReactionsService } from '../reactions.service';
+import { PostReaction } from '../entities/post-reaction.entity';
 
 @Injectable()
-export class ReactionPipe implements PipeTransform {
-  constructor(
-    @InjectRepository(Reaction)
-    private readonly repo: Repository<Reaction>,
-  ) {}
+export class PostReactionPipe implements PipeTransform<
+  string,
+  Promise<PostReaction>
+> {
+  constructor(private readonly reactionsService: ReactionsService) {}
 
-  async transform(value: string) {
-    const reaction = await this.repo.findOne({
-      where: { id: +value },
-      relations: ['user', 'post', 'comment'],
-    });
+  async transform(value: string): Promise<PostReaction> {
+    return this.reactionsService.findPostReactionById(+value);
+  }
+}
 
-    if (!reaction) {
-      throw new NotFoundException('Reaction not found');
-    }
+---
 
-    return reaction;
+
+### FILE: src/reactions/pipes/comment-reaction.pipe.ts ###
+import { Injectable, PipeTransform, NotFoundException } from '@nestjs/common';
+import { ReactionsService } from '../reactions.service';
+import { CommentReaction } from '../entities/comment-reaction.entity';
+
+@Injectable()
+export class CommentReactionPipe implements PipeTransform<
+  string,
+  Promise<CommentReaction>
+> {
+  constructor(private readonly reactionsService: ReactionsService) {}
+
+  async transform(value: string): Promise<CommentReaction> {
+    return this.reactionsService.findCommentReactionById(+value);
   }
 }
 
@@ -1081,6 +1403,7 @@ import {
   Param,
   Delete,
   UseGuards,
+  NotFoundException,
 } from '@nestjs/common';
 import { ReactionsService } from './reactions.service';
 import { CreateReactionDto } from './dto/create-reaction.dto';
@@ -1088,14 +1411,16 @@ import { User } from 'src/users/entities/user.entity';
 import { GetUser } from 'src/decorators/user.decorator';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { Action } from 'src/casl/casl.types';
-import { Reaction } from './entities/reaction.entity';
-import { ReactionPipe } from 'src/reactions/pipes/reaction.pipe';
+import { PostReaction } from './entities/post-reaction.entity';
+import { CommentReaction } from './entities/comment-reaction.entity';
 import { PostPipe } from 'src/posts/pipes/post.pipe';
 import { CommentPipe } from 'src/comments/pipes/comment.pipe';
 import { Post as PostEntity } from '../posts/entities/post.entity';
 import { Comment as CommentEntity } from '../comments/entities/comment.entity';
 import { CaslService } from 'src/casl/casl.service';
 import { ReactionResponseDto } from './dto/reaction-response.dto';
+import { PostReactionPipe } from './pipes/post-reaction.pipe';
+import { CommentReactionPipe } from './pipes/comment-reaction.pipe';
 
 @Controller()
 export class ReactionsController {
@@ -1111,11 +1436,12 @@ export class ReactionsController {
     @Body() dto: CreateReactionDto,
     @GetUser() user: User,
   ): Promise<ReactionResponseDto> {
-    this.caslService.enforce(user, Action.Create, Reaction);
+    this.caslService.enforce(user, Action.Create, PostReaction);
     const reaction = await this.reactionsService.create(
       dto.type,
       user,
       post.id,
+      undefined,
     );
     return ReactionResponseDto.fromEntity(reaction);
   }
@@ -1135,7 +1461,7 @@ export class ReactionsController {
     @Body() dto: CreateReactionDto,
     @GetUser() user: User,
   ): Promise<ReactionResponseDto> {
-    this.caslService.enforce(user, Action.Create, Reaction);
+    this.caslService.enforce(user, Action.Create, CommentReaction);
     const reaction = await this.reactionsService.create(
       dto.type,
       user,
@@ -1153,15 +1479,34 @@ export class ReactionsController {
     return reactions.map(ReactionResponseDto.fromEntity);
   }
 
-  @Delete('reactions/:reactionId')
+  @Delete('posts/:postId/reactions/:reactionId')
   @UseGuards(JwtAuthGuard)
-  async deleteReaction(
-    @Param('reactionId', ReactionPipe) reaction: Reaction,
+  async deletePostReaction(
+    @Param('reactionId', PostReactionPipe) reaction: PostReaction,
     @GetUser() user: User,
   ) {
     this.caslService.enforce(user, Action.Delete, reaction);
-    return await this.reactionsService.delete(reaction);
+    return await this.reactionsService.deletePostReaction(reaction.id);
   }
+
+  @Delete('comments/:commentId/reactions/:reactionId')
+  @UseGuards(JwtAuthGuard)
+  async deleteCommentReaction(
+    @Param('reactionId', CommentReactionPipe) reaction: CommentReaction,
+    @GetUser() user: User,
+  ) {
+    this.caslService.enforce(user, Action.Delete, reaction);
+    return await this.reactionsService.deleteCommentReaction(reaction.id);
+  }
+}
+
+---
+
+
+### FILE: src/reactions/reactions.types.ts ###
+export enum ReactionType {
+  LIKE = 'like',
+  DISLIKE = 'dislike',
 }
 
 ---
@@ -1176,14 +1521,18 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Reaction, ReactionType } from './entities/reaction.entity';
+import { PostReaction } from './entities/post-reaction.entity';
+import { CommentReaction } from './entities/comment-reaction.entity';
 import { User } from '../users/entities/user.entity';
+import { ReactionType } from './reactions.types';
 
 @Injectable()
 export class ReactionsService {
   constructor(
-    @InjectRepository(Reaction)
-    private readonly repo: Repository<Reaction>,
+    @InjectRepository(PostReaction)
+    private readonly postReactionRepo: Repository<PostReaction>,
+    @InjectRepository(CommentReaction)
+    private readonly commentReactionRepo: Repository<CommentReaction>,
   ) {}
 
   /**
@@ -1195,16 +1544,25 @@ export class ReactionsService {
     user: User,
     postId?: number,
     commentId?: number,
-  ): Promise<Reaction> {
-    if (!postId && !commentId) {
+  ): Promise<PostReaction | CommentReaction> {
+    if (postId) {
+      return this.createPostReaction(type, user, postId);
+    } else if (commentId) {
+      return this.createCommentReaction(type, user, commentId);
+    } else {
       throw new NotFoundException('Reaction must target a post or a comment.');
     }
+  }
 
-    // Prevent duplicate reaction
-    const existing = await this.repo.findOne({
+  private async createPostReaction(
+    type: ReactionType,
+    user: User,
+    postId: number,
+  ): Promise<PostReaction> {
+    const existing = await this.postReactionRepo.findOne({
       where: {
-        user: { id: user.id },
-        ...(postId ? { post: { id: postId } } : { comment: { id: commentId } }),
+        userId: user.id,
+        postId: postId,
       },
     });
 
@@ -1214,19 +1572,45 @@ export class ReactionsService {
       );
     }
 
-    const reaction = this.repo.create({
+    const reaction = this.postReactionRepo.create({
       type,
       user,
-      post: postId ? { id: postId } : null,
-      comment: commentId ? { id: commentId } : null,
+      postId,
     });
 
-    return this.repo.save(reaction);
+    return this.postReactionRepo.save(reaction);
+  }
+
+  private async createCommentReaction(
+    type: ReactionType,
+    user: User,
+    commentId: number,
+  ): Promise<CommentReaction> {
+    const existing = await this.commentReactionRepo.findOne({
+      where: {
+        userId: user.id,
+        commentId: commentId,
+      },
+    });
+
+    if (existing) {
+      throw new ForbiddenException(
+        'You already reacted to this content. Remove your existing reaction first.',
+      );
+    }
+
+    const reaction = this.commentReactionRepo.create({
+      type,
+      user,
+      commentId,
+    });
+
+    return this.commentReactionRepo.save(reaction);
   }
 
   findByPost(postId: number) {
-    return this.repo.find({
-      where: { post: { id: postId } },
+    return this.postReactionRepo.find({
+      where: { postId: postId },
       relations: ['user'],
       select: {
         id: true,
@@ -1238,8 +1622,8 @@ export class ReactionsService {
   }
 
   findByComment(commentId: number) {
-    return this.repo.find({
-      where: { comment: { id: commentId } },
+    return this.commentReactionRepo.find({
+      where: { commentId: commentId },
       relations: ['user'],
       select: {
         id: true,
@@ -1250,23 +1634,49 @@ export class ReactionsService {
     });
   }
 
-  async delete(reaction: Reaction): Promise<void> {
-    await this.repo.remove(reaction);
+  async deletePostReaction(id: number): Promise<void> {
+    await this.postReactionRepo.delete(id);
   }
 
-  async getUserReactionOnTarget(
+  async deleteCommentReaction(id: number): Promise<void> {
+    await this.commentReactionRepo.delete(id);
+  }
+
+  async getUserReactionOnPost(
     userId: number,
-    postId?: number,
-    commentId?: number,
-  ): Promise<Reaction | null> {
-    return this.repo.findOne({
+    postId: number,
+  ): Promise<PostReaction | null> {
+    return this.postReactionRepo.findOne({
       where: {
-        user: { id: userId },
-        ...(postId ? { post: { id: postId } } : { comment: { id: commentId } }),
+        userId,
+        postId,
       },
     });
   }
+
+  async findPostReactionById(id: number): Promise<PostReaction> {
+    const reaction = await this.postReactionRepo.findOne({
+      where: { id },
+      relations: ['user'],
+    });
+    if (!reaction) {
+      throw new NotFoundException('Post reaction not found');
+    }
+    return reaction;
+  }
+
+  async findCommentReactionById(id: number): Promise<CommentReaction> {
+    const reaction = await this.commentReactionRepo.findOne({
+      where: { id },
+      relations: ['user'],
+    });
+    if (!reaction) {
+      throw new NotFoundException('Comment reaction not found');
+    }
+    return reaction;
+  }
 }
+
 ---
 
 
@@ -1275,57 +1685,117 @@ import { Module } from '@nestjs/common';
 import { ReactionsService } from './reactions.service';
 import { ReactionsController } from './reactions.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Reaction } from './entities/reaction.entity';
+import { PostReaction } from './entities/post-reaction.entity';
+import { CommentReaction } from './entities/comment-reaction.entity';
 import { CaslModule } from 'src/casl/casl.module';
-import { Post } from 'src/posts/entities/post.entity';
-import { Comment } from 'src/comments/entities/comment.entity';
+import { PostsModule } from 'src/posts/posts.module';
+import { CommentsModule } from 'src/comments/comments.module';
 
 @Module({
   providers: [ReactionsService],
-  controllers: [ReactionsController] ,
-  imports: [TypeOrmModule.forFeature([Reaction,Post,Comment]),
-  CaslModule ,
-  
-],
+  controllers: [ReactionsController],
+  imports: [
+    TypeOrmModule.forFeature([PostReaction, CommentReaction]),
+    CaslModule,
+    PostsModule,
+    CommentsModule,
+  ],
+  exports: [ReactionsService],
 })
 export class ReactionsModule {}
 
 ---
 
 
-### FILE: src/reactions/entities/reaction.entity.ts ###
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+### FILE: src/reactions/entities/post-reaction.entity.ts ###
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  CreateDateColumn,
+  UpdateDateColumn,
+  Index,
+} from 'typeorm';
 import { Post } from '../../posts/entities/post.entity';
-import { Comment } from '../../comments/entities/comment.entity';
 import { User } from '../../users/entities/user.entity';
+import { ReactionType } from '../../reactions/reactions.types'; // Assuming ReactionType is still needed and will be moved or re-defined
 
-export enum ReactionType {
-  LIKE = 'like',
-  DISLIKE = 'dislike',
-}
-
-@Entity()
-export class Reaction {
+@Entity('post_reactions')
+@Index(['postId', 'userId'], { unique: true }) // Ensure a user can only react once to a post
+export class PostReaction {
   @PrimaryGeneratedColumn()
   id: number;
 
-@Column({
-  type: 'simple-enum',
-  enum: ReactionType,
-})
-type: ReactionType;
+  @Column({
+    type: 'simple-enum',
+    enum: ReactionType,
+  })
+  type: ReactionType;
 
-  @ManyToOne(() => Post, { nullable: true })
-  post?: Post | null;
+  @ManyToOne(() => Post, (post) => post.reactions, { onDelete: 'CASCADE' })
+  post: Post;
 
-  @ManyToOne(() => Comment, { nullable: true })
-  comment?: Comment | null;
-
-  @ManyToOne(() => User, user => user.reactions, { nullable: false, onDelete: 'CASCADE' })
-  user: User; // <-- ADD THIS FIELD
-   // FK explicite
   @Column()
-  userId: number
+  postId: number;
+
+  @ManyToOne(() => User, (user) => user.postReactions, { onDelete: 'CASCADE' })
+  user: User;
+
+  @Column()
+  userId: number;
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
+}
+
+---
+
+
+### FILE: src/reactions/entities/comment-reaction.entity.ts ###
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  CreateDateColumn,
+  UpdateDateColumn,
+  Index,
+} from 'typeorm';
+import { Comment } from '../../comments/entities/comment.entity'; // Corrected path
+import { User } from '../../users/entities/user.entity';
+import { ReactionType } from '../../reactions/reactions.types'; // Assuming ReactionType is still needed and will be moved or re-defined
+
+@Entity('comment_reactions')
+@Index(['commentId', 'userId'], { unique: true }) // Ensure a user can only react once to a comment
+export class CommentReaction {
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column({
+    type: 'simple-enum',
+    enum: ReactionType,
+  })
+  type: ReactionType;
+
+  @ManyToOne(() => Comment, (comment) => comment.reactions, {
+    onDelete: 'CASCADE',
+  })
+  comment: Comment;
+
+  @Column()
+  commentId: number;
+
+  @ManyToOne(() => User, (user) => user.commentReactions, {
+    onDelete: 'CASCADE',
+  })
+  user: User;
+
+  @Column()
+  userId: number;
 
   @CreateDateColumn()
   createdAt: Date;
@@ -1341,7 +1811,7 @@ type: ReactionType;
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { IsOptional, IsEnum, IsInt } from 'class-validator';
 import { Type } from 'class-transformer';
-import { ReactionType } from '../entities/reaction.entity';
+import { ReactionType } from '../reactions.types';
 
 export class ReactionQueryDto extends PaginationDto {
   @IsOptional()
@@ -1360,23 +1830,40 @@ export class ReactionQueryDto extends PaginationDto {
 ### FILE: src/reactions/dto/reaction-response.dto.ts ###
 import { Exclude, Expose, Type, plainToInstance } from 'class-transformer';
 import { UserResponseDto } from '../../users/dtos/user-response.dto';
-import { Reaction } from '../entities/reaction.entity';
-import { ReactionType } from '../entities/reaction.entity';
+import { PostReaction } from '../entities/post-reaction.entity';
+import { CommentReaction } from '../entities/comment-reaction.entity';
+import { ReactionType } from '../reactions.types';
 
 @Exclude()
 export class ReactionResponseDto {
   @Expose() readonly id: number;
   @Expose() readonly type: ReactionType;
   @Expose() @Type(() => UserResponseDto) readonly user: UserResponseDto;
-  @Expose() readonly postId?: number | null;
-  @Expose() readonly commentId?: number | null;
+  @Expose() postId?: number;
+  @Expose() commentId?: number;
   @Expose() readonly createdAt: Date;
 
-  static fromEntity(entity: Reaction): ReactionResponseDto {
-    return plainToInstance(ReactionResponseDto, {
-      ...entity,
-      user: entity.user ? UserResponseDto.fromEntity(entity.user) : null,
-    }, { excludeExtraneousValues: true });
+  static fromEntity(
+    entity: PostReaction | CommentReaction,
+  ): ReactionResponseDto {
+    const dto = plainToInstance(
+      ReactionResponseDto,
+      {
+        ...entity,
+        user: entity.user ? UserResponseDto.fromEntity(entity.user) : null,
+      },
+      { excludeExtraneousValues: true },
+    );
+
+    if ('postId' in entity) {
+      dto.postId = entity.postId;
+      dto.commentId = undefined; // Ensure commentId is not set if it's a post reaction
+    } else if ('commentId' in entity) {
+      dto.commentId = entity.commentId;
+      dto.postId = undefined; // Ensure postId is not set if it's a comment reaction
+    }
+
+    return dto;
   }
 }
 
@@ -1394,7 +1881,7 @@ export class UpdateReactionDto extends PartialType(CreateReactionDto) {}
 
 ### FILE: src/reactions/dto/create-reaction.dto.ts ###
 import { IsEnum } from 'class-validator';
-import { ReactionType } from '../entities/reaction.entity';
+import { ReactionType } from '../reactions.types';
 
 export class CreateReactionDto {
   @IsEnum(ReactionType)
@@ -1413,7 +1900,7 @@ export class PaginationDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  page: number = 1;   // default 1
+  page: number = 1; // default 1
 
   @IsOptional()
   @Type(() => Number)
@@ -1427,28 +1914,42 @@ export class PaginationDto {
 
 ### FILE: src/decorators/user.decorator.ts ###
 // src/decorators/current-user.decorator.ts
-import { createParamDecorator, ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import {
+  createParamDecorator,
+  ExecutionContext,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { User } from 'src/users/entities/user.entity';
 
 export const GetUser = createParamDecorator(
   (data: unknown, ctx: ExecutionContext): User => {
     const request = ctx.switchToHttp().getRequest();
-    
+
     // This comes from JwtStrategy.validate() → req.user
     const user: User | undefined = request.user;
 
     if (!user) {
-      throw new UnauthorizedException('No authenticated user found. Token may be missing or invalid.');
+      throw new UnauthorizedException(
+        'No authenticated user found. Token may be missing or invalid.',
+      );
     }
 
     return user;
   },
 );
+
 ---
 
 
 ### FILE: src/email-verification/email-verification.controller.ts ###
-import { Controller, Post, Body, BadRequestException, Query, Get } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  BadRequestException,
+  Query,
+  Get,
+} from '@nestjs/common';
 import { EmailVerificationService } from './email-verification.service';
 import { SendVerificationDto } from './dto/send-verification.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
@@ -1494,17 +1995,19 @@ export class EmailVerificationController {
       throw new BadRequestException('Invalid or expired verification token.');
     }
   }
-
-
 }
 
 ---
 
 
 ### FILE: src/email-verification/entities/email-verification-token.entity.ts ###
-
 // src/email-verification/entities/email-verification-token.entity.ts
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+} from 'typeorm';
 
 @Entity('email_verification_tokens')
 export class EmailVerificationToken {
@@ -1528,7 +2031,12 @@ export class EmailVerificationToken {
 
 
 ### FILE: src/email-verification/email-verification.service.ts ###
-import { Injectable, BadRequestException, InternalServerErrorException, Inject } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  InternalServerErrorException,
+  Inject,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { randomUUID } from 'crypto';
@@ -1539,19 +2047,20 @@ import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class EmailVerificationService {
-
   constructor(
     @InjectRepository(EmailVerificationToken)
     private readonly tokenRepo: Repository<EmailVerificationToken>,
     private readonly configService: ConfigService,
     @Inject('IMailService')
     private readonly mailService: IMailService,
-) {
-  this.EXPIRATION_MS = this.configService.get<number>('EMAIL_VERIFICATION_TOKEN_EXPIRATION', 15 * 60 * 1000);
+  ) {
+    this.EXPIRATION_MS = this.configService.get<number>(
+      'EMAIL_VERIFICATION_TOKEN_EXPIRATION',
+      15 * 60 * 1000,
+    );
   }
-  EXPIRATION_MS : number
+  EXPIRATION_MS: number;
 
-  
   private async deleteExistingTokens(userId: number): Promise<void> {
     await this.tokenRepo.delete({ userId });
   }
@@ -1585,12 +2094,14 @@ export class EmailVerificationService {
       await this.mailService.sendEmail(
         user.email,
         'Verify Your Email',
-        'verify-email',       // templateName (templates/verify-email.hbs)
-        { name: user.name, verifyUrl } // context for the template
+        'verify-email', // templateName (templates/verify-email.hbs)
+        { name: user.name, verifyUrl }, // context for the template
       );
     } catch (err) {
       console.error('Error sending verification email:', err);
-      throw new InternalServerErrorException('Failed to send verification email');
+      throw new InternalServerErrorException(
+        'Failed to send verification email',
+      );
     }
   }
 
@@ -1616,7 +2127,6 @@ export class VerifyEmailDto {
   token: string;
 }
 
-
 ---
 
 
@@ -1628,6 +2138,7 @@ export class SendVerificationDto {
   @IsEmail()
   email: string; // ✅ Use email, a public identifier
 }
+
 ---
 
 
@@ -1642,11 +2153,11 @@ import { UsersModule } from 'src/users/users.module';
 import { MailModule } from 'src/mail/mail.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([EmailVerificationToken]) ,
-  UsersModule ,
-  MailModule
-
-],
+  imports: [
+    TypeOrmModule.forFeature([EmailVerificationToken]),
+    UsersModule,
+    MailModule,
+  ],
   controllers: [EmailVerificationController],
   providers: [EmailVerificationService],
   exports: [EmailVerificationService],
@@ -1657,7 +2168,6 @@ export class EmailVerificationModule {}
 
 
 ### FILE: src/casl/casl.types.ts ###
-
 export enum Action {
   Manage = 'manage',
   Create = 'create',
@@ -1672,7 +2182,11 @@ export enum Action {
 ### FILE: src/casl/casl.service.ts ###
 import { Injectable, ForbiddenException } from '@nestjs/common';
 // 1. Import 'Subjects' from your CASL ability factory
-import { CaslAbilityFactory, AppAbility, Subjects } from './casl-ability.factory';
+import {
+  CaslAbilityFactory,
+  AppAbility,
+  Subjects,
+} from './casl-ability.factory';
 import { Action } from './casl.types';
 
 @Injectable()
@@ -1695,7 +2209,9 @@ export class CaslService {
     const ability = this.getAbility(user);
 
     if (!ability.can(action, resource)) {
-      throw new ForbiddenException('You are not allowed to perform this action');
+      throw new ForbiddenException(
+        'You are not allowed to perform this action',
+      );
     }
   }
 
@@ -1709,15 +2225,16 @@ export class CaslService {
     return ability.can(action, resource);
   }
 }
+
 ---
 
 
 ### FILE: src/casl/policies.guard.ts ###
-import { Injectable, CanActivate, ExecutionContext } from "@nestjs/common";
-import { Reflector } from "@nestjs/core";
-import { CaslAbilityFactory, AppAbility } from "./casl-ability.factory";
-import { CHECK_POLICIES_KEY } from "./check-policies.decorator";
-import { PolicyHandler } from "./policy-handler.interface";
+import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import { CaslAbilityFactory, AppAbility } from './casl-ability.factory';
+import { CHECK_POLICIES_KEY } from './check-policies.decorator';
+import { PolicyHandler } from './policy-handler.interface';
 
 @Injectable()
 export class PoliciesGuard implements CanActivate {
@@ -1734,7 +2251,7 @@ export class PoliciesGuard implements CanActivate {
       ) || [];
 
     const { user } = context.switchToHttp().getRequest();
-    
+
     const ability = this.caslAbilityFactory.createForUser(user);
 
     return policyHandlers.every((handler) =>
@@ -1754,48 +2271,62 @@ export class PoliciesGuard implements CanActivate {
 
 
 ### FILE: src/casl/casl-ability.factory.ts ###
-import { AbilityBuilder, createMongoAbility, MongoAbility, InferSubjects, ExtractSubjectType } from '@casl/ability';
+import {
+  AbilityBuilder,
+  createMongoAbility,
+  MongoAbility,
+  InferSubjects,
+  ExtractSubjectType,
+} from '@casl/ability';
 import { Injectable } from '@nestjs/common';
 import { User } from '../users/entities/user.entity';
 import { Post } from '../posts/entities/post.entity';
 import { Comment } from '../comments/entities/comment.entity';
-import { Reaction } from '../reactions/entities/reaction.entity';
+import { PostReaction } from '../reactions/entities/post-reaction.entity';
+import { CommentReaction } from '../reactions/entities/comment-reaction.entity';
 import { Action } from './casl.types';
-import { log } from 'console';
 
-
-
-export type Subjects = InferSubjects<typeof Post | typeof Comment | typeof Reaction | typeof User> | 'all';
+export type Subjects =
+  | InferSubjects<
+      | typeof Post
+      | typeof Comment
+      | typeof PostReaction
+      | typeof CommentReaction
+      | typeof User
+    >
+  | 'all';
 
 export type AppAbility = MongoAbility<[Action, Subjects]>;
 
 @Injectable()
 export class CaslAbilityFactory {
   createForUser(user: User) {
-const { can, cannot, build } = new AbilityBuilder<AppAbility>(createMongoAbility);    // Class-level permissions (any post)
-    can(Action.Read, Post);
-    can(Action.Create, Post);
-    console.log(user);
-    
-    
-    // Instance-level permissions (only user's own posts)
-    can(Action.Update, Post, { authorId: user.id } );
-    can(Action.Delete, Post, { authorId: user.id } );
+    const { can, cannot, build } = new AbilityBuilder<AppAbility>(
+      createMongoAbility,
+    );
 
-    // Class-level permissions (any comment)
+    // ---- Post Permissions ----
+    can(Action.Read, Post); // any post
+    can(Action.Create, Post);
+    can(Action.Update, Post, { authorId: user.id }); // only own
+    can(Action.Delete, Post, { authorId: user.id });
+
+    // ---- Comment Permissions ----
     can(Action.Read, Comment);
     can(Action.Create, Comment);
-    
-    // Instance-level permissions (only user's own comments)
     can(Action.Update, Comment, { authorId: user.id });
     can(Action.Delete, Comment, { authorId: user.id });
 
-    // Reaction
-    can(Action.Create, Reaction);
-    can(Action.Delete, Reaction, { userId: user.id });
+    // ---- Reaction Permissions ----
+    // PostReaction
+    can(Action.Create, PostReaction);
+    can(Action.Delete, PostReaction, { userId: user.id });
 
-     return build({
-      // Read https://casl.js.org/v6/en/guide/subject-type-detection#use-classes-as-subject-types for details
+    // CommentReaction
+    can(Action.Create, CommentReaction);
+    can(Action.Delete, CommentReaction, { userId: user.id });
+
+    return build({
       detectSubjectType: (item) =>
         item.constructor as ExtractSubjectType<Subjects>,
     });
@@ -1811,8 +2342,8 @@ import { CaslAbilityFactory } from './casl-ability.factory';
 import { CaslService } from './casl.service';
 
 @Module({
-  providers: [CaslAbilityFactory,CaslService],
-  exports: [CaslAbilityFactory,CaslService],
+  providers: [CaslAbilityFactory, CaslService],
+  exports: [CaslAbilityFactory, CaslService],
 })
 export class CaslModule {}
 
@@ -1820,7 +2351,6 @@ export class CaslModule {}
 
 
 ### FILE: src/casl/policy-handler.interface.ts ###
-
 import { AppAbility } from '../casl/casl-ability.factory';
 
 interface IPolicyHandler {
@@ -1835,8 +2365,8 @@ export type PolicyHandler = IPolicyHandler | PolicyHandlerCallback;
 
 
 ### FILE: src/casl/check-policies.decorator.ts ###
-import { SetMetadata } from "@nestjs/common";
-import { PolicyHandler } from "./policy-handler.interface";
+import { SetMetadata } from '@nestjs/common';
+import { PolicyHandler } from './policy-handler.interface';
 
 export const CHECK_POLICIES_KEY = 'check_policy';
 export const CheckPolicies = (...handlers: PolicyHandler[]) =>
@@ -1858,22 +2388,15 @@ export * from './casl.module';
 
 ### FILE: src/posts/pipes/post.pipe.ts ###
 import { Injectable, PipeTransform, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Post } from '../../posts/entities/post.entity';
+import { PostsService } from '../posts.service';
+import { Post } from '../entities/post.entity';
 
 @Injectable()
-export class PostPipe implements PipeTransform {
-  constructor(
-    @InjectRepository(Post)
-    private readonly repo: Repository<Post>,
-  ) {}
+export class PostPipe implements PipeTransform<string, Promise<Post>> {
+  constructor(private readonly postsService: PostsService) {}
 
-  async transform(value: string) {
-    const post = await this.repo.findOne({
-      where: { id: +value },
-      relations: ['author'],
-    });
+  async transform(value: string): Promise<Post> {
+    const post = await this.postsService.findOne(+value);
 
     if (!post) {
       throw new NotFoundException('Post not found');
@@ -1895,10 +2418,10 @@ import { Post } from './entities/post.entity';
 import { CaslModule } from 'src/casl/casl.module';
 
 @Module({
-    imports: [TypeOrmModule.forFeature([Post]) ,CaslModule],
+  imports: [TypeOrmModule.forFeature([Post]), CaslModule],
   providers: [PostsService],
-  controllers: [PostsController] ,
-  exports : [PostsService]
+  controllers: [PostsController],
+  exports: [PostsService],
 })
 export class PostsModule {}
 
@@ -1986,10 +2509,21 @@ export class PostsService {
     });
     return this.postsRepository.save(post);
   }
-
-  async update(post: Post, title?: string, content?: string): Promise<Post> {
+  async update({
+    post,
+    title,
+    content,
+    views,
+  }: {
+    post: Post;
+    title?: string;
+    content?: string;
+    views?: number;
+  }): Promise<Post> {
     if (title !== undefined) post.title = title;
     if (content !== undefined) post.content = content;
+    if (views !== undefined) post.views = views;
+
     return this.postsRepository.save(post);
   }
 
@@ -1998,14 +2532,24 @@ export class PostsService {
     return !!res;
   }
 }
+
 ---
 
 
 ### FILE: src/posts/entities/post.entity.ts ###
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany, ManyToOne, CreateDateColumn, UpdateDateColumn, DeleteDateColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  OneToMany,
+  ManyToOne,
+  CreateDateColumn,
+  UpdateDateColumn,
+  DeleteDateColumn,
+} from 'typeorm';
 import { Comment } from '../../comments/entities/comment.entity';
 import { User } from '../../users/entities/user.entity';
-import { Reaction } from '../../reactions/entities/reaction.entity';
+import { PostReaction } from '../../reactions/entities/post-reaction.entity';
 
 @Entity()
 export class Post {
@@ -2018,21 +2562,23 @@ export class Post {
   @Column()
   content: string;
 
-  @ManyToOne(() => User, user => user.posts, { nullable: false, onDelete: 'CASCADE' })
+  @ManyToOne(() => User, (user) => user.posts, {
+    nullable: false,
+    onDelete: 'CASCADE',
+  })
   author: User;
-   // FK explicite
+  // FK explicite
   @Column()
-  authorId: number
+  authorId: number;
 
-  @OneToMany(() => Comment, comment => comment.post)
+  @OneToMany(() => Comment, (comment) => comment.post)
   comments: Comment[];
 
   @Column({ default: 0 })
   views: number;
 
-  @OneToMany(() => Reaction, reaction => reaction.post)
-reactions: Reaction[];
-
+  @OneToMany(() => PostReaction, (reaction) => reaction.post)
+  reactions: PostReaction[];
 
   @CreateDateColumn()
   createdAt: Date;
@@ -2099,6 +2645,7 @@ export class PostsController {
 
   @Get(':id')
   findOne(@Param('id', PostPipe) post: PostEntity): PostResponseDto {
+    this.postsService.update({ post, views: post.views + 1 });
     return PostResponseDto.fromEntity(post);
   }
 
@@ -2121,11 +2668,11 @@ export class PostsController {
     @GetUser() user: User,
   ): Promise<PostResponseDto> {
     this.caslService.enforce(user, Action.Update, post);
-    const updatedPost = await this.postsService.update(
+    const updatedPost = await this.postsService.update({
       post,
-      dto.title,
-      dto.content,
-    );
+      title: dto.title,
+      content: dto.content,
+    });
     return PostResponseDto.fromEntity(updatedPost);
   }
 
@@ -2136,6 +2683,7 @@ export class PostsController {
     return await this.postsService.remove(post);
   }
 }
+
 ---
 
 
@@ -2143,13 +2691,14 @@ export class PostsController {
 // src/posts/dto/update-post.dto.ts
 
 import { PartialType } from '@nestjs/mapped-types'; // <-- 1. Make sure this is imported
-import { CreatePostDto } from './create-post.dto';   // <-- 2. Make sure you import CreatePostDto
+import { CreatePostDto } from './create-post.dto'; // <-- 2. Make sure you import CreatePostDto
 
 // 3. Extend PartialType of your base DTO
 export class UpdatePostDto extends PartialType(CreatePostDto) {
   // If you need to add custom validation or properties, they go here.
   // Otherwise, leave the body empty.
 }
+
 ---
 
 
@@ -2186,7 +2735,7 @@ export class PostQueryDto extends PaginationDto {
 import { Exclude, Expose, Type, plainToInstance } from 'class-transformer';
 import { UserResponseDto } from '../../users/dtos/user-response.dto';
 import { Post } from '../entities/post.entity';
-import { ReactionType } from 'src/reactions/entities/reaction.entity';
+import { PostReaction } from 'src/reactions/entities/post-reaction.entity';
 
 @Exclude()
 export class PostResponseDto {
@@ -2202,13 +2751,19 @@ export class PostResponseDto {
   @Expose() readonly commentsCount: number;
   @Expose() readonly likesCount: number;
   @Expose() readonly dislikesCount: number;
-  @Expose() readonly userReaction?: ReactionType | null;
+  @Expose() readonly userReaction?: PostReaction | null;
 
   static fromEntity(entity: Post): PostResponseDto {
-    return plainToInstance(PostResponseDto, {
-      ...entity,
-      author: entity.author ? UserResponseDto.fromEntity(entity.author) : null,
-    }, { excludeExtraneousValues: true });
+    return plainToInstance(
+      PostResponseDto,
+      {
+        ...entity,
+        author: entity.author
+          ? UserResponseDto.fromEntity(entity.author)
+          : null,
+      },
+      { excludeExtraneousValues: true },
+    );
   }
 }
 
@@ -2226,8 +2781,6 @@ export class CreatePostDto {
   @IsString()
   @IsNotEmpty()
   content: string;
-
-
 }
 
 ---
@@ -2282,7 +2835,6 @@ export class AuthService {
   // Sign in (called after successful local or refresh validation)
   // -------------------------------------------------------------------------
   async signIn(user: User) {
-    
     return this.generateTokens(user);
   }
 
@@ -2321,7 +2873,7 @@ export class AuthService {
     }
 
     // Existing user → make sure provider data is up-to-date
-    return this.userService.updateUser(user, {
+    return this.userService.updateUser({user ,
       name: oauthUser.fullName ?? user.name,
       provider: 'google',
       providerId: oauthUser.id,
@@ -2343,23 +2895,23 @@ export class AuthService {
   // -------------------------------------------------------------------------
   // Token generation (shared)
   // -------------------------------------------------------------------------
- private generateTokens(user: User) {
-  const payload = { sub: user.id, email: user.email };
+  private generateTokens(user: User) {
+    const payload = { sub: user.id, email: user.email };
 
-  const accessToken = this.jwt.sign(payload, {
-    secret: this.config.get<string>('JWT_ACCESS_SECRET'),
-    expiresIn: this.config.get('JWT_ACCESS_EXPIRES_IN') ?? '2h',
-  });
+    const accessToken = this.jwt.sign(payload, {
+      secret: this.config.get<string>('JWT_ACCESS_SECRET'),
+      expiresIn: this.config.get('JWT_ACCESS_EXPIRES_IN') ?? '2h',
+    });
 
-  const refreshToken = this.jwt.sign(payload, {
-    secret: this.config.get<string>('JWT_REFRESH_SECRET'),
-    expiresIn: this.config.get('JWT_REFRESH_EXPIRES_IN') ?? '7d',
-  });
+    const refreshToken = this.jwt.sign(payload, {
+      secret: this.config.get<string>('JWT_REFRESH_SECRET'),
+      expiresIn: this.config.get('JWT_REFRESH_EXPIRES_IN') ?? '7d',
+    });
 
-  return { accessToken, refreshToken };
+    return { accessToken, refreshToken };
+  }
 }
 
-}
 ---
 
 
@@ -2409,7 +2961,15 @@ export class RefreshDto {
 
 
 ### FILE: src/auth/auth.controller.ts ###
-import { Controller, Post, Body, UseGuards, Get, Req, UnauthorizedException } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  UseGuards,
+  Get,
+  Req,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dtos/register.dto';
 import { LocalAuthGuard } from './guards/local-auth.guard';
@@ -2425,11 +2985,15 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly emailVerificationService: EmailVerificationService,
-  ) { }
+  ) {}
 
   @Post('register')
   async register(@Body() dto: RegisterDto) {
-    const user = await this.authService.register(dto.name, dto.email, dto.password);
+    const user = await this.authService.register(
+      dto.name,
+      dto.email,
+      dto.password,
+    );
     await this.emailVerificationService.sendVerificationEmail(user);
     return {
       message: 'Registration successful. Please verify your email.',
@@ -2440,11 +3004,12 @@ export class AuthController {
   @UseGuards(LocalAuthGuard)
   @Post('login')
   async login(@Req() req: { user: User }) {
-
     if (!req.user.emailVerifiedAt) {
       await this.emailVerificationService.sendVerificationEmail(req.user);
 
-      throw new UnauthorizedException('Email not verified. Verification email sent.');
+      throw new UnauthorizedException(
+        'Email not verified. Verification email sent.',
+      );
     }
     const tokens = await this.authService.signIn(req.user);
     return {
@@ -2462,7 +3027,6 @@ export class AuthController {
       ...tokens,
     };
   }
-
 
   // Step 1: Redirect to Google OAuth
   @Get('google')
@@ -2482,8 +3046,6 @@ export class AuthController {
       ...tokens,
     };
   }
-
-
 }
 
 ---
@@ -2512,7 +3074,7 @@ import { GoogleStrategy } from './strategies/google.strategy';
       secret: process.env.JWT_ACCESS_SECRET,
       signOptions: { expiresIn: '15m' },
     }),
-    EmailVerificationModule
+    EmailVerificationModule,
   ],
   controllers: [AuthController],
   providers: [
@@ -2520,7 +3082,7 @@ import { GoogleStrategy } from './strategies/google.strategy';
     LocalStrategy,
     JwtStrategy,
     JwtRefreshStrategy,
-    GoogleStrategy
+    GoogleStrategy,
   ],
   exports: [AuthService],
 })
@@ -2611,7 +3173,9 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     done: VerifyCallback,
   ): Promise<any> {
     try {
-      const emailObj = (profile.emails && profile.emails[0]) || { value: undefined };
+      const emailObj = (profile.emails && profile.emails[0]) || {
+        value: undefined,
+      };
       const oauthUser = {
         provider: 'google',
         providerId: profile.id,
@@ -2626,6 +3190,7 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     }
   }
 }
+
 ---
 
 
@@ -2638,7 +3203,8 @@ import { UsersService } from 'src/users/users.service';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
-  constructor(config: ConfigService,
+  constructor(
+    config: ConfigService,
     private readonly userService: UsersService,
   ) {
     super({
@@ -2648,7 +3214,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   }
 
   // Hypothetical improvement
-  async validate(payload: { sub: number, email: string }) {
+  async validate(payload: { sub: number; email: string }) {
     // 1. Check database for active user
     const user = await this.userService.findOneById(payload.sub);
 
@@ -2677,29 +3243,28 @@ export class JwtRefreshStrategy extends PassportStrategy(
   Strategy,
   'jwt-refresh',
 ) {
- constructor(config: ConfigService ,
-      private readonly userService: UsersService,
+  constructor(
+    config: ConfigService,
+    private readonly userService: UsersService,
+  ) {
+    super({
+      jwtFromRequest: ExtractJwt.fromBodyField('refreshToken'),
+      secretOrKey: config.getOrThrow<string>('JWT_REFRESH_SECRET'),
+    });
+  }
 
- ) {
-  super({
-    jwtFromRequest: ExtractJwt.fromBodyField('refreshToken'),
-    secretOrKey: config.getOrThrow<string>('JWT_REFRESH_SECRET'),
-  });
-}
+  async validate(payload: { sub: number; email: string }) {
+    // 1. Check database for active user
+    const user = await this.userService.findOneById(payload.sub);
 
-
-    async validate(payload: { sub: number, email: string }  ) {
-      // 1. Check database for active user
-      const user = await this.userService.findOneById(payload.sub);
-  
-      // 2. Reject if user doesn't exist (e.g., account was deleted)
-      if (!user) {
-        throw new UnauthorizedException();
-      }
-  
-      // 3. Attach user object to req.user
-      return user;
+    // 2. Reject if user doesn't exist (e.g., account was deleted)
+    if (!user) {
+      throw new UnauthorizedException();
     }
+
+    // 3. Attach user object to req.user
+    return user;
+  }
 }
 
 ---
@@ -2730,32 +3295,35 @@ export class PasswordResetController {
       if (!user) return { message: 'Email sent if account exists' };
 
       const { token } = await this.resetService.generateToken(user.id);
-      
-      const resetLink = this.resetService.generateResetLink(token)
+
+      const resetLink = this.resetService.generateResetLink(token);
       await this.mailService.sendEmail(
         user.email,
         'Reset Your Password',
         'reset-password',
-        { name: user.name, resetLink }
+        { name: user.name, resetLink },
       );
 
       return { message: 'Email sent if account exists' };
     } catch (err) {
       console.log(err);
-      
+
       return { message: 'Email sent if account exists' };
     }
   }
 
   @Post('reset')
   async reset(@Body() dto: ResetDto) {
-    const userId = await this.resetService.validateAndGetUserId(dto.token);
+    const userId = await this.resetService.validateToken(dto.token);
     const user = await this.usersService.findOneById(userId);
-    
-    await this.usersService.updateUser(user, { password: dto.password });
+
+    await this.usersService.updateUser( 
+      { user,
+         password: dto.password });
     return { message: 'Password updated' };
   }
 }
+
 ---
 
 
@@ -2771,10 +3339,9 @@ import { MailModule } from 'src/mail/mail.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([PasswordResetToken]),
-  MailModule ,
-  UsersModule
-] 
-  ,
+    MailModule,
+    UsersModule,
+  ],
   controllers: [PasswordResetController],
   providers: [PasswordResetService],
   exports: [PasswordResetService],
@@ -2794,13 +3361,15 @@ import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class PasswordResetService {
-  private readonly TOKEN_EXPIRATION_MINUTES = 15;
+  private  TOKEN_EXPIRATION_MINUTES : number;
 
   constructor(
     @InjectRepository(PasswordResetToken)
     private repo: Repository<PasswordResetToken>,
-        private config: ConfigService,
-  ) {}
+    private config: ConfigService,
+  ) {
+    this.TOKEN_EXPIRATION_MINUTES=config.get<number>("TOKEN_EXPIRATION_MINUTES") ?? 15
+  }
 
   /** Public API **/
 
@@ -2813,7 +3382,7 @@ export class PasswordResetService {
     return { token, expiresAt };
   }
 
-  async validateAndGetUserId(token: string) {
+  async validateToken(token: string) {
     const tokenRow = await this.findValidToken(token);
 
     if (!tokenRow) throw new BadRequestException('Invalid or expired token');
@@ -2823,9 +3392,12 @@ export class PasswordResetService {
     return tokenRow.userId;
   }
 
-    public generateResetLink(token: string): string {
-    const frontendUrl = this.config.get<string>('APP_DOMAIN', 'http://localhost:3000');
-    const resetPath =  '/reset-password';
+  public generateResetLink(token: string): string {
+    const frontendUrl = this.config.get<string>(
+      'APP_DOMAIN',
+      'http://localhost:3000',
+    );
+    const resetPath = '/reset-password';
     return `${frontendUrl}${resetPath}?token=${token}`;
   }
   /** Private helpers **/
@@ -2844,7 +3416,9 @@ export class PasswordResetService {
     await this.repo.save(entity);
   }
 
-  private async findValidToken(token: string): Promise<PasswordResetToken | null> {
+  private async findValidToken(
+    token: string,
+  ): Promise<PasswordResetToken | null> {
     return this.repo.findOne({
       where: { token, expiresAt: MoreThan(new Date()) },
     });
@@ -2859,7 +3433,13 @@ export class PasswordResetService {
 
 
 ### FILE: src/reset-password/entities/password-reset-token.entity.ts ###
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  Index,
+} from 'typeorm';
 
 @Entity({ name: 'password_reset_tokens' })
 export class PasswordResetToken {
@@ -2874,7 +3454,7 @@ export class PasswordResetToken {
   @Index()
   token: string;
 
-   @Column()
+  @Column()
   expiresAt: Date;
 
   @CreateDateColumn()
@@ -2916,7 +3496,7 @@ export interface IMailService {
     to: string,
     subject: string,
     templateName: string,
-    context: any
+    context: any,
   ): Promise<void>;
 }
 
@@ -2936,7 +3516,7 @@ export class NodemailerMailService implements IMailService {
     to: string,
     subject: string,
     templateName: string,
-    context: any
+    context: any,
   ): Promise<void> {
     await this.mailerService.sendMail({
       to,
@@ -2966,7 +3546,7 @@ import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handleba
           host: config.get('SMTP_HOST'),
           port: config.get('SMTP_PORT'),
           secure: false,
-         /* auth: {
+          /* auth: {
             user: config.get('SMTP_USER'),
             pass: config.get('SMTP_PASS'),
           },*/
@@ -2990,7 +3570,7 @@ import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handleba
   ],
   exports: ['IMailService'],
 })
-export class MailModule { }
+export class MailModule {}
 
 ---
 
@@ -3024,13 +3604,14 @@ import { ReactionsModule } from './reactions/reactions.module';
 import { User } from './users/entities/user.entity';
 import { Post } from './posts/entities/post.entity';
 import { Comment } from './comments/entities/comment.entity';
-import { Reaction } from './reactions/entities/reaction.entity';
 import { AuthModule } from './auth/auth.module';
 import { CaslModule } from './casl/casl.module';
 import { EmailVerificationToken } from './email-verification/entities/email-verification-token.entity';
 
 import { ResetPasswordModule } from './reset-password/reset-password.module';
 import { PasswordResetToken } from './reset-password/entities/password-reset-token.entity';
+import { CommentReaction } from './reactions/entities/comment-reaction.entity';
+import { PostReaction } from './reactions/entities/post-reaction.entity';
 
 @Module({
   imports: [
@@ -3042,8 +3623,15 @@ import { PasswordResetToken } from './reset-password/entities/password-reset-tok
       useFactory: (config: ConfigService) => ({
         type: config.get<'sqlite' | 'mysql'>('DB_TYPE', 'sqlite'),
         database: config.get<string>('DB_NAME', 'forum.db'),
-        entities: [User, Post, Comment, Reaction,
-          EmailVerificationToken ,PasswordResetToken],
+        entities: [
+          User,
+          Post,
+          Comment,
+          CommentReaction,
+          PostReaction,
+          EmailVerificationToken,
+          PasswordResetToken,
+        ],
         migrations: ['./src/migrations/*.ts'],
         synchronize: false,
       }),
@@ -3053,9 +3641,9 @@ import { PasswordResetToken } from './reset-password/entities/password-reset-tok
     PostsModule,
     CommentsModule,
     ReactionsModule,
-    AuthModule ,
-    CaslModule ,
-    ResetPasswordModule
+    AuthModule,
+    CaslModule,
+    ResetPasswordModule,
   ],
   controllers: [AppController],
   providers: [AppService],
@@ -3071,7 +3659,8 @@ import { config } from 'dotenv';
 import { Post } from './posts/entities/post.entity';
 import { User } from './users/entities/user.entity';
 import { Comment } from './comments/entities/comment.entity';
-import { Reaction } from './reactions/entities/reaction.entity';
+import { PostReaction } from './reactions/entities/post-reaction.entity';
+import { CommentReaction } from './reactions/entities/comment-reaction.entity';
 import { EmailVerificationToken } from './email-verification/entities/email-verification-token.entity';
 import { PasswordResetToken } from './reset-password/entities/password-reset-token.entity';
 
@@ -3080,9 +3669,15 @@ config(); // load .env manually
 export const AppDataSource = new DataSource({
   type: 'sqlite',
   database: process.env.DB_NAME ?? 'forum.db',
-  entities: [User, Post, Comment, Reaction, 
+  entities: [
+    User,
+    Post,
+    Comment,
+    PostReaction,
+    CommentReaction,
     PasswordResetToken,
-    EmailVerificationToken],
+    EmailVerificationToken,
+  ],
   synchronize: false,
   migrations: ['src/database/migrations/*.ts'],
   logging: true,
@@ -3093,22 +3688,15 @@ export const AppDataSource = new DataSource({
 
 ### FILE: src/comments/pipes/comment.pipe.ts ###
 import { Injectable, PipeTransform, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Comment } from '../../comments/entities/comment.entity';
+import { CommentsService } from '../comments.service';
+import { Comment } from '../entities/comment.entity';
 
 @Injectable()
-export class CommentPipe implements PipeTransform {
-  constructor(
-    @InjectRepository(Comment)
-    private readonly repo: Repository<Comment>,
-  ) {}
+export class CommentPipe implements PipeTransform<string, Promise<Comment>> {
+  constructor(private readonly commentsService: CommentsService) {}
 
-  async transform(value: string) {
-    const comment = await this.repo.findOne({
-      where: { id: +value },
-      relations: ['author', 'post'],
-    });
+  async transform(value: string): Promise<Comment> {
+    const comment = await this.commentsService.findOne(+value);
 
     if (!comment) {
       throw new NotFoundException('Comment not found');
@@ -3134,7 +3722,7 @@ export class CommentsService {
   constructor(
     @InjectRepository(Comment)
     private readonly commentRepo: Repository<Comment>,
-  ) { }
+  ) {}
 
   async findAll(
     page = 1,
@@ -3214,8 +3802,7 @@ export class CommentsService {
   }
 
   async update(comment: Comment, content?: string) {
-    if (content != undefined)
-      comment.content = content;
+    if (content != undefined) comment.content = content;
 
     return this.commentRepo.save(comment);
   }
@@ -3350,10 +3937,19 @@ export class CommentsController {
 
 
 ### FILE: src/comments/entities/comment.entity.ts ###
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn, UpdateDateColumn, DeleteDateColumn, OneToMany } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  CreateDateColumn,
+  UpdateDateColumn,
+  DeleteDateColumn,
+  OneToMany,
+} from 'typeorm';
 import { Post } from '../../posts/entities/post.entity';
 import { User } from '../../users/entities/user.entity';
-import { Reaction } from '../../reactions/entities/reaction.entity';
+import { CommentReaction } from '../../reactions/entities/comment-reaction.entity';
 
 @Entity()
 export class Comment {
@@ -3363,24 +3959,29 @@ export class Comment {
   @Column()
   content: string;
 
-  @ManyToOne(() => Post, post => post.comments, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Post, (post) => post.comments, { onDelete: 'CASCADE' })
   post: Post;
 
-  @ManyToOne(() => User, user => user.comments, { nullable: false, onDelete: 'CASCADE' })
+  @ManyToOne(() => User, (user) => user.comments, {
+    nullable: false,
+    onDelete: 'CASCADE',
+  })
   author: User;
-   // FK explicite
+  // FK explicite
   @Column()
-  authorId: number
+  authorId: number;
 
-  @ManyToOne(() => Comment, comment => comment.replies, { nullable: true, onDelete: 'CASCADE' })
+  @ManyToOne(() => Comment, (comment) => comment.replies, {
+    nullable: true,
+    onDelete: 'CASCADE',
+  })
   parent: Comment;
 
-  @OneToMany(() => Comment, comment => comment.parent)
+  @OneToMany(() => Comment, (comment) => comment.parent)
   replies: Comment[];
 
-  @OneToMany(() => Reaction, reaction => reaction.comment)
-reactions: Reaction[];
-
+  @OneToMany(() => CommentReaction, (reaction) => reaction.comment)
+  reactions: CommentReaction[];
 
   @CreateDateColumn()
   createdAt: Date;
@@ -3406,13 +4007,15 @@ import { CaslModule } from 'src/casl/casl.module';
 import { Post } from 'src/posts/entities/post.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Comment]),
-      TypeOrmModule.forFeature([Post]), // <-- 
-    PostsModule,    // <-- REQUIRED so PostsService is available
-CaslModule
+  imports: [
+    TypeOrmModule.forFeature([Comment]),
+    TypeOrmModule.forFeature([Post]), // <--
+    PostsModule, // <-- REQUIRED so PostsService is available
+    CaslModule,
   ],
   providers: [CommentsService],
   controllers: [CommentsController],
+  exports: [CommentsService],
 })
 export class CommentsModule {}
 
@@ -3423,7 +4026,7 @@ export class CommentsModule {}
 import { Exclude, Expose, Type, plainToInstance } from 'class-transformer';
 import { UserResponseDto } from '../../users/dtos/user-response.dto';
 import { Comment } from '../entities/comment.entity';
-import { ReactionType } from 'src/reactions/entities/reaction.entity';
+import { CommentReaction } from 'src/reactions/entities/comment-reaction.entity';
 
 @Exclude()
 export class CommentResponseDto {
@@ -3437,15 +4040,24 @@ export class CommentResponseDto {
   @Expose() readonly parentId?: number;
   @Expose() readonly likesCount: number;
   @Expose() readonly dislikesCount: number;
-  @Expose() readonly userReaction?: ReactionType | null;
-  @Expose() @Type(() => CommentResponseDto) readonly replies?: CommentResponseDto[];
+  @Expose() readonly userReaction?: CommentReaction | null;
+  @Expose()
+  @Type(() => CommentResponseDto)
+  readonly replies?: CommentResponseDto[];
 
   static fromEntity(entity: Comment): CommentResponseDto {
-    return plainToInstance(CommentResponseDto, {
-      ...entity,
-      author: entity.author ? UserResponseDto.fromEntity(entity.author) : null,
-      replies: entity.replies?.map(r => CommentResponseDto.fromEntity(r)) ?? [],
-    }, { excludeExtraneousValues: true });
+    return plainToInstance(
+      CommentResponseDto,
+      {
+        ...entity,
+        author: entity.author
+          ? UserResponseDto.fromEntity(entity.author)
+          : null,
+        replies:
+          entity.replies?.map((r) => CommentResponseDto.fromEntity(r)) ?? [],
+      },
+      { excludeExtraneousValues: true },
+    );
   }
 }
 

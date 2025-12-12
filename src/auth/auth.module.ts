@@ -11,6 +11,7 @@ import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
 import { LocalStrategy } from './strategies/local.strategy';
 import { EmailVerificationModule } from 'src/email-verification/email-verification.module';
 import { GoogleStrategy } from './strategies/google.strategy';
+import { ValidationModule } from 'src/validation/validation.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { GoogleStrategy } from './strategies/google.strategy';
       signOptions: { expiresIn: '15m' },
     }),
     EmailVerificationModule,
+    ValidationModule
   ],
   controllers: [AuthController],
   providers: [
