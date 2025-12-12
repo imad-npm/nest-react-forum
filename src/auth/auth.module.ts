@@ -11,18 +11,29 @@ import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
 import { LocalStrategy } from './strategies/local.strategy';
 import { EmailVerificationModule } from 'src/email-verification/email-verification.module';
 import { GoogleStrategy } from './strategies/google.strategy';
-import { ValidationModule } from 'src/validation/validation.module';
+import { ConfigService } from '@nestjs/config';
 
 @Module({
   imports: [
     UsersModule,
     PassportModule,
-    JwtModule.register({
-      secret: process.env.JWT_ACCESS_SECRET,
-      signOptions: { expiresIn: '15m' },
-    }),
+ JwtModule.registerAsync({
+  inject: [ConfigService],
+  useFactory: (config: ConfigService) => {
+    const secret = config.get<string>('JWT_ACCESS_SECRET');
+    const expiresIn = config.get('JWT_ACCESS_EXPIRES_IN');
+
+    if (!secret) throw new Error('JWT_ACCESS_SECRET is not defined');
+    if (!expiresIn) throw new Error('JWT_ACCESS_EXPIRES_IN is not defined');
+
+    return {
+      secret,
+      signOptions: { expiresIn }, // now TypeScript knows it's a string, not undefined
+    };
+  },
+})
+ ,
     EmailVerificationModule,
-    ValidationModule
   ],
   controllers: [AuthController],
   providers: [

@@ -23,9 +23,9 @@ export class AuthService {
   // -------------------------------------------------------------------------
   async register(name: string, email: string, password: string): Promise<User> {
     return this.userService.createUser(
-      name,
+     { name,
       email,
-      password, // will be hashed inside UsersService
+      password, }
     );
   }
 
@@ -72,15 +72,16 @@ export class AuthService {
 
     if (!user) {
       // First time → create new user
-      return this.userService.createUser(
-        oauthUser.fullName ?? oauthUser.email.split('@')[0],
-        oauthUser.email,
-        undefined, // no password
-        'google',
-        oauthUser.id,
-        new Date(), // email already verified by Google
-        oauthUser.picture,
-      );
+     return this.userService.createUser({
+  name: oauthUser.fullName ?? oauthUser.email.split('@')[0],
+  email: oauthUser.email,
+  password: undefined, // no password
+  provider: 'google',
+  providerId: oauthUser.id,
+  emailVerifiedAt: new Date(), // email already verified by Google
+  picture: oauthUser.picture,
+});
+
     }
 
     // Existing user → make sure provider data is up-to-date

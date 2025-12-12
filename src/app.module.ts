@@ -21,7 +21,6 @@ import { ResetPasswordModule } from './reset-password/reset-password.module';
 import { PasswordResetToken } from './reset-password/entities/password-reset-token.entity';
 import { CommentReaction } from './reactions/entities/comment-reaction.entity';
 import { PostReaction } from './reactions/entities/post-reaction.entity';
-import { ValidationModule } from './validation/validation.module';
 
 @Module({
   imports: [
@@ -41,7 +40,6 @@ import { ValidationModule } from './validation/validation.module';
           PostReaction,
           EmailVerificationToken,
           PasswordResetToken,
-          ValidationModule
         ],
         migrations: ['./src/migrations/*.ts'],
         synchronize: false,

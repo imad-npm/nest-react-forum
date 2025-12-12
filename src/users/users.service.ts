@@ -1,7 +1,7 @@
 // src/users/users.service.ts
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, Repository } from 'typeorm';
+import { Brackets, Not, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { User } from './entities/user.entity';
 
@@ -44,9 +44,7 @@ export class UsersService {
     return { data, count };
   }
 
-  // ---------------------------------------
-  // Base find helper (DRY but minimal)
-  // ---------------------------------------
+
   private async find(where: any, message: string): Promise<User> {
     const user = await this.repo.findOne({ where });
     if (!user) throw new NotFoundException(message);
@@ -61,38 +59,55 @@ export class UsersService {
     return this.find({ email }, `User with email ${email} not found.`);
   }
 
-  // ---------------------------------------
-  // Create (OWN logic)
-  // ---------------------------------------
-  async createUser(
-    name: string,
-    email: string,
-    password?: string | null,
-    provider?: 'google' | 'github' | null,
-    providerId?: string | null,
-    emailVerifiedAt?: Date | null,
-    picture?: string | null,
-  ): Promise<User> {
-    const user = this.repo.create();
 
-    user.name = name;
-    user.email = email;
+async createUser({
+  name,
+  email,
+  password,
+  provider,
+  providerId,
+  emailVerifiedAt,
+  picture,
+}: {
+  name: string;
+  email: string;
+  password?: string | null;
+  provider?: 'google' | 'github' | null;
+  providerId?: string | null;
+  emailVerifiedAt?: Date | null;
+  picture?: string | null;
+}): Promise<User> {
 
-    user.provider = provider ?? null;
-    user.providerId = providerId ?? null;
-
-    user.password = password ? await bcrypt.hash(password, 10) : null;
-
-    user.emailVerifiedAt = emailVerifiedAt ?? (password ? null : new Date());
-
-    return this.repo.save(user);
+  const emailExists = await this.repo.exists({ where: { email } });
+  if (emailExists) {
+    throw new ConflictException('Email already in use');
   }
 
-  // ---------------------------------------
-  // Update (Slimmed logic)
-  // ---------------------------------------
- 
-async updateUser({
+  if (provider && password) {
+    throw new BadRequestException(
+      'Password-based accounts cannot have a provider',
+    );
+  }
+
+  if (provider && !providerId) {
+    throw new BadRequestException('providerId is required when provider is set');
+  }
+
+  const user = this.repo.create({
+    name,
+    email,
+    provider: provider ?? null,
+    providerId: providerId ?? null,
+    emailVerifiedAt:
+      emailVerifiedAt ?? (password ? null : new Date()),
+    password: password
+      ? await bcrypt.hash(password, 10)
+      : null,
+  });
+
+  return this.repo.save(user);
+}
+ async updateUser({
   user,
   name,
   email,
@@ -111,7 +126,32 @@ async updateUser({
   emailVerifiedAt?: Date | null;
   picture?: string | null;
 }): Promise<User> {
-  // 1. Update basic fields dynamically
+  
+  if (email !== undefined && email !== user.email) {
+    const emailExists = await this.repo.exists({
+      where: {
+        email,
+        id: Not(user.id),
+      },
+    });
+
+    if (emailExists) {
+      throw new ConflictException('Email already in use');
+    }
+  }
+
+  if (provider !== undefined && password !== undefined) {
+    throw new BadRequestException(
+      'Cannot update provider and password together',
+    );
+  }
+
+  if (provider !== undefined && provider && !providerId) {
+    throw new BadRequestException(
+      'providerId is required when provider is set',
+    );
+  }
+
   Object.assign(user, {
     ...(name !== undefined && { name }),
     ...(email !== undefined && { email }),
@@ -121,17 +161,16 @@ async updateUser({
     ...(picture !== undefined && { picture }),
   });
 
-  // 2. Handle password hashing separately
   if (password !== undefined) {
-    user.password = password ? await bcrypt.hash(password, 10) : null;
+    user.password = password
+      ? await bcrypt.hash(password, 10)
+      : null;
   }
 
-  // 3. Save updated user
   return this.repo.save(user);
 }
-  // ---------------------------------------
-  // Email verification
-  // ---------------------------------------
+
+
   async markEmailAsVerified(id: number): Promise<void> {
     const user = await this.findOneById(id);
 
