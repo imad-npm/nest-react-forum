@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Repository } from 'typeorm';
 import { Post } from './entities/post.entity';
@@ -10,7 +10,7 @@ export class PostsService {
   constructor(
     @InjectRepository(Post)
     private postsRepository: Repository<Post>,
-  ) {}
+  ) { }
 
   async findAll(
     page = 1,
@@ -88,7 +88,7 @@ export class PostsService {
   ): Promise<Post> {
     const post = await this.postsRepository.findOneBy({ id: postUpdateData.id });
     if (!post) {
-      throw new Error('Post not found'); // TODO: Use a more specific NestJS exception
+      throw new NotFoundException('Post not found');
     }
 
     if (postUpdateData.title !== undefined) post.title = postUpdateData.title;

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Repository } from 'typeorm';
 import { Comment } from './entities/comment.entity';
@@ -10,51 +10,40 @@ export class CommentsService {
   constructor(
     @InjectRepository(Comment)
     private readonly commentRepo: Repository<Comment>,
-  ) {}
+  ) { }
 
-  async findAll(
-    page = 1,
-    limit = 10,
-    search?: string,
-    authorId?: number,
-  ): Promise<{ data: Comment[]; count: number }> {
-    const query = this.commentRepo
-      .createQueryBuilder('comment')
-      .leftJoinAndSelect('comment.author', 'author')
-      .leftJoinAndSelect('comment.post', 'post')
-      .leftJoinAndSelect('comment.parent', 'parent');
+async findAll(options: {
+  postId?: number;
+  authorId?: number;
+  search?: string;
+  page?: number;
+  limit?: number;
+}): Promise<{ data: Comment[]; count: number }> {
+  const { postId, authorId, search, page = 1, limit = 10 } = options;
 
-    if (search) {
-      query.where('comment.content ILIKE :search', { search: `%${search}%` });
-    }
+  const query = this.commentRepo
+    .createQueryBuilder('comment')
+    .leftJoinAndSelect('comment.author', 'author')
+    .leftJoinAndSelect('comment.post', 'post')
+    .leftJoinAndSelect('comment.parent', 'parent');
 
-    if (authorId) {
-      query.andWhere('comment.author.id = :authorId', { authorId });
-    }
-
-    query.orderBy('comment.createdAt', 'DESC');
-
-    const [data, count] = await query
-      .take(limit)
-      .skip((page - 1) * limit)
-      .getManyAndCount();
-
-    return { data, count };
+  if (search) {
+    query.andWhere('comment.content ILIKE :search', { search: `%${search}%` });
+  }
+  if (authorId) {
+    query.andWhere('comment.author.id = :authorId', { authorId });
+  }
+  if (postId) {
+    query.andWhere('comment.post.id = :postId', { postId });
   }
 
-  async findByPost(
-    postId: number,
-    page = 1,
-    limit = 10,
-  ): Promise<{ data: Comment[]; count: number }> {
-    const [data, count] = await this.commentRepo.findAndCount({
-      where: { post: { id: postId } },
-      relations: ['author', 'post', 'parent'],
-      take: limit,
-      skip: (page - 1) * limit,
-    });
-    return { data, count };
-  }
+  query.orderBy('comment.createdAt', 'DESC');
+
+  const [data, count] = await query.take(limit).skip((page - 1) * limit).getManyAndCount();
+
+  return { data, count };
+}
+
 
   findOne(id: number) {
     return this.commentRepo.findOne({
@@ -84,7 +73,14 @@ export class CommentsService {
         where: { id: parentId },
         relations: ['post'],
       });
-      if (!parent) throw new NotFoundException('Parent comment not found');
+      if (!parent)
+        throw new NotFoundException('Parent comment not found');
+      if (parent.post.id !== postId) {
+        throw new BadRequestException(
+          'Parent comment does not belong to this post',
+        );
+      }
+
       comment.parent = parent;
       comment.post = parent.post;
     } else {

@@ -29,15 +29,15 @@ export class CommentsController {
   constructor(
     private readonly commentsService: CommentsService,
     private readonly caslService: CaslService,
-  ) {}
+  ) { }
 
   @Get('comments')
   async findAll(@Query() query: CommentQueryDto) {
     const { data, count } = await this.commentsService.findAll(
-      query.page,
-      query.limit,
-      query.search,
-      query.authorId,
+    { page: query.page,
+      limit :query.limit,
+      search :query.search,
+      authorId :query.authorId,}
     );
 
     return {
@@ -53,10 +53,12 @@ export class CommentsController {
     @Param('postId', PostPipe) post: PostEntity,
     @Query() query: CommentQueryDto,
   ) {
-    const { data, count } = await this.commentsService.findByPost(
-      post.id,
-      query.page,
-      query.limit,
+    const { data, count } = await this.commentsService.findAll(
+      {
+        postId: post.id,
+        page: query.page,
+        limit: query.limit,
+      }
     );
     return {
       data: data.map(CommentResponseDto.fromEntity),
@@ -97,8 +99,10 @@ export class CommentsController {
   ): Promise<CommentResponseDto> {
     this.caslService.enforce(user, Action.Update, comment);
     const updatedComment = await this.commentsService.update(
-    { id: comment.id,
-      content :dto.content,}
+      {
+        id: comment.id,
+        content: dto.content,
+      }
     );
     return CommentResponseDto.fromEntity(updatedComment);
   }
