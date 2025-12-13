@@ -10,16 +10,16 @@ import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handleba
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
         transport: {
-          host: config.get('SMTP_HOST'),
-          port: config.get('SMTP_PORT'),
+          host: config.getOrThrow<string>('SMTP_HOST'),
+          port: config.getOrThrow<number>('SMTP_PORT'),
           secure: false,
           /* auth: {
-            user: config.get('SMTP_USER'),
-            pass: config.get('SMTP_PASS'),
+            user: config.getOrThrow<string>('SMTP_USER'),
+            pass: config.getOrThrow<string>('SMTP_PASS'),
           },*/
         },
         defaults: {
-          from: config.get('SMTP_FROM'),
+          from: config.getOrThrow<string>('SMTP_FROM'),
         },
         template: {
           dir: process.cwd() + '/src/mail/templates',

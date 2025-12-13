@@ -30,8 +30,8 @@ import { PostReaction } from './reactions/entities/post-reaction.entity';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        type: config.get<'sqlite' | 'mysql'>('DB_TYPE', 'sqlite'),
-        database: config.get<string>('DB_NAME', 'forum.db'),
+        type: config.getOrThrow<'sqlite' | 'mysql'>('DB_TYPE'),
+        database: config.getOrThrow<string>('DB_NAME'),
         entities: [
           User,
           Post,

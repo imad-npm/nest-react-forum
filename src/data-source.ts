@@ -10,9 +10,14 @@ import { PasswordResetToken } from './reset-password/entities/password-reset-tok
 
 config(); // load .env manually
 
+const dbName = process.env.DB_NAME;
+if (!dbName) {
+  throw new Error('DB_NAME environment variable is not defined.');
+}
+
 export const AppDataSource = new DataSource({
   type: 'sqlite',
-  database: process.env.DB_NAME ?? 'forum.db',
+  database: dbName,
   entities: [
     User,
     Post,

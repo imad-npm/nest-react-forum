@@ -20,15 +20,12 @@ import { ConfigService } from '@nestjs/config';
  JwtModule.registerAsync({
   inject: [ConfigService],
   useFactory: (config: ConfigService) => {
-    const secret = config.get<string>('JWT_ACCESS_SECRET');
-    const expiresIn = config.get('JWT_ACCESS_EXPIRES_IN');
-
-    if (!secret) throw new Error('JWT_ACCESS_SECRET is not defined');
-    if (!expiresIn) throw new Error('JWT_ACCESS_EXPIRES_IN is not defined');
+    const secret = config.getOrThrow<string>('JWT_ACCESS_SECRET');
+    const expiresIn = config.getOrThrow('JWT_ACCESS_EXPIRES_IN');
 
     return {
       secret,
-      signOptions: { expiresIn }, // now TypeScript knows it's a string, not undefined
+      signOptions: { expiresIn },
     };
   },
 })
