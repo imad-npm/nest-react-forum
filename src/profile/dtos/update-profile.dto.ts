@@ -12,9 +12,4 @@ export class UpdateProfileDto {
   @IsString()
   @MaxLength(255)
   bio?: string;
-
-  @IsOptional()
-  @IsString()
-  @IsUrl()
-  picture?: string;
 }

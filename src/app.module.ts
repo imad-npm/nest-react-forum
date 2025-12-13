@@ -21,6 +21,8 @@ import { ResetPasswordModule } from './reset-password/reset-password.module';
 import { PasswordResetToken } from './reset-password/entities/password-reset-token.entity';
 import { CommentReaction } from './reactions/entities/comment-reaction.entity';
 import { PostReaction } from './reactions/entities/post-reaction.entity';
+import { Profile } from './profile/entities/profile.entity';
+import { ProfileModule } from './profile/profile.module';
 
 @Module({
   imports: [
@@ -40,6 +42,7 @@ import { PostReaction } from './reactions/entities/post-reaction.entity';
           PostReaction,
           EmailVerificationToken,
           PasswordResetToken,
+          Profile
         ],
         migrations: ['./src/migrations/*.ts'],
         synchronize: false,
@@ -53,6 +56,7 @@ import { PostReaction } from './reactions/entities/post-reaction.entity';
     AuthModule,
     CaslModule,
     ResetPasswordModule,
+    ProfileModule
   ],
   controllers: [AppController],
   providers: [AppService],
