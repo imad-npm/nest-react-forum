@@ -1,9 +1,10 @@
 // src/users/entities/user.entity.ts
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany, OneToOne, JoinColumn } from 'typeorm';
 import { Post } from '../../posts/entities/post.entity';
 import { Comment } from '../../comments/entities/comment.entity';
 import { PostReaction } from '../../reactions/entities/post-reaction.entity';
 import { CommentReaction } from '../../reactions/entities/comment-reaction.entity';
+import { Profile } from '../../profile/entities/profile.entity'; // Import Profile
 
 @Entity('users')
 export class User {
@@ -33,6 +34,10 @@ export class User {
   @Column({ type: 'varchar', nullable: true })
   providerId: string | null; // Google's profile.id
 
+  // One-to-one relation with Profile
+  @OneToOne(() => Profile, profile => profile.user)
+  profile: Profile;
+
   // Relations
   @OneToMany(() => Post, (post) => post.author)
   posts: Post[];
@@ -46,3 +51,4 @@ export class User {
   @OneToMany(() => CommentReaction, (reaction) => reaction.user)
   commentReactions: CommentReaction[];
 }
+

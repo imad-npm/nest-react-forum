@@ -79,7 +79,6 @@ export class AuthService {
   provider: 'google',
   providerId: oauthUser.id,
   emailVerifiedAt: new Date(), // email already verified by Google
-  picture: oauthUser.picture,
 });
 
     }

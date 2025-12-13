@@ -4,6 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Not, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { User } from './entities/user.entity';
+import { ProfileService } from '../profile/profile.service'; // Import ProfileService
 
 @Injectable()
 export class UsersService {
@@ -18,14 +19,15 @@ export class UsersService {
     search?: string,
     provider?: 'google' | 'github',
   ): Promise<{ data: User[]; count: number }> {
-    const query = this.repo.createQueryBuilder('user');
+    const query = this.repo.createQueryBuilder('user').leftJoinAndSelect('user.profile', 'profile'); // Eagerly load profile
 
     if (search) {
       query.where(
         new Brackets((qb) => {
           qb.where('user.name ILIKE :search', {
             search: `%${search}%`,
-          }).orWhere('user.email ILIKE :search', { search: `%${search}%` });
+          }).orWhere('user.email ILIKE :search', { search: `%${search}%` })
+          .orWhere('profile.username ILIKE :search', { search: `%${search}%` }); // Search in profile username
         }),
       );
     }
@@ -46,10 +48,11 @@ export class UsersService {
 
 
   private async find(where: any, message: string): Promise<User> {
-    const user = await this.repo.findOne({ where });
+    const user = await this.repo.findOne({ where, relations: ['profile'] }); // Eagerly load profile
     if (!user) throw new NotFoundException(message);
     return user;
   }
+
 
   async findOneById(id: number): Promise<User> {
     return this.find({ id }, `User with ID ${id} not found.`);
@@ -67,7 +70,6 @@ async createUser({
   provider,
   providerId,
   emailVerifiedAt,
-  picture,
 }: {
   name: string;
   email: string;
@@ -75,7 +77,6 @@ async createUser({
   provider?: 'google' | 'github' | null;
   providerId?: string | null;
   emailVerifiedAt?: Date | null;
-  picture?: string | null;
 }): Promise<User> {
 
   const emailExists = await this.repo.exists({ where: { email } });
@@ -115,7 +116,6 @@ async createUser({
   provider,
   providerId,
   emailVerifiedAt,
-  picture,
 }: {
   user: User;
   name?: string;
@@ -124,7 +124,6 @@ async createUser({
   provider?: 'google' | 'github' | null;
   providerId?: string | null;
   emailVerifiedAt?: Date | null;
-  picture?: string | null;
 }): Promise<User> {
   
   if (email !== undefined && email !== user.email) {
@@ -158,7 +157,6 @@ async createUser({
     ...(provider !== undefined && { provider }),
     ...(providerId !== undefined && { providerId }),
     ...(emailVerifiedAt !== undefined && { emailVerifiedAt }),
-    ...(picture !== undefined && { picture }),
   });
 
   if (password !== undefined) {
