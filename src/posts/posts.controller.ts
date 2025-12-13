@@ -49,7 +49,7 @@ export class PostsController {
 
   @Get(':id')
   findOne(@Param('id', PostPipe) post: PostEntity): PostResponseDto {
-    this.postsService.update({ post, views: post.views + 1 });
+    this.postsService.update({ id:post.id, views: post.views + 1 });
     return PostResponseDto.fromEntity(post);
   }
 
@@ -73,7 +73,7 @@ export class PostsController {
   ): Promise<PostResponseDto> {
     this.caslService.enforce(user, Action.Update, post);
     const updatedPost = await this.postsService.update({
-      post,
+      id:post.id,
       title: dto.title,
       content: dto.content,
     });
@@ -84,6 +84,6 @@ export class PostsController {
   @UseGuards(JwtAuthGuard)
   async remove(@Param('id', PostPipe) post: PostEntity, @GetUser() user: User) {
     this.caslService.enforce(user, Action.Delete, post);
-    return await this.postsService.remove(post);
+    return await this.postsService.remove(post.id);
   }
 }

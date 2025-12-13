@@ -41,10 +41,9 @@ export class ReactionsController {
   ): Promise<ReactionResponseDto> {
     this.caslService.enforce(user, Action.Create, PostReaction);
     const reaction = await this.reactionsService.create(
-      dto.type,
-      user,
-      post.id,
-      undefined,
+     {   type :dto.type,
+      userId :user.id,
+      postId: post.id,}
     );
     return ReactionResponseDto.fromEntity(reaction);
   }
@@ -66,10 +65,9 @@ export class ReactionsController {
   ): Promise<ReactionResponseDto> {
     this.caslService.enforce(user, Action.Create, CommentReaction);
     const reaction = await this.reactionsService.create(
-      dto.type,
-      user,
-      undefined,
-      comment.id,
+   {   type :dto.type,
+      userId :user.id,
+      commentId: comment.id,}
     );
     return ReactionResponseDto.fromEntity(reaction);
   }

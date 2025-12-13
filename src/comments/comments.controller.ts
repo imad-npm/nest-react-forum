@@ -74,10 +74,10 @@ export class CommentsController {
     @GetUser() user: User,
   ): Promise<CommentResponseDto> {
     this.caslService.enforce(user, Action.Create, Comment);
-    const comment = await this.commentsService.createForPost(
-      post,
+    const comment = await this.commentsService.createComment(
+      post.id,
       dto.content,
-      user,
+      user.id,
       dto.parentId,
     );
     return CommentResponseDto.fromEntity(comment);
@@ -97,8 +97,8 @@ export class CommentsController {
   ): Promise<CommentResponseDto> {
     this.caslService.enforce(user, Action.Update, comment);
     const updatedComment = await this.commentsService.update(
-      comment,
-      dto.content,
+    { id: comment.id,
+      content :dto.content,}
     );
     return CommentResponseDto.fromEntity(updatedComment);
   }
@@ -110,6 +110,6 @@ export class CommentsController {
     @GetUser() user: User,
   ) {
     this.caslService.enforce(user, Action.Delete, comment);
-    return await this.commentsService.remove(comment);
+    return await this.commentsService.remove(comment.id);
   }
 }

@@ -63,15 +63,20 @@ export class CommentsService {
     });
   }
 
-  async createForPost(
-    post: Post,
+  async createComment(
+    postId: number,
     content: string,
-    user: User,
+    userId: number,
     parentId?: number,
   ) {
+    const post = await this.commentRepo.manager.findOneBy(Post, { id: postId });
+    if (!post) {
+      throw new NotFoundException('Post not found');
+    }
+
     const comment = this.commentRepo.create({
       content,
-      author: user,
+      authorId: userId,
     });
 
     if (parentId) {
@@ -89,13 +94,27 @@ export class CommentsService {
     return this.commentRepo.save(comment);
   }
 
-  async update(comment: Comment, content?: string) {
-    if (content != undefined) comment.content = content;
+  async update(
+    updateCommentData: { id: number; content?: string },
+  ): Promise<Comment> {
+    const comment = await this.commentRepo.findOneBy({
+      id: updateCommentData.id,
+    });
+    if (!comment) {
+      throw new NotFoundException('Comment not found');
+    }
+
+    if (updateCommentData.content !== undefined)
+      comment.content = updateCommentData.content;
 
     return this.commentRepo.save(comment);
   }
 
-  async remove(comment: Comment) {
+  async remove(id: number): Promise<boolean> {
+    const comment = await this.commentRepo.findOneBy({ id });
+    if (!comment) {
+      throw new NotFoundException('Comment not found');
+    }
     await this.commentRepo.remove(comment);
     return true;
   }

@@ -78,25 +78,31 @@ export class PostsService {
     });
     return this.postsRepository.save(post);
   }
-  async update({
-    post,
-    title,
-    content,
-    views,
-  }: {
-    post: Post;
-    title?: string;
-    content?: string;
-    views?: number;
-  }): Promise<Post> {
-    if (title !== undefined) post.title = title;
-    if (content !== undefined) post.content = content;
-    if (views !== undefined) post.views = views;
+  async update(
+    postUpdateData: {
+      id: number;
+      title?: string;
+      content?: string;
+      views?: number;
+    },
+  ): Promise<Post> {
+    const post = await this.postsRepository.findOneBy({ id: postUpdateData.id });
+    if (!post) {
+      throw new Error('Post not found'); // TODO: Use a more specific NestJS exception
+    }
+
+    if (postUpdateData.title !== undefined) post.title = postUpdateData.title;
+    if (postUpdateData.content !== undefined) post.content = postUpdateData.content;
+    if (postUpdateData.views !== undefined) post.views = postUpdateData.views;
 
     return this.postsRepository.save(post);
   }
 
-  async remove(post: Post): Promise<boolean> {
+  async remove(id: number): Promise<boolean> {
+    const post = await this.postsRepository.findOneBy({ id });
+    if (!post) {
+      throw new Error('Post not found'); // TODO: Use a more specific NestJS exception
+    }
     const res = await this.postsRepository.remove(post);
     return !!res;
   }
