@@ -14,6 +14,7 @@ import { User } from '../users/entities/user.entity';
 import { CommunitySubscriptionResponseDto } from './dto/community-subscription-response.dto';
 import { GetUser } from 'src/decorators/user.decorator';
 import { CommunitySubscription } from './entities/community-subscription.entity';
+import { CommunitySubscriptionQueryDto } from './dto/community-subscription-query.dto';
 
 @Controller()
 @UseGuards(JwtAuthGuard)
@@ -26,22 +27,16 @@ export class CommunitySubscriptionsController {
   // Unified GET endpoint
   @Get('community-subscriptions')
   async findSubscriptions(
-    @GetUser() user: User,
-    @Query('user') userQuery?: 'me',
-    @Query('communityId') communityId?: string,
+   @Query() query: CommunitySubscriptionQueryDto,
   ): Promise<CommunitySubscriptionResponseDto[]> {
+    
 
-    const filters: { userId?: number; communityId?: number } = {};
-
-    if (userQuery === 'me') {
-      filters.userId = user.id;
-    }
-
-    if (communityId) {
-      filters.communityId = parseInt(communityId, 10);
-    }
-
-    const subscriptions = await this.communitySubscriptionsService.findSubscriptions(filters);
+    const subscriptions = await this.communitySubscriptionsService.findSubscriptions({
+      userId:query.userId,
+      communityId:query.communityId ,
+      page:query.page ,
+      limit : query.limit
+    });
 
     return subscriptions.map(CommunitySubscriptionResponseDto.fromEntity);
   }
@@ -60,11 +55,11 @@ export class CommunitySubscriptionsController {
   }
 
   @Delete('communities/:communityId/subscriptions/me')
- async unsubscribe(
+  async unsubscribe(
     @Param('communityId', ParseIntPipe) communityId: number,
     @GetUser() user: User,
   ) {
-    await  this.communitySubscriptionsService.unsubscribe(communityId, user.id);
+    await this.communitySubscriptionsService.unsubscribe(communityId, user.id);
   }
 
 
