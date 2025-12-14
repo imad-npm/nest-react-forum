@@ -31,13 +31,15 @@ export class PostsController {
 
   @Get()
   async findAll(@Query() query: PostQueryDto) {
-    const { data, count } = await this.postsService.findAll(
-      query.page,
-      query.limit,
-      query.search,
-      query.authorId,
-      query.sort,
-    );
+    const { data, count } = await this.postsService.findAll({
+      page: query.page,
+      limit: query.limit,
+      search: query.search,
+      authorId: query.authorId,
+      sort: query.sort,
+      startDate: query.startDate,
+      endDate: query.endDate,
+    });
 
     return {
       data: data.map(PostResponseDto.fromEntity),
@@ -60,7 +62,12 @@ export class PostsController {
     @GetUser() user: User,
   ): Promise<PostResponseDto> {
     this.caslService.enforce(user, Action.Create, PostEntity);
-    const post = await this.postsService.create(dto.title, dto.content, user);
+    const post = await this.postsService.create({
+      title: dto.title,
+      content: dto.content,
+      author: user,
+      communityId: dto.communityId,
+    });
     return PostResponseDto.fromEntity(post);
   }
 

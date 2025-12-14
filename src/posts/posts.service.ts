@@ -4,24 +4,40 @@ import { Brackets, Repository } from 'typeorm';
 import { Post } from './entities/post.entity';
 import { User } from 'src/users/entities/user.entity';
 import { PostSort } from './dto/post-query.dto';
+import { CommunitiesService } from 'src/communities/communities.service'; // Import CommunitiesService
 
 @Injectable()
 export class PostsService {
   constructor(
     @InjectRepository(Post)
     private postsRepository: Repository<Post>,
+    private readonly communitiesService: CommunitiesService, // Inject CommunitiesService
   ) { }
 
   async findAll(
-    page = 1,
-    limit = 10,
-    search?: string,
-    authorId?: number,
-    sort?: PostSort,
+    options: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      authorId?: number;
+      sort?: PostSort;
+      startDate?: Date;
+      endDate?: Date;
+    },
   ): Promise<{
     data: Post[];
     count: number;
   }> {
+    const {
+      page = 1,
+      limit = 10,
+      search,
+      authorId,
+      sort,
+      startDate,
+      endDate,
+    } = options;
+
     const query = this.postsRepository
       .createQueryBuilder('post')
       .leftJoinAndSelect('post.author', 'author')
@@ -40,6 +56,14 @@ export class PostsService {
 
     if (authorId) {
       query.andWhere('post.author.id = :authorId', { authorId });
+    }
+
+    if (startDate) {
+      query.andWhere('post.createdAt >= :startDate', { startDate });
+    }
+
+    if (endDate) {
+      query.andWhere('post.createdAt <= :endDate', { endDate });
     }
 
     if (sort === PostSort.NEWEST) {
@@ -70,11 +94,19 @@ export class PostsService {
     });
   }
 
-  create(title: string, content: string, author: User): Promise<Post> {
+  async create(
+    { title, content, author, communityId }: { title: string; content: string; author: User; communityId: number },
+  ): Promise<Post> {
+    const community = await this.communitiesService.findOne(communityId);
+    if (!community) {
+      throw new NotFoundException(`Community with ID ${communityId} not found`);
+    }
+
     const post = this.postsRepository.create({
       title,
       content,
       author,
+      community,
     });
     return this.postsRepository.save(post);
   }

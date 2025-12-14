@@ -1,4 +1,5 @@
 import { IsString, IsNotEmpty, IsInt } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class CreatePostDto {
   @IsString()
@@ -8,4 +9,9 @@ export class CreatePostDto {
   @IsString()
   @IsNotEmpty()
   content: string;
+
+  @IsInt()
+  @IsNotEmpty()
+  @Type(() => Number)
+  communityId: number;
 }

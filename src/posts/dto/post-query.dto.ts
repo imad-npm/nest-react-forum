@@ -1,5 +1,5 @@
 import { PaginationDto } from '../../common/dto/pagination.dto';
-import { IsOptional, IsString, IsInt, IsEnum } from 'class-validator';
+import { IsOptional, IsString, IsInt, IsEnum, IsISO8601 } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export enum PostSort {
@@ -21,4 +21,14 @@ export class PostQueryDto extends PaginationDto {
   @IsOptional()
   @IsEnum(PostSort)
   sort?: PostSort;
+
+  @IsOptional()
+  @IsISO8601()
+  @Type(() => Date)
+  startDate?: Date;
+
+  @IsOptional()
+  @IsISO8601()
+  @Type(() => Date)
+  endDate?: Date;
 }
