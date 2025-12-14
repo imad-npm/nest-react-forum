@@ -6,6 +6,7 @@ import {
   Delete,
   UseGuards,
   Get,
+  Query,
 } from '@nestjs/common';
 import { CommunitySubscriptionsService } from './community-subscriptions.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -14,14 +15,39 @@ import { CommunitySubscriptionResponseDto } from './dto/community-subscription-r
 import { GetUser } from 'src/decorators/user.decorator';
 import { CommunitySubscription } from './entities/community-subscription.entity';
 
-@Controller('community-subscriptions')
+@Controller()
 @UseGuards(JwtAuthGuard)
 export class CommunitySubscriptionsController {
   constructor(
     private readonly communitySubscriptionsService: CommunitySubscriptionsService,
-  ) {}
+  ) { }
 
-  @Post(':communityId')
+
+  // Unified GET endpoint
+  @Get('community-subscriptions')
+  async findSubscriptions(
+    @GetUser() user: User,
+    @Query('user') userQuery?: 'me',
+    @Query('communityId') communityId?: string,
+  ): Promise<CommunitySubscriptionResponseDto[]> {
+
+    const filters: { userId?: number; communityId?: number } = {};
+
+    if (userQuery === 'me') {
+      filters.userId = user.id;
+    }
+
+    if (communityId) {
+      filters.communityId = parseInt(communityId, 10);
+    }
+
+    const subscriptions = await this.communitySubscriptionsService.findSubscriptions(filters);
+
+    return subscriptions.map(CommunitySubscriptionResponseDto.fromEntity);
+  }
+
+
+  @Post('communities/:communityId/subscriptions')
   async subscribe(
     @Param('communityId', ParseIntPipe) communityId: number,
     @GetUser() user: User,
@@ -33,27 +59,14 @@ export class CommunitySubscriptionsController {
     return CommunitySubscriptionResponseDto.fromEntity(subscription);
   }
 
-  @Delete(':communityId')
-  unsubscribe(
+  @Delete('communities/:communityId/subscriptions/me')
+ async unsubscribe(
     @Param('communityId', ParseIntPipe) communityId: number,
     @GetUser() user: User,
   ) {
-    return this.communitySubscriptionsService.unsubscribe(communityId, user.id);
+    await  this.communitySubscriptionsService.unsubscribe(communityId, user.id);
   }
 
-  @Get('user')
-  async findUserSubscriptions(@GetUser() user: User): Promise<CommunitySubscriptionResponseDto[]> {
-    const subscriptions = await this.communitySubscriptionsService.findUserSubscriptions(user.id);
-    return subscriptions.map(subscription => CommunitySubscriptionResponseDto.fromEntity(subscription));
-  }
 
-  @Get('community/:communityId')
-  async findCommunitySubscribers(
-    @Param('communityId', ParseIntPipe) communityId: number,
-  ): Promise<CommunitySubscriptionResponseDto[]> {
-    const subscriptions = await this.communitySubscriptionsService.findCommunitySubscribers(
-      communityId,
-    );
-    return subscriptions.map(subscription => CommunitySubscriptionResponseDto.fromEntity(subscription));
-  }
+
 }

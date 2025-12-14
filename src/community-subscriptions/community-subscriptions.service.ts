@@ -61,17 +61,21 @@ export class CommunitySubscriptionsService {
     return { message: 'Unsubscribed successfully' };
   }
 
-  async findUserSubscriptions(userId: number) {
-    return this.subscriptionsRepository.find({
-      where: { userId },
-      relations: ['community'],
-    });
+async findSubscriptions(filters: { userId?: number; communityId?: number }) {
+  const where: any = {};
+  const relations: string[] = [];
+
+  if (filters.userId) {
+    where.userId = filters.userId;
+    relations.push('community');
   }
 
-  async findCommunitySubscribers(communityId: number) {
-    return this.subscriptionsRepository.find({
-      where: { communityId },
-      relations: ['user'],
-    });
+  if (filters.communityId) {
+    where.communityId = filters.communityId;
+    relations.push('user');
   }
+
+  return this.subscriptionsRepository.find({ where, relations });
+}
+
 }
