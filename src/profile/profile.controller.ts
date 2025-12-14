@@ -20,12 +20,13 @@ import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { ProfileResponseDto } from './dtos/profile-response.dto';
 import { ConfigService } from '@nestjs/config';
+import { PictureInterceptor } from './interceptors/picture.interceptor';
 
 @Controller('profile')
 export class ProfileController {
   constructor(private readonly profileService: ProfileService
 
-  ) {}
+  ) { }
   @UseGuards(JwtAuthGuard)
   @Get()
   async getMyProfile(@GetUser() user: User): Promise<ProfileResponseDto> {
@@ -35,26 +36,14 @@ export class ProfileController {
 
   @UseGuards(JwtAuthGuard)
   @Post()
-  @UseInterceptors(
-    FileInterceptor('picture', {
-      storage: diskStorage({
-        destination: './uploads',
-        filename: (req, file, cb) => {
-          const randomName = Array(32)
-            .fill(null)
-            .map(() => Math.floor(Math.random() * 16).toString(16))
-            .join('');
-          cb(null, `${randomName}${extname(file.originalname)}`);
-        },
-      }),
-    }),
+  @UseInterceptors(PictureInterceptor
   )
   async createMyProfile(
     @GetUser() user: User,
     @Body() createProfileDto: CreateProfileDto,
     @UploadedFile() file: Express.Multer.File,
   ): Promise<ProfileResponseDto> {
-  
+
     const profile = await this.profileService.createProfile({
       user,
       username: createProfileDto.username,
@@ -67,20 +56,7 @@ export class ProfileController {
 
   @UseGuards(JwtAuthGuard)
   @Patch()
-  @UseInterceptors(
-    FileInterceptor('picture', {
-      storage: diskStorage({
-        destination: './uploads',
-        filename: (req, file, cb) => {
-          const randomName = Array(32)
-            .fill(null)
-            .map(() => Math.floor(Math.random() * 16).toString(16))
-            .join('');
-          cb(null, `${randomName}${extname(file.originalname)}`);
-        },
-      }),
-    }),
-  )
+  @UseInterceptors(PictureInterceptor)
   async updateMyProfile(
     @GetUser() user: User,
     @Body() updateProfileDto: UpdateProfileDto,
