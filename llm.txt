@@ -41,12 +41,13 @@
     "@nestjs/jwt": "^11.0.1",
     "@nestjs/mapped-types": "^2.1.0",
     "@nestjs/passport": "^11.0.5",
-    "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/platform-express": "^11.1.9",
     "@nestjs/typeorm": "^11.0.0",
     "bcrypt": "^6.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.3",
     "handlebars": "^4.7.8",
+    "multer": "^2.0.2",
     "nodemailer": "^7.0.11",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
@@ -67,6 +68,7 @@
     "@types/bcrypt": "^6.0.0",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
+    "@types/multer": "^2.0.0",
     "@types/node": "^22.10.7",
     "@types/passport": "^1.0.17",
     "@types/passport-jwt": "^4.0.1",
@@ -481,6 +483,31 @@ export function postReactionFactory(user: User, post: Post): PostReaction {
 ---
 
 
+### FILE: src/database/migrations/1765627185088-AddPictureFieldToUser.ts ###
+import { MigrationInterface, QueryRunner } from "typeorm";
+
+export class AddPictureFieldToUser1765627185088 implements MigrationInterface {
+    name = 'AddPictureFieldToUser1765627185088'
+
+    public async up(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`CREATE TABLE "temporary_users" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(100) NOT NULL, "email" varchar(100) NOT NULL, "password" varchar, "emailVerifiedAt" datetime, "provider" varchar CHECK( "provider" IN ('google','github') ), "providerId" varchar, "picture" varchar, CONSTRAINT "UQ_97672ac88f789774dd47f7c8be3" UNIQUE ("email"))`);
+        await queryRunner.query(`INSERT INTO "temporary_users"("id", "name", "email", "password", "emailVerifiedAt", "provider", "providerId") SELECT "id", "name", "email", "password", "emailVerifiedAt", "provider", "providerId" FROM "users"`);
+        await queryRunner.query(`DROP TABLE "users"`);
+        await queryRunner.query(`ALTER TABLE "temporary_users" RENAME TO "users"`);
+    }
+
+    public async down(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`ALTER TABLE "users" RENAME TO "temporary_users"`);
+        await queryRunner.query(`CREATE TABLE "users" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(100) NOT NULL, "email" varchar(100) NOT NULL, "password" varchar, "emailVerifiedAt" datetime, "provider" varchar CHECK( "provider" IN ('google','github') ), "providerId" varchar, CONSTRAINT "UQ_97672ac88f789774dd47f7c8be3" UNIQUE ("email"))`);
+        await queryRunner.query(`INSERT INTO "users"("id", "name", "email", "password", "emailVerifiedAt", "provider", "providerId") SELECT "id", "name", "email", "password", "emailVerifiedAt", "provider", "providerId" FROM "temporary_users"`);
+        await queryRunner.query(`DROP TABLE "temporary_users"`);
+    }
+
+}
+
+---
+
+
 ### FILE: src/database/migrations/1765490375370-refactor-reactions.ts ###
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
@@ -569,6 +596,33 @@ export class RefactorReactions1765490375370 implements MigrationInterface {
 ---
 
 
+### FILE: src/database/migrations/1765628559552-RefactorProfileEntity.ts ###
+import { MigrationInterface, QueryRunner } from "typeorm";
+
+export class RefactorProfileEntity1765628559552 implements MigrationInterface {
+    name = 'RefactorProfileEntity1765628559552'
+
+    public async up(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`CREATE TABLE "profiles" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "username" varchar, "bio" text, "picture" varchar, "userId" integer, CONSTRAINT "UQ_d1ea35db5be7c08520d70dc03f8" UNIQUE ("username"), CONSTRAINT "REL_315ecd98bd1a42dcf2ec4e2e98" UNIQUE ("userId"))`);
+        await queryRunner.query(`CREATE TABLE "temporary_profiles" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "username" varchar, "bio" text, "picture" varchar, "userId" integer, CONSTRAINT "UQ_d1ea35db5be7c08520d70dc03f8" UNIQUE ("username"), CONSTRAINT "REL_315ecd98bd1a42dcf2ec4e2e98" UNIQUE ("userId"), CONSTRAINT "FK_315ecd98bd1a42dcf2ec4e2e985" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION)`);
+        await queryRunner.query(`INSERT INTO "temporary_profiles"("id", "username", "bio", "picture", "userId") SELECT "id", "username", "bio", "picture", "userId" FROM "profiles"`);
+        await queryRunner.query(`DROP TABLE "profiles"`);
+        await queryRunner.query(`ALTER TABLE "temporary_profiles" RENAME TO "profiles"`);
+    }
+
+    public async down(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`ALTER TABLE "profiles" RENAME TO "temporary_profiles"`);
+        await queryRunner.query(`CREATE TABLE "profiles" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "username" varchar, "bio" text, "picture" varchar, "userId" integer, CONSTRAINT "UQ_d1ea35db5be7c08520d70dc03f8" UNIQUE ("username"), CONSTRAINT "REL_315ecd98bd1a42dcf2ec4e2e98" UNIQUE ("userId"))`);
+        await queryRunner.query(`INSERT INTO "profiles"("id", "username", "bio", "picture", "userId") SELECT "id", "username", "bio", "picture", "userId" FROM "temporary_profiles"`);
+        await queryRunner.query(`DROP TABLE "temporary_profiles"`);
+        await queryRunner.query(`DROP TABLE "profiles"`);
+    }
+
+}
+
+---
+
+
 ### FILE: src/database/migrations/1764720178421-inital.ts ###
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
@@ -628,6 +682,39 @@ export class Inital1764720178421 implements MigrationInterface {
     await queryRunner.query(`DROP TABLE "comment"`);
     await queryRunner.query(`DROP TABLE "user"`);
   }
+}
+
+---
+
+
+### FILE: src/database/migrations/1765630608057-MakeUsernameNonNullable.ts ###
+import { MigrationInterface, QueryRunner } from "typeorm";
+
+export class MakeUsernameNonNullable1765630608057 implements MigrationInterface {
+    name = 'MakeUsernameNonNullable1765630608057'
+
+    public async up(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`CREATE TABLE "temporary_profiles" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "username" varchar, "bio" text, "picture" varchar, "userId" integer, CONSTRAINT "REL_315ecd98bd1a42dcf2ec4e2e98" UNIQUE ("userId"), CONSTRAINT "UQ_d1ea35db5be7c08520d70dc03f8" UNIQUE ("username"), CONSTRAINT "FK_315ecd98bd1a42dcf2ec4e2e985" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION)`);
+        await queryRunner.query(`INSERT INTO "temporary_profiles"("id", "username", "bio", "picture", "userId") SELECT "id", "username", "bio", "picture", "userId" FROM "profiles"`);
+        await queryRunner.query(`DROP TABLE "profiles"`);
+        await queryRunner.query(`ALTER TABLE "temporary_profiles" RENAME TO "profiles"`);
+        await queryRunner.query(`CREATE TABLE "temporary_profiles" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "username" varchar NOT NULL, "bio" text, "picture" varchar, "userId" integer, CONSTRAINT "REL_315ecd98bd1a42dcf2ec4e2e98" UNIQUE ("userId"), CONSTRAINT "UQ_d1ea35db5be7c08520d70dc03f8" UNIQUE ("username"), CONSTRAINT "FK_315ecd98bd1a42dcf2ec4e2e985" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION)`);
+        await queryRunner.query(`INSERT INTO "temporary_profiles"("id", "username", "bio", "picture", "userId") SELECT "id", "username", "bio", "picture", "userId" FROM "profiles"`);
+        await queryRunner.query(`DROP TABLE "profiles"`);
+        await queryRunner.query(`ALTER TABLE "temporary_profiles" RENAME TO "profiles"`);
+    }
+
+    public async down(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`ALTER TABLE "profiles" RENAME TO "temporary_profiles"`);
+        await queryRunner.query(`CREATE TABLE "profiles" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "username" varchar, "bio" text, "picture" varchar, "userId" integer, CONSTRAINT "REL_315ecd98bd1a42dcf2ec4e2e98" UNIQUE ("userId"), CONSTRAINT "UQ_d1ea35db5be7c08520d70dc03f8" UNIQUE ("username"), CONSTRAINT "FK_315ecd98bd1a42dcf2ec4e2e985" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION)`);
+        await queryRunner.query(`INSERT INTO "profiles"("id", "username", "bio", "picture", "userId") SELECT "id", "username", "bio", "picture", "userId" FROM "temporary_profiles"`);
+        await queryRunner.query(`DROP TABLE "temporary_profiles"`);
+        await queryRunner.query(`ALTER TABLE "profiles" RENAME TO "temporary_profiles"`);
+        await queryRunner.query(`CREATE TABLE "profiles" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "username" varchar, "bio" text, "picture" varchar, "userId" integer, CONSTRAINT "REL_315ecd98bd1a42dcf2ec4e2e98" UNIQUE ("userId"), CONSTRAINT "UQ_d1ea35db5be7c08520d70dc03f8" UNIQUE ("username"), CONSTRAINT "FK_315ecd98bd1a42dcf2ec4e2e985" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION)`);
+        await queryRunner.query(`INSERT INTO "profiles"("id", "username", "bio", "picture", "userId") SELECT "id", "username", "bio", "picture", "userId" FROM "temporary_profiles"`);
+        await queryRunner.query(`DROP TABLE "temporary_profiles"`);
+    }
+
 }
 
 ---
@@ -989,14 +1076,52 @@ export class AddEmailVerifiedColumn1765209236854 implements MigrationInterface {
 ---
 
 
+### FILE: src/database/migrations/1765628229160-CreateUserProfileAndLinkToUser.ts ###
+import { MigrationInterface, QueryRunner } from "typeorm";
+
+export class CreateUserProfileAndLinkToUser1765628229160 implements MigrationInterface {
+    name = 'CreateUserProfileAndLinkToUser1765628229160'
+
+    public async up(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`CREATE TABLE "user_profiles" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "username" varchar, "bio" text, "picture" varchar, "userId" integer, CONSTRAINT "UQ_7bdaa0714f4c1087a926a2d8369" UNIQUE ("username"), CONSTRAINT "REL_8481388d6325e752cd4d7e26c6" UNIQUE ("userId"))`);
+        await queryRunner.query(`CREATE TABLE "temporary_users" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(100) NOT NULL, "email" varchar(100) NOT NULL, "password" varchar, "emailVerifiedAt" datetime, "provider" varchar CHECK( "provider" IN ('google','github') ), "providerId" varchar, CONSTRAINT "UQ_97672ac88f789774dd47f7c8be3" UNIQUE ("email"))`);
+        await queryRunner.query(`INSERT INTO "temporary_users"("id", "name", "email", "password", "emailVerifiedAt", "provider", "providerId") SELECT "id", "name", "email", "password", "emailVerifiedAt", "provider", "providerId" FROM "users"`);
+        await queryRunner.query(`DROP TABLE "users"`);
+        await queryRunner.query(`ALTER TABLE "temporary_users" RENAME TO "users"`);
+        await queryRunner.query(`CREATE TABLE "temporary_user_profiles" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "username" varchar, "bio" text, "picture" varchar, "userId" integer, CONSTRAINT "UQ_7bdaa0714f4c1087a926a2d8369" UNIQUE ("username"), CONSTRAINT "REL_8481388d6325e752cd4d7e26c6" UNIQUE ("userId"), CONSTRAINT "FK_8481388d6325e752cd4d7e26c6d" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION)`);
+        await queryRunner.query(`INSERT INTO "temporary_user_profiles"("id", "username", "bio", "picture", "userId") SELECT "id", "username", "bio", "picture", "userId" FROM "user_profiles"`);
+        await queryRunner.query(`DROP TABLE "user_profiles"`);
+        await queryRunner.query(`ALTER TABLE "temporary_user_profiles" RENAME TO "user_profiles"`);
+    }
+
+    public async down(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`ALTER TABLE "user_profiles" RENAME TO "temporary_user_profiles"`);
+        await queryRunner.query(`CREATE TABLE "user_profiles" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "username" varchar, "bio" text, "picture" varchar, "userId" integer, CONSTRAINT "UQ_7bdaa0714f4c1087a926a2d8369" UNIQUE ("username"), CONSTRAINT "REL_8481388d6325e752cd4d7e26c6" UNIQUE ("userId"))`);
+        await queryRunner.query(`INSERT INTO "user_profiles"("id", "username", "bio", "picture", "userId") SELECT "id", "username", "bio", "picture", "userId" FROM "temporary_user_profiles"`);
+        await queryRunner.query(`DROP TABLE "temporary_user_profiles"`);
+        await queryRunner.query(`ALTER TABLE "users" RENAME TO "temporary_users"`);
+        await queryRunner.query(`CREATE TABLE "users" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(100) NOT NULL, "email" varchar(100) NOT NULL, "password" varchar, "emailVerifiedAt" datetime, "provider" varchar CHECK( "provider" IN ('google','github') ), "providerId" varchar, "picture" varchar, CONSTRAINT "UQ_97672ac88f789774dd47f7c8be3" UNIQUE ("email"))`);
+        await queryRunner.query(`INSERT INTO "users"("id", "name", "email", "password", "emailVerifiedAt", "provider", "providerId") SELECT "id", "name", "email", "password", "emailVerifiedAt", "provider", "providerId" FROM "temporary_users"`);
+        await queryRunner.query(`DROP TABLE "temporary_users"`);
+        await queryRunner.query(`DROP TABLE "user_profiles"`);
+    }
+
+}
+
+---
+
+
 ### FILE: src/main.ts ###
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { useContainer } from 'class-validator';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { join } from 'path';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   // Use validation pipe globally
   app.useGlobalPipes(
@@ -1008,10 +1133,15 @@ async function bootstrap() {
       },
     }),
   );
-
+  useContainer(app.select(AppModule), { fallbackOnErrors: true });
   // Get ConfigService instance
   const configService = app.get(ConfigService);
   const port = configService.get<number>('PORT') ?? 3000;
+
+  // Serve static files from the 'uploads' directory
+  app.useStaticAssets(join(__dirname, '..', 'uploads'), {
+    prefix: '/uploads/',
+  });
 
   await app.listen(port);
   console.log(`Application is running on: http://localhost:${port}`);
@@ -1040,11 +1170,12 @@ export class UserPipe implements PipeTransform<string, Promise<User>> {
 
 ### FILE: src/users/users.service.ts ###
 // src/users/users.service.ts
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, Repository } from 'typeorm';
+import { Brackets, Not, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { User } from './entities/user.entity';
+import { ProfileService } from '../profile/profile.service'; // Import ProfileService
 
 @Injectable()
 export class UsersService {
@@ -1059,14 +1190,15 @@ export class UsersService {
     search?: string,
     provider?: 'google' | 'github',
   ): Promise<{ data: User[]; count: number }> {
-    const query = this.repo.createQueryBuilder('user');
+    const query = this.repo.createQueryBuilder('user').leftJoinAndSelect('user.profile', 'profile'); // Eagerly load profile
 
     if (search) {
       query.where(
         new Brackets((qb) => {
           qb.where('user.name ILIKE :search', {
             search: `%${search}%`,
-          }).orWhere('user.email ILIKE :search', { search: `%${search}%` });
+          }).orWhere('user.email ILIKE :search', { search: `%${search}%` })
+          .orWhere('profile.username ILIKE :search', { search: `%${search}%` }); // Search in profile username
         }),
       );
     }
@@ -1085,14 +1217,13 @@ export class UsersService {
     return { data, count };
   }
 
-  // ---------------------------------------
-  // Base find helper (DRY but minimal)
-  // ---------------------------------------
+
   private async find(where: any, message: string): Promise<User> {
-    const user = await this.repo.findOne({ where });
+    const user = await this.repo.findOne({ where, relations: ['profile'] }); // Eagerly load profile
     if (!user) throw new NotFoundException(message);
     return user;
   }
+
 
   async findOneById(id: number): Promise<User> {
     return this.find({ id }, `User with ID ${id} not found.`);
@@ -1102,38 +1233,53 @@ export class UsersService {
     return this.find({ email }, `User with email ${email} not found.`);
   }
 
-  // ---------------------------------------
-  // Create (OWN logic)
-  // ---------------------------------------
-  async createUser(
-    name: string,
-    email: string,
-    password?: string | null,
-    provider?: 'google' | 'github' | null,
-    providerId?: string | null,
-    emailVerifiedAt?: Date | null,
-    picture?: string | null,
-  ): Promise<User> {
-    const user = this.repo.create();
 
-    user.name = name;
-    user.email = email;
+async createUser({
+  name,
+  email,
+  password,
+  provider,
+  providerId,
+  emailVerifiedAt,
+}: {
+  name: string;
+  email: string;
+  password?: string | null;
+  provider?: 'google' | 'github' | null;
+  providerId?: string | null;
+  emailVerifiedAt?: Date | null;
+}): Promise<User> {
 
-    user.provider = provider ?? null;
-    user.providerId = providerId ?? null;
-
-    user.password = password ? await bcrypt.hash(password, 10) : null;
-
-    user.emailVerifiedAt = emailVerifiedAt ?? (password ? null : new Date());
-
-    return this.repo.save(user);
+  const emailExists = await this.repo.exists({ where: { email } });
+  if (emailExists) {
+    throw new ConflictException('Email already in use');
   }
 
-  // ---------------------------------------
-  // Update (Slimmed logic)
-  // ---------------------------------------
- 
-async updateUser({
+  if (provider && password) {
+    throw new BadRequestException(
+      'Password-based accounts cannot have a provider',
+    );
+  }
+
+  if (provider && !providerId) {
+    throw new BadRequestException('providerId is required when provider is set');
+  }
+
+  const user = this.repo.create({
+    name,
+    email,
+    provider: provider ?? null,
+    providerId: providerId ?? null,
+    emailVerifiedAt:
+      emailVerifiedAt ?? (password ? null : new Date()),
+    password: password
+      ? await bcrypt.hash(password, 10)
+      : null,
+  });
+
+  return this.repo.save(user);
+}
+ async updateUser({
   user,
   name,
   email,
@@ -1141,7 +1287,6 @@ async updateUser({
   provider,
   providerId,
   emailVerifiedAt,
-  picture,
 }: {
   user: User;
   name?: string;
@@ -1150,29 +1295,51 @@ async updateUser({
   provider?: 'google' | 'github' | null;
   providerId?: string | null;
   emailVerifiedAt?: Date | null;
-  picture?: string | null;
 }): Promise<User> {
-  // 1. Update basic fields dynamically
+  
+  if (email !== undefined && email !== user.email) {
+    const emailExists = await this.repo.exists({
+      where: {
+        email,
+        id: Not(user.id),
+      },
+    });
+
+    if (emailExists) {
+      throw new ConflictException('Email already in use');
+    }
+  }
+
+  if (provider !== undefined && password !== undefined) {
+    throw new BadRequestException(
+      'Cannot update provider and password together',
+    );
+  }
+
+  if (provider !== undefined && provider && !providerId) {
+    throw new BadRequestException(
+      'providerId is required when provider is set',
+    );
+  }
+
   Object.assign(user, {
     ...(name !== undefined && { name }),
     ...(email !== undefined && { email }),
     ...(provider !== undefined && { provider }),
     ...(providerId !== undefined && { providerId }),
     ...(emailVerifiedAt !== undefined && { emailVerifiedAt }),
-    ...(picture !== undefined && { picture }),
   });
 
-  // 2. Handle password hashing separately
   if (password !== undefined) {
-    user.password = password ? await bcrypt.hash(password, 10) : null;
+    user.password = password
+      ? await bcrypt.hash(password, 10)
+      : null;
   }
 
-  // 3. Save updated user
   return this.repo.save(user);
 }
-  // ---------------------------------------
-  // Email verification
-  // ---------------------------------------
+
+
   async markEmailAsVerified(id: number): Promise<void> {
     const user = await this.findOneById(id);
 
@@ -1182,23 +1349,6 @@ async updateUser({
     }
   }
 }
-
----
-
-
-### FILE: src/users/dtos/create-user.dto.ts ###
-// src/users/dtos/create-user.dto.ts
-
-export class CreateUserDto {
-  name: string;
-  email: string;
-  password?: string | null;
-  provider?: 'google' | 'github' | null;
-  providerId?: string | null;
-  emailVerifiedAt?: Date | null;
-  picture?: string | null;
-}
-
 ---
 
 
@@ -1215,17 +1365,6 @@ export class UserQueryDto extends PaginationDto {
   @IsEnum(['google', 'github'])
   provider?: 'google' | 'github';
 }
-
----
-
-
-### FILE: src/users/dtos/update-user.dto.ts ###
-// src/users/dtos/update-user.dto.ts
-import { PartialType } from '@nestjs/mapped-types';
-import { CreateUserDto } from './create-user.dto';
-
-// Makes all fields from CreateUserDto optional for update operations
-export class UpdateUserDto extends PartialType(CreateUserDto) {}
 
 ---
 
@@ -1260,7 +1399,7 @@ import { UsersService } from './users.service';
 import { UsersController } from './users.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User])],
+  imports: [TypeOrmModule.forFeature([User])], // Add ProfileModule here
   controllers: [UsersController],
   providers: [UsersService],
   exports: [UsersService], // Export the service so it can be injected elsewhere
@@ -1272,11 +1411,12 @@ export class UsersModule {}
 
 ### FILE: src/users/entities/user.entity.ts ###
 // src/users/entities/user.entity.ts
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany, OneToOne, JoinColumn } from 'typeorm';
 import { Post } from '../../posts/entities/post.entity';
 import { Comment } from '../../comments/entities/comment.entity';
 import { PostReaction } from '../../reactions/entities/post-reaction.entity';
 import { CommentReaction } from '../../reactions/entities/comment-reaction.entity';
+import { Profile } from '../../profile/entities/profile.entity'; // Import Profile
 
 @Entity('users')
 export class User {
@@ -1306,6 +1446,10 @@ export class User {
   @Column({ type: 'varchar', nullable: true })
   providerId: string | null; // Google's profile.id
 
+  // One-to-one relation with Profile
+  @OneToOne(() => Profile, profile => profile.user)
+  profile: Profile;
+
   // Relations
   @OneToMany(() => Post, (post) => post.author)
   posts: Post[];
@@ -1319,6 +1463,7 @@ export class User {
   @OneToMany(() => CommentReaction, (reaction) => reaction.user)
   commentReactions: CommentReaction[];
 }
+
 
 ---
 
@@ -1438,10 +1583,9 @@ export class ReactionsController {
   ): Promise<ReactionResponseDto> {
     this.caslService.enforce(user, Action.Create, PostReaction);
     const reaction = await this.reactionsService.create(
-      dto.type,
-      user,
-      post.id,
-      undefined,
+     {   type :dto.type,
+      userId :user.id,
+      postId: post.id,}
     );
     return ReactionResponseDto.fromEntity(reaction);
   }
@@ -1463,10 +1607,9 @@ export class ReactionsController {
   ): Promise<ReactionResponseDto> {
     this.caslService.enforce(user, Action.Create, CommentReaction);
     const reaction = await this.reactionsService.create(
-      dto.type,
-      user,
-      undefined,
-      comment.id,
+   {   type :dto.type,
+      userId :user.id,
+      commentId: comment.id,}
     );
     return ReactionResponseDto.fromEntity(reaction);
   }
@@ -1516,101 +1659,105 @@ export enum ReactionType {
 // src/reactions/reactions.service.ts
 import {
   Injectable,
-  NotFoundException,
+  BadRequestException,
   ForbiddenException,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+
 import { PostReaction } from './entities/post-reaction.entity';
 import { CommentReaction } from './entities/comment-reaction.entity';
-import { User } from '../users/entities/user.entity';
 import { ReactionType } from './reactions.types';
+import { PostsService } from 'src/posts/posts.service';
+import { CommentsService } from 'src/comments/comments.service';
 
 @Injectable()
 export class ReactionsService {
   constructor(
     @InjectRepository(PostReaction)
     private readonly postReactionRepo: Repository<PostReaction>,
+
     @InjectRepository(CommentReaction)
     private readonly commentReactionRepo: Repository<CommentReaction>,
-  ) {}
 
-  /**
-   * Create a new reaction (like/dislike) on post or comment
-   * One reaction per user per target allowed
-   */
-  async create(
-    type: ReactionType,
-    user: User,
-    postId?: number,
-    commentId?: number,
-  ): Promise<PostReaction | CommentReaction> {
+    private readonly postsService: PostsService,
+    private readonly commentsService: CommentsService,
+  ) { }
+
+  // ─────────────────────────────────────────────
+  // CREATE
+  // ─────────────────────────────────────────────
+  async create({
+    type,
+    userId,
+    postId,
+    commentId,
+  }: {
+    type: ReactionType;
+    userId: number;
+    postId?: number;
+    commentId?: number;
+  }) {
+    if (!Object.values(ReactionType).includes(type)) {
+      throw new BadRequestException('Invalid reaction type');
+    }
+
+    if (!!postId === !!commentId) {
+      throw new BadRequestException(
+        'Reaction must target either a post or a comment (not both)',
+      );
+    }
+
+
     if (postId) {
-      return this.createPostReaction(type, user, postId);
-    } else if (commentId) {
-      return this.createCommentReaction(type, user, commentId);
-    } else {
-      throw new NotFoundException('Reaction must target a post or a comment.');
-    }
-  }
+      await this.postsService.findOne(postId);
 
-  private async createPostReaction(
-    type: ReactionType,
-    user: User,
-    postId: number,
-  ): Promise<PostReaction> {
-    const existing = await this.postReactionRepo.findOne({
-      where: {
-        userId: user.id,
-        postId: postId,
-      },
-    });
+      const existing = await this.postReactionRepo.findOne({
+        where: { userId, postId },
+      });
 
-    if (existing) {
-      throw new ForbiddenException(
-        'You already reacted to this content. Remove your existing reaction first.',
+      if (existing) {
+        throw new ForbiddenException(
+          'You already reacted to this post',
+        );
+      }
+
+      return this.postReactionRepo.save(
+        this.postReactionRepo.create({ type, userId, postId }),
       );
     }
+    else if (commentId) {
+      // comment
+      await this.commentsService.findOne(commentId);
 
-    const reaction = this.postReactionRepo.create({
-      type,
-      user,
-      postId,
-    });
+      const existing = await this.commentReactionRepo.findOne({
+        where: { userId, commentId },
+      });
 
-    return this.postReactionRepo.save(reaction);
-  }
+      if (existing) {
+        throw new ForbiddenException(
+          'You already reacted to this comment',
+        );
+      }
 
-  private async createCommentReaction(
-    type: ReactionType,
-    user: User,
-    commentId: number,
-  ): Promise<CommentReaction> {
-    const existing = await this.commentReactionRepo.findOne({
-      where: {
-        userId: user.id,
-        commentId: commentId,
-      },
-    });
-
-    if (existing) {
-      throw new ForbiddenException(
-        'You already reacted to this content. Remove your existing reaction first.',
+      return this.commentReactionRepo.save(
+        this.commentReactionRepo.create({ type, userId, commentId }),
       );
     }
+    throw new BadRequestException(
+      'Reaction must target either a post or a comment',
+    );
 
-    const reaction = this.commentReactionRepo.create({
-      type,
-      user,
-      commentId,
-    });
 
-    return this.commentReactionRepo.save(reaction);
   }
 
+  // ─────────────────────────────────────────────
+  // READ
+  // ─────────────────────────────────────────────
   findByPost(postId: number) {
     return this.postReactionRepo.find({
-      where: { postId: postId },
+      where: { postId },
       relations: ['user'],
       select: {
         id: true,
@@ -1623,7 +1770,7 @@ export class ReactionsService {
 
   findByComment(commentId: number) {
     return this.commentReactionRepo.find({
-      where: { commentId: commentId },
+      where: { commentId },
       relations: ['user'],
       select: {
         id: true,
@@ -1634,46 +1781,28 @@ export class ReactionsService {
     });
   }
 
-  async deletePostReaction(id: number): Promise<void> {
-    await this.postReactionRepo.delete(id);
-  }
-
-  async deleteCommentReaction(id: number): Promise<void> {
-    await this.commentReactionRepo.delete(id);
-  }
-
   async getUserReactionOnPost(
     userId: number,
     postId: number,
-  ): Promise<PostReaction | null> {
-    return this.postReactionRepo.findOne({
-      where: {
-        userId,
-        postId,
-      },
-    });
+  ) {
+    return this.postReactionRepo.findOne({ where: { userId, postId } });
   }
 
-  async findPostReactionById(id: number): Promise<PostReaction> {
-    const reaction = await this.postReactionRepo.findOne({
-      where: { id },
-      relations: ['user'],
-    });
-    if (!reaction) {
+  // ─────────────────────────────────────────────
+  // DELETE
+  // ─────────────────────────────────────────────
+  async deletePostReaction(id: number) {
+    const result = await this.postReactionRepo.delete(id);
+    if (!result.affected) {
       throw new NotFoundException('Post reaction not found');
     }
-    return reaction;
   }
 
-  async findCommentReactionById(id: number): Promise<CommentReaction> {
-    const reaction = await this.commentReactionRepo.findOne({
-      where: { id },
-      relations: ['user'],
-    });
-    if (!reaction) {
+  async deleteCommentReaction(id: number) {
+    const result = await this.commentReactionRepo.delete(id);
+    if (!result.affected) {
       throw new NotFoundException('Comment reaction not found');
     }
-    return reaction;
   }
 }
 
@@ -2429,7 +2558,7 @@ export class PostsModule {}
 
 
 ### FILE: src/posts/posts.service.ts ###
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Repository } from 'typeorm';
 import { Post } from './entities/post.entity';
@@ -2441,7 +2570,7 @@ export class PostsService {
   constructor(
     @InjectRepository(Post)
     private postsRepository: Repository<Post>,
-  ) {}
+  ) { }
 
   async findAll(
     page = 1,
@@ -2509,25 +2638,31 @@ export class PostsService {
     });
     return this.postsRepository.save(post);
   }
-  async update({
-    post,
-    title,
-    content,
-    views,
-  }: {
-    post: Post;
-    title?: string;
-    content?: string;
-    views?: number;
-  }): Promise<Post> {
-    if (title !== undefined) post.title = title;
-    if (content !== undefined) post.content = content;
-    if (views !== undefined) post.views = views;
+  async update(
+    postUpdateData: {
+      id: number;
+      title?: string;
+      content?: string;
+      views?: number;
+    },
+  ): Promise<Post> {
+    const post = await this.postsRepository.findOneBy({ id: postUpdateData.id });
+    if (!post) {
+      throw new NotFoundException('Post not found');
+    }
+
+    if (postUpdateData.title !== undefined) post.title = postUpdateData.title;
+    if (postUpdateData.content !== undefined) post.content = postUpdateData.content;
+    if (postUpdateData.views !== undefined) post.views = postUpdateData.views;
 
     return this.postsRepository.save(post);
   }
 
-  async remove(post: Post): Promise<boolean> {
+  async remove(id: number): Promise<boolean> {
+    const post = await this.postsRepository.findOneBy({ id });
+    if (!post) {
+      throw new Error('Post not found'); // TODO: Use a more specific NestJS exception
+    }
     const res = await this.postsRepository.remove(post);
     return !!res;
   }
@@ -2645,7 +2780,7 @@ export class PostsController {
 
   @Get(':id')
   findOne(@Param('id', PostPipe) post: PostEntity): PostResponseDto {
-    this.postsService.update({ post, views: post.views + 1 });
+    this.postsService.update({ id:post.id, views: post.views + 1 });
     return PostResponseDto.fromEntity(post);
   }
 
@@ -2669,7 +2804,7 @@ export class PostsController {
   ): Promise<PostResponseDto> {
     this.caslService.enforce(user, Action.Update, post);
     const updatedPost = await this.postsService.update({
-      post,
+      id:post.id,
       title: dto.title,
       content: dto.content,
     });
@@ -2680,7 +2815,7 @@ export class PostsController {
   @UseGuards(JwtAuthGuard)
   async remove(@Param('id', PostPipe) post: PostEntity, @GetUser() user: User) {
     this.caslService.enforce(user, Action.Delete, post);
-    return await this.postsService.remove(post);
+    return await this.postsService.remove(post.id);
   }
 }
 
@@ -2812,9 +2947,9 @@ export class AuthService {
   // -------------------------------------------------------------------------
   async register(name: string, email: string, password: string): Promise<User> {
     return this.userService.createUser(
-      name,
+     { name,
       email,
-      password, // will be hashed inside UsersService
+      password, }
     );
   }
 
@@ -2861,15 +2996,15 @@ export class AuthService {
 
     if (!user) {
       // First time → create new user
-      return this.userService.createUser(
-        oauthUser.fullName ?? oauthUser.email.split('@')[0],
-        oauthUser.email,
-        undefined, // no password
-        'google',
-        oauthUser.id,
-        new Date(), // email already verified by Google
-        oauthUser.picture,
-      );
+     return this.userService.createUser({
+  name: oauthUser.fullName ?? oauthUser.email.split('@')[0],
+  email: oauthUser.email,
+  password: undefined, // no password
+  provider: 'google',
+  providerId: oauthUser.id,
+  emailVerifiedAt: new Date(), // email already verified by Google
+});
+
     }
 
     // Existing user → make sure provider data is up-to-date
@@ -2900,18 +3035,17 @@ export class AuthService {
 
     const accessToken = this.jwt.sign(payload, {
       secret: this.config.get<string>('JWT_ACCESS_SECRET'),
-      expiresIn: this.config.get('JWT_ACCESS_EXPIRES_IN') ?? '2h',
+      expiresIn: this.config.getOrThrow('JWT_ACCESS_EXPIRES_IN'),
     });
 
     const refreshToken = this.jwt.sign(payload, {
       secret: this.config.get<string>('JWT_REFRESH_SECRET'),
-      expiresIn: this.config.get('JWT_REFRESH_EXPIRES_IN') ?? '7d',
+      expiresIn: this.config.getOrThrow('JWT_REFRESH_EXPIRES_IN'),
     });
 
     return { accessToken, refreshToken };
   }
 }
-
 ---
 
 
@@ -2919,11 +3053,12 @@ export class AuthService {
 import { IsEmail, IsString, MinLength } from 'class-validator';
 
 export class RegisterDto {
+  
   @IsEmail()
   email: string;
 
   @IsString()
-  name: string;
+   name: string;
 
   @IsString()
   @MinLength(6)
@@ -3065,15 +3200,25 @@ import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
 import { LocalStrategy } from './strategies/local.strategy';
 import { EmailVerificationModule } from 'src/email-verification/email-verification.module';
 import { GoogleStrategy } from './strategies/google.strategy';
+import { ConfigService } from '@nestjs/config';
 
 @Module({
   imports: [
     UsersModule,
     PassportModule,
-    JwtModule.register({
-      secret: process.env.JWT_ACCESS_SECRET,
-      signOptions: { expiresIn: '15m' },
-    }),
+ JwtModule.registerAsync({
+  inject: [ConfigService],
+  useFactory: (config: ConfigService) => {
+    const secret = config.getOrThrow<string>('JWT_ACCESS_SECRET');
+    const expiresIn = config.getOrThrow('JWT_ACCESS_EXPIRES_IN');
+
+    return {
+      secret,
+      signOptions: { expiresIn },
+    };
+  },
+})
+ ,
     EmailVerificationModule,
   ],
   controllers: [AuthController],
@@ -3543,16 +3688,16 @@ import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handleba
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
         transport: {
-          host: config.get('SMTP_HOST'),
-          port: config.get('SMTP_PORT'),
+          host: config.getOrThrow<string>('SMTP_HOST'),
+          port: config.getOrThrow<number>('SMTP_PORT'),
           secure: false,
           /* auth: {
-            user: config.get('SMTP_USER'),
-            pass: config.get('SMTP_PASS'),
+            user: config.getOrThrow<string>('SMTP_USER'),
+            pass: config.getOrThrow<string>('SMTP_PASS'),
           },*/
         },
         defaults: {
-          from: config.get('SMTP_FROM'),
+          from: config.getOrThrow<string>('SMTP_FROM'),
         },
         template: {
           dir: process.cwd() + '/src/mail/templates',
@@ -3588,6 +3733,313 @@ export class AppService {
 ---
 
 
+### FILE: src/profile/profile.service.ts ###
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Not, Repository } from 'typeorm';
+import { Profile } from './entities/profile.entity';
+import { User } from 'src/users/entities/user.entity';
+
+interface CreateProfileParams {
+  user: User;
+  username: string;
+  bio?: string | null;
+  picture?: string | null;
+}
+
+interface UpdateProfileParams {
+  profile: Profile;
+  username?: string | null;
+  bio?: string | null;
+  picture?: string | null; // This will now be the file path
+}
+
+@Injectable()
+export class ProfileService {
+  constructor(
+    @InjectRepository(Profile)
+    private readonly profileRepo: Repository<Profile>,
+  ) { }
+
+  async createProfile(params: CreateProfileParams): Promise<Profile> {
+
+    const existingProfile = await this
+      .findOneByUserId(params.user.id)
+      .catch(() => null);
+    if (existingProfile) {
+      throw new ConflictException('Profile already exists for this user.');
+    }
+
+    const existingUsername = await this.profileRepo.findOne({
+      where: { username: params.username }, // exclude current profile
+    });
+    if (existingUsername) {
+      throw new ConflictException('Username is already taken.');
+    }
+
+    const profile = this.profileRepo.create({
+      user: params.user,
+      username: params.username ?? null,
+      bio: params.bio ?? null,
+      picture: params.picture ?? null,
+    });
+    return this.profileRepo.save(profile);
+  }
+
+  async updateProfile(params: UpdateProfileParams): Promise<Profile> {
+    const { profile, username, bio, picture } = params;
+
+    if (username) {
+      const existingUsername = await this.profileRepo.findOne({
+        where: { username, id: Not(profile.id) }, // exclude current profile
+      });
+      if (existingUsername) {
+        throw new ConflictException('Username is already taken.');
+      }
+    }
+
+    Object.assign(profile, {
+      ...(username !== undefined && { username }),
+      ...(bio !== undefined && { bio }),
+      ...(picture !== undefined && { picture }), // Directly assign the path
+    });
+    return this.profileRepo.save(profile);
+  }
+
+  async findOneByUserId(userId: number): Promise<Profile> {
+    const profile = await this.profileRepo.findOne({ where: { user: { id: userId } } });
+    if (!profile) {
+      throw new NotFoundException(`Profile for user with ID ${userId} not found.`);
+    }
+    return profile;
+  }
+}
+---
+
+
+### FILE: src/profile/dtos/create-profile.dto.ts ###
+import { IsNotEmpty, IsString, IsOptional, IsAlphanumeric, MinLength, MaxLength } from 'class-validator';
+
+export class CreateProfileDto {
+  @IsNotEmpty()
+  @IsString()
+  @IsAlphanumeric()
+  @MinLength(3)
+  @MaxLength(20)
+  username: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  bio?: string;
+}
+---
+
+
+### FILE: src/profile/dtos/update-profile.dto.ts ###
+import { IsOptional, IsString, IsUrl, IsAlphanumeric, MinLength, MaxLength } from 'class-validator';
+
+export class UpdateProfileDto {
+  @IsOptional()
+  @IsString()
+  @IsAlphanumeric()
+  @MinLength(3)
+  @MaxLength(20)
+  username?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  bio?: string;
+}
+
+---
+
+
+### FILE: src/profile/dtos/profile-response.dto.ts ###
+import { Expose } from 'class-transformer';
+import { Profile } from '../entities/profile.entity';
+
+export class ProfileResponseDto {
+  @Expose()
+  id: number;
+
+  @Expose()
+  username: string;
+
+  @Expose()
+  bio: string | null;
+
+  @Expose()
+  picture: string | null;
+
+  /**
+   * Factory method: converts a Profile entity into this DTO.
+   * Purely copies values; no business or environment logic.
+   */
+  static fromEntity(entity: Profile): ProfileResponseDto {
+    const dto = new ProfileResponseDto();
+    dto.id = entity.id;
+    dto.username = entity.username;
+    dto.bio = entity.bio ?? null;
+    dto.picture = entity.picture ?? null;
+    return dto;
+  }
+}
+
+---
+
+
+### FILE: src/profile/profile.controller.ts ###
+import {
+  Controller,
+  Get,
+  UseGuards,
+  Patch,
+  Body,
+  UseInterceptors,
+  UploadedFile,
+  Post,
+  ConflictException,
+} from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ProfileService } from './profile.service';
+import { UpdateProfileDto } from './dtos/update-profile.dto';
+import { CreateProfileDto } from './dtos/create-profile.dto';
+import { User } from 'src/users/entities/user.entity';
+import { GetUser } from 'src/decorators/user.decorator';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
+import { ProfileResponseDto } from './dtos/profile-response.dto';
+import { ConfigService } from '@nestjs/config';
+
+@Controller('profile')
+export class ProfileController {
+  constructor(private readonly profileService: ProfileService
+
+  ) {}
+  @UseGuards(JwtAuthGuard)
+  @Get()
+  async getMyProfile(@GetUser() user: User): Promise<ProfileResponseDto> {
+    const profile = await this.profileService.findOneByUserId(user.id);
+    return ProfileResponseDto.fromEntity(profile);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post()
+  @UseInterceptors(
+    FileInterceptor('picture', {
+      storage: diskStorage({
+        destination: './uploads',
+        filename: (req, file, cb) => {
+          const randomName = Array(32)
+            .fill(null)
+            .map(() => Math.floor(Math.random() * 16).toString(16))
+            .join('');
+          cb(null, `${randomName}${extname(file.originalname)}`);
+        },
+      }),
+    }),
+  )
+  async createMyProfile(
+    @GetUser() user: User,
+    @Body() createProfileDto: CreateProfileDto,
+    @UploadedFile() file: Express.Multer.File,
+  ): Promise<ProfileResponseDto> {
+  
+    const profile = await this.profileService.createProfile({
+      user,
+      username: createProfileDto.username,
+      bio: createProfileDto.bio,
+      picture: file ? file.path : undefined,
+    });
+
+    return ProfileResponseDto.fromEntity(profile);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch()
+  @UseInterceptors(
+    FileInterceptor('picture', {
+      storage: diskStorage({
+        destination: './uploads',
+        filename: (req, file, cb) => {
+          const randomName = Array(32)
+            .fill(null)
+            .map(() => Math.floor(Math.random() * 16).toString(16))
+            .join('');
+          cb(null, `${randomName}${extname(file.originalname)}`);
+        },
+      }),
+    }),
+  )
+  async updateMyProfile(
+    @GetUser() user: User,
+    @Body() updateProfileDto: UpdateProfileDto,
+    @UploadedFile() file: Express.Multer.File,
+  ): Promise<ProfileResponseDto> {
+    const profile = await this.profileService.findOneByUserId(user.id);
+
+    const updatedProfile = await this.profileService.updateProfile({
+      profile,
+      username: updateProfileDto.username,
+      bio: updateProfileDto.bio,
+      picture: file ? file.path : undefined,
+    });
+
+    return ProfileResponseDto.fromEntity(updatedProfile);
+  }
+}
+
+---
+
+
+### FILE: src/profile/entities/profile.entity.ts ###
+// src/profile/entities/profile.entity.ts
+import { Entity, PrimaryGeneratedColumn, Column, OneToOne, JoinColumn } from 'typeorm';
+import { User } from '../../users/entities/user.entity'; // Updated path
+
+@Entity('profiles') // Updated entity name
+export class Profile { // Updated class name
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column({ type: 'varchar', unique: true })
+  username: string;
+
+  @Column({ type: 'text', nullable: true })
+  bio: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  picture: string | null;
+
+  @OneToOne(() => User, user => user.profile)
+  @JoinColumn()
+  user: User;
+}
+
+---
+
+
+### FILE: src/profile/profile.module.ts ###
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { Profile } from './entities/profile.entity';
+import { ProfileService } from './profile.service';
+import { ProfileController } from './profile.controller';
+
+@Module({
+  imports: [TypeOrmModule.forFeature([Profile])],
+  providers: [ProfileService],
+  controllers: [ProfileController],
+  exports: [ProfileService], // Export ProfileService so other modules can use it
+})
+export class ProfileModule {}
+
+---
+
+
 ### FILE: src/app.module.ts ###
 // src/app.module.ts
 import { Module } from '@nestjs/common';
@@ -3612,6 +4064,8 @@ import { ResetPasswordModule } from './reset-password/reset-password.module';
 import { PasswordResetToken } from './reset-password/entities/password-reset-token.entity';
 import { CommentReaction } from './reactions/entities/comment-reaction.entity';
 import { PostReaction } from './reactions/entities/post-reaction.entity';
+import { Profile } from './profile/entities/profile.entity';
+import { ProfileModule } from './profile/profile.module';
 
 @Module({
   imports: [
@@ -3621,8 +4075,8 @@ import { PostReaction } from './reactions/entities/post-reaction.entity';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        type: config.get<'sqlite' | 'mysql'>('DB_TYPE', 'sqlite'),
-        database: config.get<string>('DB_NAME', 'forum.db'),
+        type: config.getOrThrow<'sqlite' | 'mysql'>('DB_TYPE'),
+        database: config.getOrThrow<string>('DB_NAME'),
         entities: [
           User,
           Post,
@@ -3631,6 +4085,7 @@ import { PostReaction } from './reactions/entities/post-reaction.entity';
           PostReaction,
           EmailVerificationToken,
           PasswordResetToken,
+          Profile
         ],
         migrations: ['./src/migrations/*.ts'],
         synchronize: false,
@@ -3644,6 +4099,7 @@ import { PostReaction } from './reactions/entities/post-reaction.entity';
     AuthModule,
     CaslModule,
     ResetPasswordModule,
+    ProfileModule
   ],
   controllers: [AppController],
   providers: [AppService],
@@ -3663,12 +4119,18 @@ import { PostReaction } from './reactions/entities/post-reaction.entity';
 import { CommentReaction } from './reactions/entities/comment-reaction.entity';
 import { EmailVerificationToken } from './email-verification/entities/email-verification-token.entity';
 import { PasswordResetToken } from './reset-password/entities/password-reset-token.entity';
+import { Profile } from './profile/entities/profile.entity'; // Import Profile
 
 config(); // load .env manually
 
+const dbName = process.env.DB_NAME;
+if (!dbName) {
+  throw new Error('DB_NAME environment variable is not defined.');
+}
+
 export const AppDataSource = new DataSource({
   type: 'sqlite',
-  database: process.env.DB_NAME ?? 'forum.db',
+  database: dbName,
   entities: [
     User,
     Post,
@@ -3677,6 +4139,7 @@ export const AppDataSource = new DataSource({
     CommentReaction,
     PasswordResetToken,
     EmailVerificationToken,
+    Profile, // Add Profile
   ],
   synchronize: false,
   migrations: ['src/database/migrations/*.ts'],
@@ -3710,7 +4173,7 @@ export class CommentPipe implements PipeTransform<string, Promise<Comment>> {
 
 
 ### FILE: src/comments/comments.service.ts ###
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Repository } from 'typeorm';
 import { Comment } from './entities/comment.entity';
@@ -3722,51 +4185,40 @@ export class CommentsService {
   constructor(
     @InjectRepository(Comment)
     private readonly commentRepo: Repository<Comment>,
-  ) {}
+  ) { }
 
-  async findAll(
-    page = 1,
-    limit = 10,
-    search?: string,
-    authorId?: number,
-  ): Promise<{ data: Comment[]; count: number }> {
-    const query = this.commentRepo
-      .createQueryBuilder('comment')
-      .leftJoinAndSelect('comment.author', 'author')
-      .leftJoinAndSelect('comment.post', 'post')
-      .leftJoinAndSelect('comment.parent', 'parent');
+async findAll(options: {
+  postId?: number;
+  authorId?: number;
+  search?: string;
+  page?: number;
+  limit?: number;
+}): Promise<{ data: Comment[]; count: number }> {
+  const { postId, authorId, search, page = 1, limit = 10 } = options;
 
-    if (search) {
-      query.where('comment.content ILIKE :search', { search: `%${search}%` });
-    }
+  const query = this.commentRepo
+    .createQueryBuilder('comment')
+    .leftJoinAndSelect('comment.author', 'author')
+    .leftJoinAndSelect('comment.post', 'post')
+    .leftJoinAndSelect('comment.parent', 'parent');
 
-    if (authorId) {
-      query.andWhere('comment.author.id = :authorId', { authorId });
-    }
-
-    query.orderBy('comment.createdAt', 'DESC');
-
-    const [data, count] = await query
-      .take(limit)
-      .skip((page - 1) * limit)
-      .getManyAndCount();
-
-    return { data, count };
+  if (search) {
+    query.andWhere('comment.content ILIKE :search', { search: `%${search}%` });
+  }
+  if (authorId) {
+    query.andWhere('comment.author.id = :authorId', { authorId });
+  }
+  if (postId) {
+    query.andWhere('comment.post.id = :postId', { postId });
   }
 
-  async findByPost(
-    postId: number,
-    page = 1,
-    limit = 10,
-  ): Promise<{ data: Comment[]; count: number }> {
-    const [data, count] = await this.commentRepo.findAndCount({
-      where: { post: { id: postId } },
-      relations: ['author', 'post', 'parent'],
-      take: limit,
-      skip: (page - 1) * limit,
-    });
-    return { data, count };
-  }
+  query.orderBy('comment.createdAt', 'DESC');
+
+  const [data, count] = await query.take(limit).skip((page - 1) * limit).getManyAndCount();
+
+  return { data, count };
+}
+
 
   findOne(id: number) {
     return this.commentRepo.findOne({
@@ -3775,15 +4227,20 @@ export class CommentsService {
     });
   }
 
-  async createForPost(
-    post: Post,
+  async createComment(
+    postId: number,
     content: string,
-    user: User,
+    userId: number,
     parentId?: number,
   ) {
+    const post = await this.commentRepo.manager.findOneBy(Post, { id: postId });
+    if (!post) {
+      throw new NotFoundException('Post not found');
+    }
+
     const comment = this.commentRepo.create({
       content,
-      author: user,
+      authorId: userId,
     });
 
     if (parentId) {
@@ -3791,7 +4248,14 @@ export class CommentsService {
         where: { id: parentId },
         relations: ['post'],
       });
-      if (!parent) throw new NotFoundException('Parent comment not found');
+      if (!parent)
+        throw new NotFoundException('Parent comment not found');
+      if (parent.post.id !== postId) {
+        throw new BadRequestException(
+          'Parent comment does not belong to this post',
+        );
+      }
+
       comment.parent = parent;
       comment.post = parent.post;
     } else {
@@ -3801,13 +4265,27 @@ export class CommentsService {
     return this.commentRepo.save(comment);
   }
 
-  async update(comment: Comment, content?: string) {
-    if (content != undefined) comment.content = content;
+  async update(
+    updateCommentData: { id: number; content?: string },
+  ): Promise<Comment> {
+    const comment = await this.commentRepo.findOneBy({
+      id: updateCommentData.id,
+    });
+    if (!comment) {
+      throw new NotFoundException('Comment not found');
+    }
+
+    if (updateCommentData.content !== undefined)
+      comment.content = updateCommentData.content;
 
     return this.commentRepo.save(comment);
   }
 
-  async remove(comment: Comment) {
+  async remove(id: number): Promise<boolean> {
+    const comment = await this.commentRepo.findOneBy({ id });
+    if (!comment) {
+      throw new NotFoundException('Comment not found');
+    }
     await this.commentRepo.remove(comment);
     return true;
   }
@@ -3848,15 +4326,15 @@ export class CommentsController {
   constructor(
     private readonly commentsService: CommentsService,
     private readonly caslService: CaslService,
-  ) {}
+  ) { }
 
   @Get('comments')
   async findAll(@Query() query: CommentQueryDto) {
     const { data, count } = await this.commentsService.findAll(
-      query.page,
-      query.limit,
-      query.search,
-      query.authorId,
+    { page: query.page,
+      limit :query.limit,
+      search :query.search,
+      authorId :query.authorId,}
     );
 
     return {
@@ -3872,10 +4350,12 @@ export class CommentsController {
     @Param('postId', PostPipe) post: PostEntity,
     @Query() query: CommentQueryDto,
   ) {
-    const { data, count } = await this.commentsService.findByPost(
-      post.id,
-      query.page,
-      query.limit,
+    const { data, count } = await this.commentsService.findAll(
+      {
+        postId: post.id,
+        page: query.page,
+        limit: query.limit,
+      }
     );
     return {
       data: data.map(CommentResponseDto.fromEntity),
@@ -3893,10 +4373,10 @@ export class CommentsController {
     @GetUser() user: User,
   ): Promise<CommentResponseDto> {
     this.caslService.enforce(user, Action.Create, Comment);
-    const comment = await this.commentsService.createForPost(
-      post,
+    const comment = await this.commentsService.createComment(
+      post.id,
       dto.content,
-      user,
+      user.id,
       dto.parentId,
     );
     return CommentResponseDto.fromEntity(comment);
@@ -3916,8 +4396,10 @@ export class CommentsController {
   ): Promise<CommentResponseDto> {
     this.caslService.enforce(user, Action.Update, comment);
     const updatedComment = await this.commentsService.update(
-      comment,
-      dto.content,
+      {
+        id: comment.id,
+        content: dto.content,
+      }
     );
     return CommentResponseDto.fromEntity(updatedComment);
   }
@@ -3929,7 +4411,7 @@ export class CommentsController {
     @GetUser() user: User,
   ) {
     this.caslService.enforce(user, Action.Delete, comment);
-    return await this.commentsService.remove(comment);
+    return await this.commentsService.remove(comment.id);
   }
 }
 

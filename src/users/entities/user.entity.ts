@@ -1,10 +1,19 @@
 // src/users/entities/user.entity.ts
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany, OneToOne, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  OneToMany,
+  OneToOne,
+  JoinColumn,
+} from 'typeorm';
 import { Post } from '../../posts/entities/post.entity';
 import { Comment } from '../../comments/entities/comment.entity';
 import { PostReaction } from '../../reactions/entities/post-reaction.entity';
 import { CommentReaction } from '../../reactions/entities/comment-reaction.entity';
 import { Profile } from '../../profile/entities/profile.entity'; // Import Profile
+import { Community } from '../../communities/entities/community.entity';
+import { CommunitySubscription } from '../../community-subscriptions/entities/community-subscription.entity';
 
 @Entity('users')
 export class User {
@@ -35,7 +44,7 @@ export class User {
   providerId: string | null; // Google's profile.id
 
   // One-to-one relation with Profile
-  @OneToOne(() => Profile, profile => profile.user)
+  @OneToOne(() => Profile, (profile) => profile.user)
   profile: Profile;
 
   // Relations
@@ -50,5 +59,13 @@ export class User {
 
   @OneToMany(() => CommentReaction, (reaction) => reaction.user)
   commentReactions: CommentReaction[];
-}
 
+  @OneToMany(() => Community, (community) => community.createdBy)
+  createdCommunities: Community[];
+
+  @OneToMany(
+    () => CommunitySubscription,
+    (communitySubscription) => communitySubscription.user,
+  )
+  communitySubscriptions: CommunitySubscription[];
+}

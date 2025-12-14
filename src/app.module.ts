@@ -9,6 +9,8 @@ import { UsersModule } from './users/users.module';
 import { PostsModule } from './posts/posts.module';
 import { CommentsModule } from './comments/comments.module';
 import { ReactionsModule } from './reactions/reactions.module';
+import { CommunitiesModule } from './communities/communities.module';
+import { CommunitySubscriptionsModule } from './community-subscriptions/community-subscriptions.module';
 
 import { User } from './users/entities/user.entity';
 import { Post } from './posts/entities/post.entity';
@@ -23,6 +25,8 @@ import { CommentReaction } from './reactions/entities/comment-reaction.entity';
 import { PostReaction } from './reactions/entities/post-reaction.entity';
 import { Profile } from './profile/entities/profile.entity';
 import { ProfileModule } from './profile/profile.module';
+import { Community } from './communities/entities/community.entity';
+import { CommunitySubscription } from './community-subscriptions/entities/community-subscription.entity';
 
 @Module({
   imports: [
@@ -42,7 +46,9 @@ import { ProfileModule } from './profile/profile.module';
           PostReaction,
           EmailVerificationToken,
           PasswordResetToken,
-          Profile
+          Profile,
+          Community,
+          CommunitySubscription
         ],
         migrations: ['./src/migrations/*.ts'],
         synchronize: false,
@@ -56,7 +62,9 @@ import { ProfileModule } from './profile/profile.module';
     AuthModule,
     CaslModule,
     ResetPasswordModule,
-    ProfileModule
+    ProfileModule,
+    CommunitiesModule,
+    CommunitySubscriptionsModule
   ],
   controllers: [AppController],
   providers: [AppService],

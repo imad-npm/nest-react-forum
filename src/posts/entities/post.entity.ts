@@ -11,6 +11,7 @@ import {
 import { Comment } from '../../comments/entities/comment.entity';
 import { User } from '../../users/entities/user.entity';
 import { PostReaction } from '../../reactions/entities/post-reaction.entity';
+import { Community } from '../../communities/entities/community.entity';
 
 @Entity()
 export class Post {
@@ -31,6 +32,15 @@ export class Post {
   // FK explicite
   @Column()
   authorId: number;
+
+  @ManyToOne(() => Community, (community) => community.posts, {
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
+  community: Community;
+
+  @Column({ nullable: true })
+  communityId: number;
 
   @OneToMany(() => Comment, (comment) => comment.post)
   comments: Comment[];

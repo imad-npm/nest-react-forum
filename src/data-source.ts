@@ -7,7 +7,9 @@ import { PostReaction } from './reactions/entities/post-reaction.entity';
 import { CommentReaction } from './reactions/entities/comment-reaction.entity';
 import { EmailVerificationToken } from './email-verification/entities/email-verification-token.entity';
 import { PasswordResetToken } from './reset-password/entities/password-reset-token.entity';
-import { Profile } from './profile/entities/profile.entity'; // Import Profile
+import { Profile } from './profile/entities/profile.entity';
+import { Community } from './communities/entities/community.entity'; // Import Community
+import { CommunitySubscription } from './community-subscriptions/entities/community-subscription.entity'; // Import CommunitySubscription
 
 config(); // load .env manually
 
@@ -27,7 +29,9 @@ export const AppDataSource = new DataSource({
     CommentReaction,
     PasswordResetToken,
     EmailVerificationToken,
-    Profile, // Add Profile
+    Profile,
+    Community, // Add Community
+    CommunitySubscription, // Add CommunitySubscription
   ],
   synchronize: false,
   migrations: ['src/database/migrations/*.ts'],
