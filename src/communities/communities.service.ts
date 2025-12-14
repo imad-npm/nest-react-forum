@@ -4,9 +4,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Not, Repository } from 'typeorm';
 import { Community } from './entities/community.entity';
-import { User } from '../users/entities/user.entity';
 
 @Injectable()
 export class CommunitiesService {
@@ -16,16 +15,16 @@ export class CommunitiesService {
   ) {}
 
   async create(
-    createCommunityDto: {
+    data: {
+    userId: number ;
       name: string;
       displayName?: string;
       description?: string;
       isPublic?: boolean;
     },
-    user: User,
   ) {
     const existingCommunity = await this.communitiesRepository.findOne({
-      where: { name: createCommunityDto.name },
+      where: { name: data.name },
     });
 
     if (existingCommunity) {
@@ -33,47 +32,44 @@ export class CommunitiesService {
     }
 
     const community = this.communitiesRepository.create({
-      ...createCommunityDto,
-      createdBy: user,
+      ...data,
+      createdBy: { id: data.userId }, // just pass an object with the id
     });
 
     return this.communitiesRepository.save(community);
   }
+findAll(query: {
+  limit?: number;
+  page?: number;
+  name?: string;
+  displayName?: string;
+  isPublic?: boolean;
+}) {
+  const { limit = 10, page = 1, name, displayName, isPublic } = query; // defaults
+  const queryBuilder = this.communitiesRepository
+    .createQueryBuilder('community')
+    .leftJoinAndSelect('community.createdBy', 'createdBy')
+    .take(limit)
+    .skip((page - 1) * limit); // calculate skip based on page
 
-  findAll(
-    query: {
-      limit?: number;
-      offset?: number;
-      name?: string;
-      displayName?: string;
-      isPublic?: boolean;
-    },
-  ) {
-    const { limit, offset, name, displayName, isPublic } = query;
-    const queryBuilder = this.communitiesRepository
-      .createQueryBuilder('community')
-      .leftJoinAndSelect('community.createdBy', 'createdBy')
-      .take(limit)
-      .skip(offset);
-
-    if (name) {
-      queryBuilder.andWhere('community.name ILIKE :name', {
-        name: `%${name}%`,
-      });
-    }
-
-    if (displayName) {
-      queryBuilder.andWhere('community.displayName ILIKE :displayName', {
-        displayName: `%${displayName}%`,
-      });
-    }
-
-    if (isPublic !== undefined) {
-      queryBuilder.andWhere('community.isPublic = :isPublic', { isPublic });
-    }
-
-    return queryBuilder.getManyAndCount();
+  if (name) {
+    queryBuilder.andWhere('community.name ILIKE :name', {
+      name: `%${name}%`,
+    });
   }
+
+  if (displayName) {
+    queryBuilder.andWhere('community.displayName ILIKE :displayName', {
+      displayName: `%${displayName}%`,
+    });
+  }
+
+  if (isPublic !== undefined) {
+    queryBuilder.andWhere('community.isPublic = :isPublic', { isPublic });
+  }
+
+  return queryBuilder.getManyAndCount();
+}
 
   async findOne(id: number) {
     const community = await this.communitiesRepository.findOne({
@@ -98,21 +94,30 @@ export class CommunitiesService {
   }
 
   async update(
-    id: number,
-    updateCommunityDto: {
+    data: {
+      id: number;
       name?: string;
       displayName?: string;
       description?: string;
       isPublic?: boolean;
     },
   ) {
-    const community = await this.communitiesRepository.preload({
-      id: id,
-      ...updateCommunityDto,
-    });
+    const { id, name } = data;
+
+    if (name) {
+      const existing = await this.communitiesRepository.findOne({
+        where: { name, id: Not(id) },
+      });
+      if (existing) {
+        throw new ConflictException('Community name already exists.');
+      }
+    }
+
+    const community = await this.communitiesRepository.preload(data);
     if (!community) {
       throw new NotFoundException(`Community with ID ${id} not found.`);
     }
+
     return this.communitiesRepository.save(community);
   }
 

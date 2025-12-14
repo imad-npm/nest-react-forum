@@ -18,7 +18,6 @@ import { CommunityResponseDto } from './dto/community-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { User } from '../users/entities/user.entity';
 import { GetUser } from 'src/decorators/user.decorator';
-import { Community } from './entities/community.entity';
 
 @Controller('communities')
 export class CommunitiesController {
@@ -26,15 +25,32 @@ export class CommunitiesController {
 
   @Post()
   @UseGuards(JwtAuthGuard)
-  async create(@Body() createCommunityDto: CreateCommunityDto, @GetUser() user: User): Promise<CommunityResponseDto> {
-    const community = await this.communitiesService.create(createCommunityDto, user);
+  async create(
+    @Body() createCommunityDto: CreateCommunityDto,
+    @GetUser() user: User,
+  ): Promise<CommunityResponseDto> {
+
+    const community = await this.communitiesService.create({
+       userId :user.id ,
+      name: createCommunityDto.name,
+      displayName: createCommunityDto.displayName,
+      description: createCommunityDto.description,
+      isPublic: createCommunityDto.isPublic,
+    });
     return CommunityResponseDto.fromEntity(community);
   }
 
   @Get()
   async findAll(@Query() query: CommunityQueryDto): Promise<[CommunityResponseDto[], number]> {
-    const [communities, count] = await this.communitiesService.findAll(query);
-    return [communities.map(community => CommunityResponseDto.fromEntity(community)), count];
+    const [communities, count] = await this.communitiesService.findAll({
+      limit: query.limit,
+      page: query.page,
+      name: query.name,
+      displayName: query.displayName,
+      isPublic: query.isPublic,
+    });
+
+    return [communities.map(c => CommunityResponseDto.fromEntity(c)), count];
   }
 
   @Get(':id')
@@ -49,13 +65,21 @@ export class CommunitiesController {
     @Param('id', ParseIntPipe) id: number,
     @Body() updateCommunityDto: UpdateCommunityDto,
   ): Promise<CommunityResponseDto> {
-    const community = await this.communitiesService.update(id, updateCommunityDto);
+  
+
+    const community = await this.communitiesService.update(  {
+      id,
+      name: updateCommunityDto.name,
+      displayName: updateCommunityDto.displayName,
+      description: updateCommunityDto.description,
+      isPublic: updateCommunityDto.isPublic,
+    });
     return CommunityResponseDto.fromEntity(community);
   }
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
-  remove(@Param('id', ParseIntPipe) id: number) {
+  async remove(@Param('id', ParseIntPipe) id: number) {
     return this.communitiesService.remove(id);
   }
 }
