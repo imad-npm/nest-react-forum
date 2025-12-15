@@ -116,6 +116,8 @@ export class PostsService {
       title?: string;
       content?: string;
       views?: number;
+      likesCount?: number;
+      dislikesCount?: number;
     },
   ): Promise<Post> {
     const post = await this.postsRepository.findOneBy({ id: postUpdateData.id });
@@ -126,6 +128,8 @@ export class PostsService {
     if (postUpdateData.title !== undefined) post.title = postUpdateData.title;
     if (postUpdateData.content !== undefined) post.content = postUpdateData.content;
     if (postUpdateData.views !== undefined) post.views = postUpdateData.views;
+    if (postUpdateData.likesCount !== undefined) post.likesCount = postUpdateData.likesCount;
+    if (postUpdateData.dislikesCount !== undefined) post.dislikesCount = postUpdateData.dislikesCount;
 
     return this.postsRepository.save(post);
   }

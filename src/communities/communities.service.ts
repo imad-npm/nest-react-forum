@@ -100,6 +100,7 @@ findAll(query: {
       displayName?: string;
       description?: string;
       isPublic?: boolean;
+      subscribersCount?: number
     },
   ) {
     const { id, name } = data;

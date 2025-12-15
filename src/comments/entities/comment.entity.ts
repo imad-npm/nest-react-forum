@@ -44,6 +44,12 @@ export class Comment {
   @OneToMany(() => CommentReaction, (reaction) => reaction.comment)
   reactions: CommentReaction[];
 
+  @Column({ default: 0 })
+  likesCount: number;
+
+  @Column({ default: 0 })
+  dislikesCount: number;
+
   @CreateDateColumn()
   createdAt: Date;
 

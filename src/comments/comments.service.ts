@@ -91,7 +91,12 @@ async findAll(options: {
   }
 
   async update(
-    updateCommentData: { id: number; content?: string },
+    updateCommentData: {
+      id: number;
+      content?: string;
+      likesCount?: number;
+      dislikesCount?: number;
+    },
   ): Promise<Comment> {
     const comment = await this.commentRepo.findOneBy({
       id: updateCommentData.id,
@@ -102,6 +107,10 @@ async findAll(options: {
 
     if (updateCommentData.content !== undefined)
       comment.content = updateCommentData.content;
+    if (updateCommentData.likesCount !== undefined)
+      comment.likesCount = updateCommentData.likesCount;
+    if (updateCommentData.dislikesCount !== undefined)
+      comment.dislikesCount = updateCommentData.dislikesCount;
 
     return this.commentRepo.save(comment);
   }

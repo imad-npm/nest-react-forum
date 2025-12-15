@@ -51,6 +51,12 @@ export class Post {
   @OneToMany(() => PostReaction, (reaction) => reaction.post)
   reactions: PostReaction[];
 
+  @Column({ default: 0 })
+  likesCount: number;
+
+  @Column({ default: 0 })
+  dislikesCount: number;
+
   @CreateDateColumn()
   createdAt: Date;
 

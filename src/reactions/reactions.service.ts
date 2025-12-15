@@ -53,7 +53,8 @@ export class ReactionsService {
 
 
     if (postId) {
-      await this.postsService.findOne(postId);
+      const post = await this.postsService.findOne(postId);
+      if (!post) throw new NotFoundException(`Post with ID ${postId} not found`);
 
       const existing = await this.postReactionRepo.findOne({
         where: { userId, postId },
@@ -65,13 +66,20 @@ export class ReactionsService {
         );
       }
 
-      return this.postReactionRepo.save(
+      const newReaction = await this.postReactionRepo.save(
         this.postReactionRepo.create({ type, userId, postId }),
       );
+      if (newReaction.type === ReactionType.LIKE) {
+        post.likesCount++;
+      } else {
+        post.dislikesCount++;
+      }
+      await this.postsService.update({ id: postId, likesCount: post.likesCount, dislikesCount: post.dislikesCount });
+      return newReaction;
     }
     else if (commentId) {
-      // comment
-      await this.commentsService.findOne(commentId);
+      const comment = await this.commentsService.findOne(commentId);
+      if (!comment) throw new NotFoundException(`Comment with ID ${commentId} not found`);
 
       const existing = await this.commentReactionRepo.findOne({
         where: { userId, commentId },
@@ -83,9 +91,16 @@ export class ReactionsService {
         );
       }
 
-      return this.commentReactionRepo.save(
+      const newReaction = await this.commentReactionRepo.save(
         this.commentReactionRepo.create({ type, userId, commentId }),
       );
+      if (newReaction.type === ReactionType.LIKE) {
+        comment.likesCount++;
+      } else {
+        comment.dislikesCount++;
+      }
+      await this.commentsService.update({ id: commentId, likesCount: comment.likesCount, dislikesCount: comment.dislikesCount });
+      return newReaction;
     }
     throw new BadRequestException(
       'Reaction must target either a post or a comment',
@@ -173,16 +188,40 @@ async findByComment({
   // DELETE
   // ─────────────────────────────────────────────
   async deletePostReaction(id: number) {
-    const result = await this.postReactionRepo.delete(id);
-    if (!result.affected) {
+    const reaction = await this.postReactionRepo.findOneBy({ id });
+    if (!reaction) {
       throw new NotFoundException('Post reaction not found');
+    }
+
+    const result = await this.postReactionRepo.delete(id);
+    if (result.affected) {
+      const post = await this.postsService.findOne(reaction.postId);
+      if (!post) throw new NotFoundException(`Post with ID ${reaction.postId} not found`);
+      if (reaction.type === ReactionType.LIKE) {
+        post.likesCount--;
+      } else {
+        post.dislikesCount--;
+      }
+      await this.postsService.update({ id: reaction.postId, likesCount: post.likesCount, dislikesCount: post.dislikesCount });
     }
   }
 
   async deleteCommentReaction(id: number) {
-    const result = await this.commentReactionRepo.delete(id);
-    if (!result.affected) {
+    const reaction = await this.commentReactionRepo.findOneBy({ id });
+    if (!reaction) {
       throw new NotFoundException('Comment reaction not found');
+    }
+
+    const result = await this.commentReactionRepo.delete(id);
+    if (result.affected) {
+      const comment = await this.commentsService.findOne(reaction.commentId);
+      if (!comment) throw new NotFoundException(`Comment with ID ${reaction.commentId} not found`);
+      if (reaction.type === ReactionType.LIKE) {
+        comment.likesCount--;
+      } else {
+        comment.dislikesCount--;
+      }
+      await this.commentsService.update({ id: reaction.commentId, likesCount: comment.likesCount, dislikesCount: comment.dislikesCount });
     }
   }
 }

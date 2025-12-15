@@ -83,7 +83,14 @@ export class CommunitySubscriptionsService {
       communityId: community.id,
     });
 
-    return this.subscriptionsRepository.save(subscription);
+    const savedSubscription = await this.subscriptionsRepository.save(subscription);
+
+    await this.communitiesService.update({
+      id: community.id,
+      subscribersCount: community.subscribersCount + 1,
+    });
+
+    return savedSubscription;
   }
 
   async unsubscribe(communityId: number, userId: number) {
@@ -111,7 +118,14 @@ export class CommunitySubscriptionsService {
     }
 
     await this.subscriptionsRepository.remove(existingSubscription);
+
+    await this.communitiesService.update({
+      id: community.id,
+      subscribersCount: community.subscribersCount - 1,
+    });
+
     return { message: 'Unsubscribed successfully' };
   }
+
 
 }
