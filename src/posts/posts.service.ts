@@ -133,7 +133,7 @@ export class PostsService {
   async remove(id: number): Promise<boolean> {
     const post = await this.postsRepository.findOneBy({ id });
     if (!post) {
-      throw new Error('Post not found'); // TODO: Use a more specific NestJS exception
+      throw new NotFoundException('Post not found'); // TODO: Use a more specific NestJS exception
     }
     const res = await this.postsRepository.remove(post);
     return !!res;

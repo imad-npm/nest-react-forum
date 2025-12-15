@@ -7,7 +7,7 @@ import { use } from 'passport';
 export async function seedUsers() {
   const userRepo = AppDataSource.getRepository(User);
 
-  const users: User[] = Array.from({ length: 5 }).map(() => userFactory());
+  const users: User[] = Array.from({ length: 100 }).map(() => userFactory());
 
   const user = new User();
   user.name = 'Test User';

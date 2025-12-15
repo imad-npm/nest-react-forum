@@ -130,6 +130,22 @@ export class ReactionsService {
     return this.postReactionRepo.findOne({ where: { userId, postId } });
   }
 
+  async findPostReactionById(id: number): Promise<PostReaction> {
+    const reaction = await this.postReactionRepo.findOne({ where: { id } });
+    if (!reaction) {
+      throw new NotFoundException('Post reaction not found');
+    }
+    return reaction;
+  }
+
+  async findCommentReactionById(id: number): Promise<CommentReaction> {
+    const reaction = await this.commentReactionRepo.findOne({ where: { id } });
+    if (!reaction) {
+      throw new NotFoundException('Comment reaction not found');
+    }
+    return reaction;
+  }
+
   // ─────────────────────────────────────────────
   // DELETE
   // ─────────────────────────────────────────────

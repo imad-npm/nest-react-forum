@@ -6,13 +6,13 @@ import { User } from '../../users/entities/user.entity';
 export async function seedPosts(users: User[]) {
   const postRepo = AppDataSource.getRepository(Post);
 
-  const posts: Post[] = Array.from({ length: 10 }).map(() => {
+  const posts: Post[] = Array.from({ length: 100 }).map(() => {
     const author = users[Math.floor(Math.random() * users.length)];
     return postFactory(author);
   });
 
   await postRepo.save(posts);
-  console.log('Seeded 10 posts ✅');
+  console.log('Seeded 100 posts ✅');
 
   return posts;
 }

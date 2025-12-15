@@ -17,7 +17,7 @@ import { CommunitySubscription } from './entities/community-subscription.entity'
 import { CommunitySubscriptionQueryDto } from './dto/community-subscription-query.dto';
 
 @Controller()
-@UseGuards(JwtAuthGuard)
+//@UseGuards(JwtAuthGuard)
 export class CommunitySubscriptionsController {
   constructor(
     private readonly communitySubscriptionsService: CommunitySubscriptionsService,

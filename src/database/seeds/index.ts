@@ -1,7 +1,9 @@
 import { seedUsers } from './user.seed';
 import { seedPosts } from './post.seed';
 import { seedComments } from './comment.seed';
-import { seedReactions } from './reaction.seed'; // <-- if you want to seed reactions
+import { seedReactions } from './reaction.seed';
+import { seedCommunities } from './community.seed';
+import { seedCommunitySubscriptions } from './community-subscription.seed';
 import { AppDataSource } from '../../data-source';
 
 async function main() {
@@ -18,6 +20,12 @@ async function main() {
 
     // Seed reactions (optional)
     await seedReactions(posts, comments, users);
+
+    // Seed communities
+    const communities = await seedCommunities(users);
+
+    // Seed community subscriptions
+    await seedCommunitySubscriptions(users, communities);
 
     console.log('Database seeding complete ✅');
   } catch (error) {
