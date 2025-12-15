@@ -18,6 +18,9 @@ import { CommunityResponseDto } from './dto/community-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { User } from '../users/entities/user.entity';
 import { GetUser } from 'src/decorators/user.decorator';
+import { ResponseDto } from 'src/common/dto/response.dto';
+import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
+import { PaginationMetaDto } from 'src/common/dto/pagination-meta.dto';
 
 @Controller('communities')
 export class CommunitiesController {
@@ -28,8 +31,7 @@ export class CommunitiesController {
   async create(
     @Body() createCommunityDto: CreateCommunityDto,
     @GetUser() user: User,
-  ): Promise<CommunityResponseDto> {
-
+  ): Promise<ResponseDto<CommunityResponseDto>> {
     const community = await this.communitiesService.create({
        userId :user.id ,
       name: createCommunityDto.name,
@@ -37,11 +39,11 @@ export class CommunitiesController {
       description: createCommunityDto.description,
       isPublic: createCommunityDto.isPublic,
     });
-    return CommunityResponseDto.fromEntity(community);
+    return new ResponseDto(CommunityResponseDto.fromEntity(community));
   }
 
   @Get()
-  async findAll(@Query() query: CommunityQueryDto): Promise<[CommunityResponseDto[], number]> {
+  async findAll(@Query() query: CommunityQueryDto): Promise<PaginatedResponseDto<CommunityResponseDto>> {
     const [communities, count] = await this.communitiesService.findAll({
       limit: query.limit,
       page: query.page,
@@ -50,13 +52,20 @@ export class CommunitiesController {
       isPublic: query.isPublic,
     });
 
-    return [communities.map(c => CommunityResponseDto.fromEntity(c)), count];
+    const paginationMeta = new PaginationMetaDto(
+      query.page,
+      query.limit,
+      count,
+      communities.length,
+    );
+
+    return new PaginatedResponseDto(communities.map(c => CommunityResponseDto.fromEntity(c)), paginationMeta);
   }
 
   @Get(':id')
-  async findOne(@Param('id', ParseIntPipe) id: number): Promise<CommunityResponseDto> {
+  async findOne(@Param('id', ParseIntPipe) id: number): Promise<ResponseDto<CommunityResponseDto>> {
     const community = await this.communitiesService.findOne(id);
-    return CommunityResponseDto.fromEntity(community);
+    return new ResponseDto(CommunityResponseDto.fromEntity(community));
   }
 
   @Patch(':id')
@@ -64,9 +73,7 @@ export class CommunitiesController {
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateCommunityDto: UpdateCommunityDto,
-  ): Promise<CommunityResponseDto> {
-  
-
+  ): Promise<ResponseDto<CommunityResponseDto>> {
     const community = await this.communitiesService.update(  {
       id,
       name: updateCommunityDto.name,
@@ -74,12 +81,13 @@ export class CommunitiesController {
       description: updateCommunityDto.description,
       isPublic: updateCommunityDto.isPublic,
     });
-    return CommunityResponseDto.fromEntity(community);
+    return new ResponseDto(CommunityResponseDto.fromEntity(community));
   }
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
-  async remove(@Param('id', ParseIntPipe) id: number) {
-    return this.communitiesService.remove(id);
+  async remove(@Param('id', ParseIntPipe) id: number): Promise<ResponseDto<void>> {
+    const success = await this.communitiesService.remove(id);
+    return new ResponseDto(success);
   }
 }

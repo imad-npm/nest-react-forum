@@ -27,7 +27,7 @@ export class CommunitySubscriptionsService {
   ) { }
 
 
-  async findSubscriptions(query: SubscriptionQuery) {
+  async findSubscriptions(query: SubscriptionQuery): Promise<{ data: CommunitySubscription[]; count: number }> {
     const where: any = {};
     const relations: string[] = [];
 
@@ -51,7 +51,8 @@ export class CommunitySubscriptionsService {
       options.take = limit;
     }
 
-    return this.subscriptionsRepository.find(options);
+    const [data, count] = await this.subscriptionsRepository.findAndCount(options);
+    return { data, count };
   }
 
   async subscribe(communityId: number, userId: number) {

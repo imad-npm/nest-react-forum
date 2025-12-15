@@ -20,6 +20,8 @@ async function bootstrap() {
     }),
   );
   useContainer(app.select(AppModule), { fallbackOnErrors: true });
+  
+ 
   // Get ConfigService instance
   const configService = app.get(ConfigService);
   const port = configService.get<number>('PORT') ?? 3000;

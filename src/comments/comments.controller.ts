@@ -23,6 +23,9 @@ import { PostPipe } from 'src/posts/pipes/post.pipe';
 import { CaslService } from 'src/casl/casl.service';
 import { CommentResponseDto } from './dto/comment-response.dto';
 import { CommentQueryDto } from './dto/comment-query.dto';
+import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
+import { PaginationMetaDto } from 'src/common/dto/pagination-meta.dto';
+import { ResponseDto } from 'src/common/dto/response.dto';
 
 @Controller()
 export class CommentsController {
@@ -32,7 +35,7 @@ export class CommentsController {
   ) { }
 
   @Get('comments')
-  async findAll(@Query() query: CommentQueryDto) {
+  async findAll(@Query() query: CommentQueryDto): Promise<PaginatedResponseDto<CommentResponseDto>> {
     const { data, count } = await this.commentsService.findAll(
     { page: query.page,
       limit :query.limit,
@@ -40,19 +43,21 @@ export class CommentsController {
       authorId :query.authorId,}
     );
 
-    return {
-      data: data.map(CommentResponseDto.fromEntity),
+    const paginationMeta = new PaginationMetaDto(
+      query.page,
+      query.limit,
       count,
-      page: query.page,
-      pages: Math.ceil(count / query.limit),
-    };
+      data.length,
+    );
+
+    return new PaginatedResponseDto(data.map(CommentResponseDto.fromEntity), paginationMeta);
   }
 
   @Get('posts/:postId/comments')
   async findByPost(
     @Param('postId', PostPipe) post: PostEntity,
     @Query() query: CommentQueryDto,
-  ) {
+  ): Promise<PaginatedResponseDto<CommentResponseDto>> {
     const { data, count } = await this.commentsService.findAll(
       {
         postId: post.id,
@@ -60,12 +65,15 @@ export class CommentsController {
         limit: query.limit,
       }
     );
-    return {
-      data: data.map(CommentResponseDto.fromEntity),
+
+    const paginationMeta = new PaginationMetaDto(
+      query.page,
+      query.limit,
       count,
-      page: query.page,
-      pages: Math.ceil(count / query.limit),
-    };
+      data.length,
+    );
+    
+    return new PaginatedResponseDto(data.map(CommentResponseDto.fromEntity), paginationMeta);
   }
 
   @HttpPost('posts/:postId/comments')
@@ -74,7 +82,7 @@ export class CommentsController {
     @Param('postId', PostPipe) post: PostEntity,
     @Body() dto: CreateCommentDto,
     @GetUser() user: User,
-  ): Promise<CommentResponseDto> {
+  ): Promise<ResponseDto<CommentResponseDto>> {
     this.caslService.enforce(user, Action.Create, Comment);
     const comment = await this.commentsService.createComment(
       post.id,
@@ -82,12 +90,12 @@ export class CommentsController {
       user.id,
       dto.parentId,
     );
-    return CommentResponseDto.fromEntity(comment);
+    return new ResponseDto(CommentResponseDto.fromEntity(comment));
   }
 
   @Get('comments/:id')
-  findOne(@Param('id', CommentPipe) comment: Comment): CommentResponseDto {
-    return CommentResponseDto.fromEntity(comment);
+  findOne(@Param('id', CommentPipe) comment: Comment): ResponseDto<CommentResponseDto> {
+    return new ResponseDto(CommentResponseDto.fromEntity(comment));
   }
 
   @Patch('comments/:id')
@@ -96,7 +104,7 @@ export class CommentsController {
     @Param('id', CommentPipe) comment: Comment,
     @Body() dto: UpdateCommentDto,
     @GetUser() user: User,
-  ): Promise<CommentResponseDto> {
+  ): Promise<ResponseDto<CommentResponseDto>> {
     this.caslService.enforce(user, Action.Update, comment);
     const updatedComment = await this.commentsService.update(
       {
@@ -104,7 +112,7 @@ export class CommentsController {
         content: dto.content,
       }
     );
-    return CommentResponseDto.fromEntity(updatedComment);
+    return new ResponseDto(CommentResponseDto.fromEntity(updatedComment));
   }
 
   @Delete('comments/:id')
@@ -112,8 +120,10 @@ export class CommentsController {
   async remove(
     @Param('id', CommentPipe) comment: Comment,
     @GetUser() user: User,
-  ) {
+  ): Promise<ResponseDto<boolean>> {
     this.caslService.enforce(user, Action.Delete, comment);
-    return await this.commentsService.remove(comment.id);
+    const success = await this.commentsService.remove(comment.id);
+    return new ResponseDto(success);
   }
 }
+

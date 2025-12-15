@@ -91,37 +91,60 @@ export class ReactionsService {
       'Reaction must target either a post or a comment',
     );
 
-
   }
+async findByPost({
+  postId,
+  page = 1,
+  limit = 10,
+}: {
+  postId: number;
+  page?: number;
+  limit?: number;
+}): Promise<{ data: PostReaction[]; count: number }> {
+  const skip = (page - 1) * limit;
 
-  // ─────────────────────────────────────────────
-  // READ
-  // ─────────────────────────────────────────────
-  findByPost(postId: number) {
-    return this.postReactionRepo.find({
-      where: { postId },
-      relations: ['user'],
-      select: {
-        id: true,
-        type: true,
-        createdAt: true,
-        user: { id: true, name: true },
-      },
-    });
-  }
+  const [data, count] = await this.postReactionRepo.findAndCount({
+    where: { postId },
+    relations: ['user'],
+    select: {
+      id: true,
+      type: true,
+      createdAt: true,
+      user: { id: true, name: true },
+    },
+    skip,
+    take: limit,
+  });
 
-  findByComment(commentId: number) {
-    return this.commentReactionRepo.find({
-      where: { commentId },
-      relations: ['user'],
-      select: {
-        id: true,
-        type: true,
-        createdAt: true,
-        user: { id: true, name: true },
-      },
-    });
-  }
+  return { data, count };
+}
+
+async findByComment({
+  commentId,
+  page = 1,
+  limit = 10,
+}: {
+  commentId: number;
+  page?: number;
+  limit?: number;
+}): Promise<{ data: CommentReaction[]; count: number }> {
+  const skip = (page - 1) * limit;
+
+  const [data, count] = await this.commentReactionRepo.findAndCount({
+    where: { commentId },
+    relations: ['user'],
+    select: {
+      id: true,
+      type: true,
+      createdAt: true,
+      user: { id: true, name: true },
+    },
+    skip,
+    take: limit,
+  });
+
+  return { data, count };
+}
 
   async getUserReactionOnPost(
     userId: number,

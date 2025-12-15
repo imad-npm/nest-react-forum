@@ -10,6 +10,7 @@ import { EmailVerificationService } from './email-verification.service';
 import { SendVerificationDto } from './dto/send-verification.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { UsersService } from '../users/users.service';
+import { ResponseDto } from 'src/common/dto/response.dto';
 
 @Controller('email')
 export class EmailVerificationController {
@@ -19,7 +20,7 @@ export class EmailVerificationController {
   ) {}
 
   @Post('send')
-  async send(@Body() dto: SendVerificationDto) {
+  async send(@Body() dto: SendVerificationDto): Promise<ResponseDto<null>> {
     // Try to find the user by ID
     const user = await this.usersService.findByEmail(dto.email);
 
@@ -29,14 +30,11 @@ export class EmailVerificationController {
     }
 
     // Always return the same message to prevent email enumeration
-    return {
-      message:
-        'If the email exists and is not verified, a new verification link has been sent.',
-    };
+    return new ResponseDto(null, 'If the email exists and is not verified, a new verification link has been sent.');
   }
 
   @Get('verify')
-  async verify(@Query('token') token: string) {
+  async verify(@Query('token') token: string): Promise<ResponseDto<{ userId: number }>> {
     if (!token) {
       throw new BadRequestException('Token is required.');
     }
@@ -46,7 +44,7 @@ export class EmailVerificationController {
 
       await this.usersService.markEmailAsVerified(userId);
 
-      return { message: 'Email verified successfully', userId };
+      return new ResponseDto({ userId }, 'Email verified successfully');
     } catch (err) {
       throw new BadRequestException('Invalid or expired verification token.');
     }

@@ -21,6 +21,9 @@ import { Action } from 'src/casl/casl.types';
 import { CaslService } from 'src/casl/casl.service';
 import { PostResponseDto } from './dto/post-response.dto';
 import { PostQueryDto } from './dto/post-query.dto';
+import { ResponseDto } from 'src/common/dto/response.dto';
+import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
+import { PaginationMetaDto } from 'src/common/dto/pagination-meta.dto';
 
 @Controller('posts')
 export class PostsController {
@@ -30,7 +33,7 @@ export class PostsController {
   ) {}
 
   @Get()
-  async findAll(@Query() query: PostQueryDto) {
+  async findAll(@Query() query: PostQueryDto): Promise<PaginatedResponseDto<PostResponseDto>> {
     const { data, count } = await this.postsService.findAll({
       page: query.page,
       limit: query.limit,
@@ -41,18 +44,20 @@ export class PostsController {
       endDate: query.endDate,
     });
 
-    return {
-      data: data.map(PostResponseDto.fromEntity),
+    const paginationMeta = new PaginationMetaDto(
+      query.page,
+      query.limit,
       count,
-      page: query.page,
-      pages: Math.ceil(count / query.limit),
-    };
+      data.length,
+    );
+
+    return new PaginatedResponseDto(data.map(PostResponseDto.fromEntity), paginationMeta);
   }
 
   @Get(':id')
-  findOne(@Param('id', PostPipe) post: PostEntity): PostResponseDto {
+  findOne(@Param('id', PostPipe) post: PostEntity): ResponseDto<PostResponseDto> {
     this.postsService.update({ id:post.id, views: post.views + 1 });
-    return PostResponseDto.fromEntity(post);
+    return new ResponseDto(PostResponseDto.fromEntity(post));
   }
 
   @HttpPost()
@@ -60,7 +65,7 @@ export class PostsController {
   async create(
     @Body() dto: CreatePostDto,
     @GetUser() user: User,
-  ): Promise<PostResponseDto> {
+  ): Promise<ResponseDto<PostResponseDto>> {
     this.caslService.enforce(user, Action.Create, PostEntity);
     const post = await this.postsService.create({
       title: dto.title,
@@ -68,7 +73,7 @@ export class PostsController {
       author: user,
       communityId: dto.communityId,
     });
-    return PostResponseDto.fromEntity(post);
+    return new ResponseDto(PostResponseDto.fromEntity(post));
   }
 
   @Patch(':id')
@@ -77,20 +82,21 @@ export class PostsController {
     @Param('id', PostPipe) post: PostEntity,
     @Body() dto: UpdatePostDto,
     @GetUser() user: User,
-  ): Promise<PostResponseDto> {
+  ): Promise<ResponseDto<PostResponseDto>> {
     this.caslService.enforce(user, Action.Update, post);
     const updatedPost = await this.postsService.update({
       id:post.id,
       title: dto.title,
       content: dto.content,
     });
-    return PostResponseDto.fromEntity(updatedPost);
+    return new ResponseDto(PostResponseDto.fromEntity(updatedPost));
   }
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
-  async remove(@Param('id', PostPipe) post: PostEntity, @GetUser() user: User) {
+  async remove(@Param('id', PostPipe) post: PostEntity, @GetUser() user: User): Promise<ResponseDto<boolean>> {
     this.caslService.enforce(user, Action.Delete, post);
-    return await this.postsService.remove(post.id);
+    const success = await this.postsService.remove(post.id);
+    return new ResponseDto(success);
   }
 }

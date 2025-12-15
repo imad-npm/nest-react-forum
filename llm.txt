@@ -168,6 +168,49 @@ export class AppController {
 ---
 
 
+### FILE: src/database/seeds/community-subscription.seed.ts ###
+import { AppDataSource } from '../../data-source';
+import { communitySubscriptionFactory } from '../factories/community-subscription.factory';
+import { CommunitySubscription } from '../../community-subscriptions/entities/community-subscription.entity';
+import { User } from '../../users/entities/user.entity';
+import { Community } from '../../communities/entities/community.entity';
+
+export async function seedCommunitySubscriptions(users: User[], communities: Community[]): Promise<CommunitySubscription[]> {
+  const subscriptionRepo = AppDataSource.getRepository(CommunitySubscription);
+  const subscriptions: CommunitySubscription[] = [];
+
+  for (const user of users) {
+    // Each user subscribes to 1 to 3 random communities
+    const numSubscriptions = Math.floor(Math.random() * 3) + 1;
+    const shuffledCommunities = communities.sort(() => 0.5 - Math.random());
+    const communitiesToSubscribe = shuffledCommunities.slice(0, numSubscriptions);
+
+    for (const community of communitiesToSubscribe) {
+      const subscription = communitySubscriptionFactory();
+      subscription.userId = user.id;
+      subscription.communityId = community.id;
+      subscriptions.push(subscription);
+    }
+  }
+
+  await subscriptionRepo.save(subscriptions);
+  console.log(`Seeded ${subscriptions.length} community subscriptions ✅`);
+  return subscriptions;
+}
+
+if (require.main === module) {
+  AppDataSource.initialize().then(async () => {
+    const userRepo = AppDataSource.getRepository(User);
+    const communityRepo = AppDataSource.getRepository(Community);
+    const users = await userRepo.find();
+    const communities = await communityRepo.find();
+    await seedCommunitySubscriptions(users, communities);
+  }).catch(error => console.error('Seeding failed ❌', error));
+}
+
+---
+
+
 ### FILE: src/database/seeds/post.seed.ts ###
 import { AppDataSource } from '../../data-source';
 import { postFactory } from '../factories/post.factory';
@@ -177,13 +220,13 @@ import { User } from '../../users/entities/user.entity';
 export async function seedPosts(users: User[]) {
   const postRepo = AppDataSource.getRepository(Post);
 
-  const posts: Post[] = Array.from({ length: 10 }).map(() => {
+  const posts: Post[] = Array.from({ length: 100 }).map(() => {
     const author = users[Math.floor(Math.random() * users.length)];
     return postFactory(author);
   });
 
   await postRepo.save(posts);
-  console.log('Seeded 10 posts ✅');
+  console.log('Seeded 100 posts ✅');
 
   return posts;
 }
@@ -291,7 +334,7 @@ import { use } from 'passport';
 export async function seedUsers() {
   const userRepo = AppDataSource.getRepository(User);
 
-  const users: User[] = Array.from({ length: 5 }).map(() => userFactory());
+  const users: User[] = Array.from({ length: 100 }).map(() => userFactory());
 
   const user = new User();
   user.name = 'Test User';
@@ -321,14 +364,14 @@ import { Post } from '../../posts/entities/post.entity';
 export async function seedComments(users: User[], posts: Post[]) {
   const commentRepo = AppDataSource.getRepository(Comment);
 
-  const comments: Comment[] = Array.from({ length: 30 }).map(() => {
+  const comments: Comment[] = Array.from({ length: 100 }).map(() => {
     const author = users[Math.floor(Math.random() * users.length)];
     const post = posts[Math.floor(Math.random() * posts.length)];
     return commentFactory(author, post);
   });
 
   await commentRepo.save(comments);
-  console.log('Seeded 30 comments ✅');
+  console.log('Seeded 100 comments ✅');
 
   return comments; // <-- important!
 }
@@ -338,11 +381,44 @@ if (require.main === module) seedComments([], []);
 ---
 
 
+### FILE: src/database/seeds/community.seed.ts ###
+import { AppDataSource } from '../../data-source';
+import { communityFactory } from '../factories/community.factory';
+import { Community } from '../../communities/entities/community.entity';
+import { User } from '../../users/entities/user.entity';
+
+export async function seedCommunities(users: User[]): Promise<Community[]> {
+  const communityRepo = AppDataSource.getRepository(Community);
+  const communities: Community[] = Array.from({ length: 50 }).map(() => {
+    const community = communityFactory();
+    community.createdBy = users[Math.floor(Math.random() * users.length)];
+    community.createdById = community.createdBy.id;
+    return community;
+  });
+
+  await communityRepo.save(communities);
+  console.log(`Seeded ${communities.length} communities ✅`);
+  return communities;
+}
+
+if (require.main === module) {
+  AppDataSource.initialize().then(async () => {
+    const userRepo = AppDataSource.getRepository(User);
+    const users = await userRepo.find();
+    await seedCommunities(users);
+  }).catch(error => console.error('Seeding failed ❌', error));
+}
+
+---
+
+
 ### FILE: src/database/seeds/index.ts ###
 import { seedUsers } from './user.seed';
 import { seedPosts } from './post.seed';
 import { seedComments } from './comment.seed';
-import { seedReactions } from './reaction.seed'; // <-- if you want to seed reactions
+import { seedReactions } from './reaction.seed';
+import { seedCommunities } from './community.seed';
+import { seedCommunitySubscriptions } from './community-subscription.seed';
 import { AppDataSource } from '../../data-source';
 
 async function main() {
@@ -360,6 +436,12 @@ async function main() {
     // Seed reactions (optional)
     await seedReactions(posts, comments, users);
 
+    // Seed communities
+    const communities = await seedCommunities(users);
+
+    // Seed community subscriptions
+    await seedCommunitySubscriptions(users, communities);
+
     console.log('Database seeding complete ✅');
   } catch (error) {
     console.error('Seeding failed ❌', error);
@@ -370,6 +452,20 @@ async function main() {
 }
 
 main();
+
+---
+
+
+### FILE: src/database/factories/community-subscription.factory.ts ###
+import { faker } from '@faker-js/faker';
+import { CommunitySubscription } from '../../community-subscriptions/entities/community-subscription.entity';
+
+export function communitySubscriptionFactory(): CommunitySubscription {
+  const subscription = new CommunitySubscription();
+  // userId and communityId will be set when seeding, as they are foreign keys
+  // For now, we can just return the basic subscription object.
+  return subscription;
+}
 
 ---
 
@@ -478,6 +574,23 @@ export function postReactionFactory(user: User, post: Post): PostReaction {
   reaction.type = faker.helpers.arrayElement(types);
 
   return reaction;
+}
+
+---
+
+
+### FILE: src/database/factories/community.factory.ts ###
+import { faker } from '@faker-js/faker';
+import { Community } from '../../communities/entities/community.entity';
+
+export function communityFactory(): Community {
+  const community = new Community();
+  community.name = faker.internet.username();
+  community.displayName = faker.company.name();
+  community.description = faker.lorem.paragraph();
+  community.isPublic = faker.datatype.boolean();
+  community.subscribersCount = faker.number.int({ min: 0, max: 1000 });
+  return community;
 }
 
 ---
@@ -1187,6 +1300,8 @@ async function bootstrap() {
     }),
   );
   useContainer(app.select(AppModule), { fallbackOnErrors: true });
+  
+ 
   // Get ConfigService instance
   const configService = app.get(ConfigService);
   const port = configService.get<number>('PORT') ?? 3000;
@@ -1543,13 +1658,15 @@ import { Controller, Get, Query } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { UserQueryDto } from './dtos/user-query.dto';
 import { UserResponseDto } from './dtos/user-response.dto';
+import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
+import { PaginationMetaDto } from 'src/common/dto/pagination-meta.dto';
 
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get()
-  async findAll(@Query() query: UserQueryDto) {
+  async findAll(@Query() query: UserQueryDto): Promise<PaginatedResponseDto<UserResponseDto>> {
     const { data, count } = await this.usersService.findAll(
       query.page,
       query.limit,
@@ -1557,12 +1674,14 @@ export class UsersController {
       query.provider,
     );
 
-    return {
-      data: data.map(UserResponseDto.fromEntity),
+    const paginationMeta = new PaginationMetaDto(
+      query.page,
+      query.limit,
       count,
-      page: query.page,
-      pages: Math.ceil(count / query.limit),
-    };
+      data.length,
+    );
+
+    return new PaginatedResponseDto(data.map(UserResponseDto.fromEntity), paginationMeta);
   }
 }
 
@@ -1576,9 +1695,11 @@ import { CommunitySubscriptionsController } from './community-subscriptions.cont
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CommunitySubscription } from './entities/community-subscription.entity';
 import { CommunitiesModule } from '../communities/communities.module';
+import { UsersModule } from 'src/users/users.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([CommunitySubscription]), CommunitiesModule],
+  imports: [TypeOrmModule.forFeature([CommunitySubscription]), 
+  CommunitiesModule,UsersModule],
   controllers: [CommunitySubscriptionsController],
   providers: [CommunitySubscriptionsService],
   exports: [CommunitySubscriptionsService],
@@ -1618,7 +1739,7 @@ export class CommunitySubscriptionsService {
   ) { }
 
 
-  async findSubscriptions(query: SubscriptionQuery) {
+  async findSubscriptions(query: SubscriptionQuery): Promise<{ data: CommunitySubscription[]; count: number }> {
     const where: any = {};
     const relations: string[] = [];
 
@@ -1642,7 +1763,8 @@ export class CommunitySubscriptionsService {
       options.take = limit;
     }
 
-    return this.subscriptionsRepository.find(options);
+    const [data, count] = await this.subscriptionsRepository.findAndCount(options);
+    return { data, count };
   }
 
   async subscribe(communityId: number, userId: number) {
@@ -1758,9 +1880,12 @@ import { CommunitySubscriptionResponseDto } from './dto/community-subscription-r
 import { GetUser } from 'src/decorators/user.decorator';
 import { CommunitySubscription } from './entities/community-subscription.entity';
 import { CommunitySubscriptionQueryDto } from './dto/community-subscription-query.dto';
+import { ResponseDto } from 'src/common/dto/response.dto';
+import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
+import { PaginationMetaDto } from 'src/common/dto/pagination-meta.dto';
 
 @Controller()
-@UseGuards(JwtAuthGuard)
+//@UseGuards(JwtAuthGuard)
 export class CommunitySubscriptionsController {
   constructor(
     private readonly communitySubscriptionsService: CommunitySubscriptionsService,
@@ -1771,17 +1896,24 @@ export class CommunitySubscriptionsController {
   @Get('community-subscriptions')
   async findSubscriptions(
    @Query() query: CommunitySubscriptionQueryDto,
-  ): Promise<CommunitySubscriptionResponseDto[]> {
+  ): Promise<PaginatedResponseDto<CommunitySubscriptionResponseDto>> {
     
 
-    const subscriptions = await this.communitySubscriptionsService.findSubscriptions({
+    const { data, count } = await this.communitySubscriptionsService.findSubscriptions({
       userId:query.userId,
       communityId:query.communityId ,
       page:query.page ,
       limit : query.limit
     });
 
-    return subscriptions.map(CommunitySubscriptionResponseDto.fromEntity);
+    const paginationMeta = new PaginationMetaDto(
+      query.page,
+      query.limit,
+      count,
+      data.length,
+    );
+
+    return new PaginatedResponseDto(data.map(CommunitySubscriptionResponseDto.fromEntity), paginationMeta);
   }
 
 
@@ -1789,25 +1921,24 @@ export class CommunitySubscriptionsController {
   async subscribe(
     @Param('communityId', ParseIntPipe) communityId: number,
     @GetUser() user: User,
-  ): Promise<CommunitySubscriptionResponseDto> {
+  ): Promise<ResponseDto<CommunitySubscriptionResponseDto>> {
     const subscription = await this.communitySubscriptionsService.subscribe(
       communityId,
       user.id,
     );
-    return CommunitySubscriptionResponseDto.fromEntity(subscription);
+    return new ResponseDto(CommunitySubscriptionResponseDto.fromEntity(subscription));
   }
 
-  @Delete('communities/:communityId/subscriptions/me')
+  @Delete('users/me/communities/:communityId/subscriptions')
   async unsubscribe(
     @Param('communityId', ParseIntPipe) communityId: number,
     @GetUser() user: User,
-  ) {
+  ): Promise<ResponseDto<boolean>> {
     await this.communitySubscriptionsService.unsubscribe(communityId, user.id);
+    return new ResponseDto(true);
   }
-
-
-
 }
+
 
 ---
 
@@ -1927,6 +2058,7 @@ import {
   Delete,
   UseGuards,
   NotFoundException,
+  Query,
 } from '@nestjs/common';
 import { ReactionsService } from './reactions.service';
 import { CreateReactionDto } from './dto/create-reaction.dto';
@@ -1936,14 +2068,19 @@ import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { Action } from 'src/casl/casl.types';
 import { PostReaction } from './entities/post-reaction.entity';
 import { CommentReaction } from './entities/comment-reaction.entity';
-import { PostPipe } from 'src/posts/pipes/post.pipe';
-import { CommentPipe } from 'src/comments/pipes/comment.pipe';
 import { Post as PostEntity } from '../posts/entities/post.entity';
 import { Comment as CommentEntity } from '../comments/entities/comment.entity';
 import { CaslService } from 'src/casl/casl.service';
 import { ReactionResponseDto } from './dto/reaction-response.dto';
 import { PostReactionPipe } from './pipes/post-reaction.pipe';
 import { CommentReactionPipe } from './pipes/comment-reaction.pipe';
+import { ResponseDto } from 'src/common/dto/response.dto';
+import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
+import { PaginationMetaDto } from 'src/common/dto/pagination-meta.dto';
+import { ReactionQueryDto } from './dto/reaction-query.dto';
+import { CommentPipe } from 'src/comments/pipes/comment.pipe';
+import { PostPipe } from 'src/posts/pipes/post.pipe';
+
 
 @Controller()
 export class ReactionsController {
@@ -1958,22 +2095,29 @@ export class ReactionsController {
     @Param('postId', PostPipe) post: PostEntity,
     @Body() dto: CreateReactionDto,
     @GetUser() user: User,
-  ): Promise<ReactionResponseDto> {
+  ): Promise<ResponseDto<ReactionResponseDto>> {
     this.caslService.enforce(user, Action.Create, PostReaction);
     const reaction = await this.reactionsService.create(
      {   type :dto.type,
       userId :user.id,
       postId: post.id,}
     );
-    return ReactionResponseDto.fromEntity(reaction);
+    return new ResponseDto(ReactionResponseDto.fromEntity(reaction));
   }
 
   @Get('posts/:postId/reactions')
   async getPostReactions(
     @Param('postId', PostPipe) post: PostEntity,
-  ): Promise<ReactionResponseDto[]> {
-    const reactions = await this.reactionsService.findByPost(post.id);
-    return reactions.map(ReactionResponseDto.fromEntity);
+    @Query() query: ReactionQueryDto,
+  ): Promise<PaginatedResponseDto<ReactionResponseDto>> {
+    const { data, count } = await this.reactionsService.findByPost({ postId: post.id, page: query.page, limit: query.limit });
+    const paginationMeta = new PaginationMetaDto(
+      query.page,
+      query.limit,
+      count,
+      data.length,
+    );
+    return new PaginatedResponseDto(data.map(ReactionResponseDto.fromEntity), paginationMeta);
   }
 
   @Post('comments/:commentId/reactions')
@@ -1982,22 +2126,29 @@ export class ReactionsController {
     @Param('commentId', CommentPipe) comment: CommentEntity,
     @Body() dto: CreateReactionDto,
     @GetUser() user: User,
-  ): Promise<ReactionResponseDto> {
+  ): Promise<ResponseDto<ReactionResponseDto>> {
     this.caslService.enforce(user, Action.Create, CommentReaction);
     const reaction = await this.reactionsService.create(
    {   type :dto.type,
       userId :user.id,
       commentId: comment.id,}
     );
-    return ReactionResponseDto.fromEntity(reaction);
+    return new ResponseDto(ReactionResponseDto.fromEntity(reaction));
   }
 
   @Get('comments/:commentId/reactions')
   async getCommentReactions(
     @Param('commentId', CommentPipe) comment: CommentEntity,
-  ): Promise<ReactionResponseDto[]> {
-    const reactions = await this.reactionsService.findByComment(comment.id);
-    return reactions.map(ReactionResponseDto.fromEntity);
+    @Query() query: ReactionQueryDto,
+  ): Promise<PaginatedResponseDto<ReactionResponseDto>> {
+    const { data, count } = await this.reactionsService.findByComment({ commentId: comment.id, page: query.page, limit: query.limit });
+    const paginationMeta = new PaginationMetaDto(
+      query.page,
+      query.limit,
+      count,
+      data.length,
+    );
+    return new PaginatedResponseDto(data.map(ReactionResponseDto.fromEntity), paginationMeta);
   }
 
   @Delete('posts/:postId/reactions/:reactionId')
@@ -2005,9 +2156,10 @@ export class ReactionsController {
   async deletePostReaction(
     @Param('reactionId', PostReactionPipe) reaction: PostReaction,
     @GetUser() user: User,
-  ) {
+  ): Promise<ResponseDto<boolean>> {
     this.caslService.enforce(user, Action.Delete, reaction);
-    return await this.reactionsService.deletePostReaction(reaction.id);
+    await this.reactionsService.deletePostReaction(reaction.id);
+    return new ResponseDto(true);
   }
 
   @Delete('comments/:commentId/reactions/:reactionId')
@@ -2015,9 +2167,10 @@ export class ReactionsController {
   async deleteCommentReaction(
     @Param('reactionId', CommentReactionPipe) reaction: CommentReaction,
     @GetUser() user: User,
-  ) {
+  ): Promise<ResponseDto<boolean>> {
     this.caslService.enforce(user, Action.Delete, reaction);
-    return await this.reactionsService.deleteCommentReaction(reaction.id);
+    await this.reactionsService.deleteCommentReaction(reaction.id);
+    return new ResponseDto(true);
   }
 }
 
@@ -2127,43 +2280,82 @@ export class ReactionsService {
       'Reaction must target either a post or a comment',
     );
 
-
   }
+async findByPost({
+  postId,
+  page = 1,
+  limit = 10,
+}: {
+  postId: number;
+  page?: number;
+  limit?: number;
+}): Promise<{ data: PostReaction[]; count: number }> {
+  const skip = (page - 1) * limit;
 
-  // ─────────────────────────────────────────────
-  // READ
-  // ─────────────────────────────────────────────
-  findByPost(postId: number) {
-    return this.postReactionRepo.find({
-      where: { postId },
-      relations: ['user'],
-      select: {
-        id: true,
-        type: true,
-        createdAt: true,
-        user: { id: true, name: true },
-      },
-    });
-  }
+  const [data, count] = await this.postReactionRepo.findAndCount({
+    where: { postId },
+    relations: ['user'],
+    select: {
+      id: true,
+      type: true,
+      createdAt: true,
+      user: { id: true, name: true },
+    },
+    skip,
+    take: limit,
+  });
 
-  findByComment(commentId: number) {
-    return this.commentReactionRepo.find({
-      where: { commentId },
-      relations: ['user'],
-      select: {
-        id: true,
-        type: true,
-        createdAt: true,
-        user: { id: true, name: true },
-      },
-    });
-  }
+  return { data, count };
+}
+
+async findByComment({
+  commentId,
+  page = 1,
+  limit = 10,
+}: {
+  commentId: number;
+  page?: number;
+  limit?: number;
+}): Promise<{ data: CommentReaction[]; count: number }> {
+  const skip = (page - 1) * limit;
+
+  const [data, count] = await this.commentReactionRepo.findAndCount({
+    where: { commentId },
+    relations: ['user'],
+    select: {
+      id: true,
+      type: true,
+      createdAt: true,
+      user: { id: true, name: true },
+    },
+    skip,
+    take: limit,
+  });
+
+  return { data, count };
+}
 
   async getUserReactionOnPost(
     userId: number,
     postId: number,
   ) {
     return this.postReactionRepo.findOne({ where: { userId, postId } });
+  }
+
+  async findPostReactionById(id: number): Promise<PostReaction> {
+    const reaction = await this.postReactionRepo.findOne({ where: { id } });
+    if (!reaction) {
+      throw new NotFoundException('Post reaction not found');
+    }
+    return reaction;
+  }
+
+  async findCommentReactionById(id: number): Promise<CommentReaction> {
+    const reaction = await this.commentReactionRepo.findOne({ where: { id } });
+    if (!reaction) {
+      throw new NotFoundException('Comment reaction not found');
+    }
+    return reaction;
   }
 
   // ─────────────────────────────────────────────
@@ -2398,6 +2590,54 @@ export class CreateReactionDto {
 ---
 
 
+### FILE: src/common/dto/pagination-meta.dto.ts ###
+
+export class PaginationMetaDto {
+  page: number;
+
+  limit: number;
+
+  totalItems: number;
+
+  totalPages: number;
+
+  itemCount: number;
+
+  constructor(page: number, limit: number, totalItems: number, itemCount: number) {
+    this.page = page;
+    this.limit = limit;
+    this.totalItems = totalItems;
+    this.itemCount = itemCount;
+    this.totalPages = Math.ceil(this.totalItems / this.limit);
+  }
+}
+
+---
+
+
+### FILE: src/common/dto/response.dto.ts ###
+
+export class ResponseDto<T> {
+  data: T;
+
+  message?: string;
+
+  meta?: {
+    count?: number;
+    total?: number;
+    [key: string]: any;
+  };
+
+  constructor(data: T, message?: string, meta?: { count?: number; total?: number; [key: string]: any }) {
+    this.data = data;
+    this.message = message;
+    this.meta = meta;
+  }
+}
+
+---
+
+
 ### FILE: src/common/dto/pagination.dto.ts ###
 import { Type } from 'class-transformer';
 import { IsInt, Min, IsOptional } from 'class-validator';
@@ -2414,6 +2654,29 @@ export class PaginationDto {
   @IsInt()
   @Min(1)
   limit: number = 10; // default 10
+}
+
+---
+
+
+### FILE: src/common/dto/paginated-response.dto.ts ###
+import { Type } from 'class-transformer';
+import { ValidateNested } from 'class-validator';
+import { PaginationMetaDto } from './pagination-meta.dto';
+import { ResponseDto } from './response.dto';
+
+export class PaginatedResponseDto<T> extends ResponseDto<T[]> {
+  data: T[];
+
+  @Type(() => PaginationMetaDto)
+  @ValidateNested()
+  meta: PaginationMetaDto;
+
+  constructor(data: T[], meta: PaginationMetaDto) {
+    super(data,undefined, meta);
+    this.data = data;
+    this.meta = meta;
+  }
 }
 
 ---
@@ -2461,6 +2724,7 @@ import { EmailVerificationService } from './email-verification.service';
 import { SendVerificationDto } from './dto/send-verification.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { UsersService } from '../users/users.service';
+import { ResponseDto } from 'src/common/dto/response.dto';
 
 @Controller('email')
 export class EmailVerificationController {
@@ -2470,7 +2734,7 @@ export class EmailVerificationController {
   ) {}
 
   @Post('send')
-  async send(@Body() dto: SendVerificationDto) {
+  async send(@Body() dto: SendVerificationDto): Promise<ResponseDto<null>> {
     // Try to find the user by ID
     const user = await this.usersService.findByEmail(dto.email);
 
@@ -2480,14 +2744,11 @@ export class EmailVerificationController {
     }
 
     // Always return the same message to prevent email enumeration
-    return {
-      message:
-        'If the email exists and is not verified, a new verification link has been sent.',
-    };
+    return new ResponseDto(null, 'If the email exists and is not verified, a new verification link has been sent.');
   }
 
   @Get('verify')
-  async verify(@Query('token') token: string) {
+  async verify(@Query('token') token: string): Promise<ResponseDto<{ userId: number }>> {
     if (!token) {
       throw new BadRequestException('Token is required.');
     }
@@ -2497,7 +2758,7 @@ export class EmailVerificationController {
 
       await this.usersService.markEmailAsVerified(userId);
 
-      return { message: 'Email verified successfully', userId };
+      return new ResponseDto({ userId }, 'Email verified successfully');
     } catch (err) {
       throw new BadRequestException('Invalid or expired verification token.');
     }
@@ -2923,9 +3184,10 @@ import { PostsController } from './posts.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Post } from './entities/post.entity';
 import { CaslModule } from 'src/casl/casl.module';
+import { CommunitiesModule } from 'src/communities/communities.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Post]), CaslModule],
+  imports: [TypeOrmModule.forFeature([Post]), CaslModule, CommunitiesModule],
   providers: [PostsService],
   controllers: [PostsController],
   exports: [PostsService],
@@ -2942,24 +3204,40 @@ import { Brackets, Repository } from 'typeorm';
 import { Post } from './entities/post.entity';
 import { User } from 'src/users/entities/user.entity';
 import { PostSort } from './dto/post-query.dto';
+import { CommunitiesService } from 'src/communities/communities.service'; // Import CommunitiesService
 
 @Injectable()
 export class PostsService {
   constructor(
     @InjectRepository(Post)
     private postsRepository: Repository<Post>,
+    private readonly communitiesService: CommunitiesService, // Inject CommunitiesService
   ) { }
 
   async findAll(
-    page = 1,
-    limit = 10,
-    search?: string,
-    authorId?: number,
-    sort?: PostSort,
+    options: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      authorId?: number;
+      sort?: PostSort;
+      startDate?: Date;
+      endDate?: Date;
+    },
   ): Promise<{
     data: Post[];
     count: number;
   }> {
+    const {
+      page = 1,
+      limit = 10,
+      search,
+      authorId,
+      sort,
+      startDate,
+      endDate,
+    } = options;
+
     const query = this.postsRepository
       .createQueryBuilder('post')
       .leftJoinAndSelect('post.author', 'author')
@@ -2978,6 +3256,14 @@ export class PostsService {
 
     if (authorId) {
       query.andWhere('post.author.id = :authorId', { authorId });
+    }
+
+    if (startDate) {
+      query.andWhere('post.createdAt >= :startDate', { startDate });
+    }
+
+    if (endDate) {
+      query.andWhere('post.createdAt <= :endDate', { endDate });
     }
 
     if (sort === PostSort.NEWEST) {
@@ -3008,11 +3294,19 @@ export class PostsService {
     });
   }
 
-  create(title: string, content: string, author: User): Promise<Post> {
+  async create(
+    { title, content, author, communityId }: { title: string; content: string; author: User; communityId: number },
+  ): Promise<Post> {
+    const community = await this.communitiesService.findOne(communityId);
+    if (!community) {
+      throw new NotFoundException(`Community with ID ${communityId} not found`);
+    }
+
     const post = this.postsRepository.create({
       title,
       content,
       author,
+      community,
     });
     return this.postsRepository.save(post);
   }
@@ -3039,7 +3333,7 @@ export class PostsService {
   async remove(id: number): Promise<boolean> {
     const post = await this.postsRepository.findOneBy({ id });
     if (!post) {
-      throw new Error('Post not found'); // TODO: Use a more specific NestJS exception
+      throw new NotFoundException('Post not found'); // TODO: Use a more specific NestJS exception
     }
     const res = await this.postsRepository.remove(post);
     return !!res;
@@ -3140,6 +3434,9 @@ import { Action } from 'src/casl/casl.types';
 import { CaslService } from 'src/casl/casl.service';
 import { PostResponseDto } from './dto/post-response.dto';
 import { PostQueryDto } from './dto/post-query.dto';
+import { ResponseDto } from 'src/common/dto/response.dto';
+import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
+import { PaginationMetaDto } from 'src/common/dto/pagination-meta.dto';
 
 @Controller('posts')
 export class PostsController {
@@ -3149,27 +3446,31 @@ export class PostsController {
   ) {}
 
   @Get()
-  async findAll(@Query() query: PostQueryDto) {
-    const { data, count } = await this.postsService.findAll(
+  async findAll(@Query() query: PostQueryDto): Promise<PaginatedResponseDto<PostResponseDto>> {
+    const { data, count } = await this.postsService.findAll({
+      page: query.page,
+      limit: query.limit,
+      search: query.search,
+      authorId: query.authorId,
+      sort: query.sort,
+      startDate: query.startDate,
+      endDate: query.endDate,
+    });
+
+    const paginationMeta = new PaginationMetaDto(
       query.page,
       query.limit,
-      query.search,
-      query.authorId,
-      query.sort,
+      count,
+      data.length,
     );
 
-    return {
-      data: data.map(PostResponseDto.fromEntity),
-      count,
-      page: query.page,
-      pages: Math.ceil(count / query.limit),
-    };
+    return new PaginatedResponseDto(data.map(PostResponseDto.fromEntity), paginationMeta);
   }
 
   @Get(':id')
-  findOne(@Param('id', PostPipe) post: PostEntity): PostResponseDto {
+  findOne(@Param('id', PostPipe) post: PostEntity): ResponseDto<PostResponseDto> {
     this.postsService.update({ id:post.id, views: post.views + 1 });
-    return PostResponseDto.fromEntity(post);
+    return new ResponseDto(PostResponseDto.fromEntity(post));
   }
 
   @HttpPost()
@@ -3177,10 +3478,15 @@ export class PostsController {
   async create(
     @Body() dto: CreatePostDto,
     @GetUser() user: User,
-  ): Promise<PostResponseDto> {
+  ): Promise<ResponseDto<PostResponseDto>> {
     this.caslService.enforce(user, Action.Create, PostEntity);
-    const post = await this.postsService.create(dto.title, dto.content, user);
-    return PostResponseDto.fromEntity(post);
+    const post = await this.postsService.create({
+      title: dto.title,
+      content: dto.content,
+      author: user,
+      communityId: dto.communityId,
+    });
+    return new ResponseDto(PostResponseDto.fromEntity(post));
   }
 
   @Patch(':id')
@@ -3189,21 +3495,22 @@ export class PostsController {
     @Param('id', PostPipe) post: PostEntity,
     @Body() dto: UpdatePostDto,
     @GetUser() user: User,
-  ): Promise<PostResponseDto> {
+  ): Promise<ResponseDto<PostResponseDto>> {
     this.caslService.enforce(user, Action.Update, post);
     const updatedPost = await this.postsService.update({
       id:post.id,
       title: dto.title,
       content: dto.content,
     });
-    return PostResponseDto.fromEntity(updatedPost);
+    return new ResponseDto(PostResponseDto.fromEntity(updatedPost));
   }
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
-  async remove(@Param('id', PostPipe) post: PostEntity, @GetUser() user: User) {
+  async remove(@Param('id', PostPipe) post: PostEntity, @GetUser() user: User): Promise<ResponseDto<boolean>> {
     this.caslService.enforce(user, Action.Delete, post);
-    return await this.postsService.remove(post.id);
+    const success = await this.postsService.remove(post.id);
+    return new ResponseDto(success);
   }
 }
 
@@ -3227,7 +3534,7 @@ export class UpdatePostDto extends PartialType(CreatePostDto) {
 
 ### FILE: src/posts/dto/post-query.dto.ts ###
 import { PaginationDto } from '../../common/dto/pagination.dto';
-import { IsOptional, IsString, IsInt, IsEnum } from 'class-validator';
+import { IsOptional, IsString, IsInt, IsEnum, IsISO8601 } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export enum PostSort {
@@ -3249,6 +3556,16 @@ export class PostQueryDto extends PaginationDto {
   @IsOptional()
   @IsEnum(PostSort)
   sort?: PostSort;
+
+  @IsOptional()
+  @IsISO8601()
+  @Type(() => Date)
+  startDate?: Date;
+
+  @IsOptional()
+  @IsISO8601()
+  @Type(() => Date)
+  endDate?: Date;
 }
 
 ---
@@ -3295,6 +3612,7 @@ export class PostResponseDto {
 
 ### FILE: src/posts/dto/create-post.dto.ts ###
 import { IsString, IsNotEmpty, IsInt } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class CreatePostDto {
   @IsString()
@@ -3304,6 +3622,11 @@ export class CreatePostDto {
   @IsString()
   @IsNotEmpty()
   content: string;
+
+  @IsInt()
+  @IsNotEmpty()
+  @Type(() => Number)
+  communityId: number;
 }
 
 ---
@@ -3502,6 +3825,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { UserResponseDto } from 'src/users/dtos/user-response.dto';
 import { User } from 'src/users/entities/user.entity';
 import { RefreshDto } from './dtos/refresh.dto';
+import { ResponseDto } from 'src/common/dto/response.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -3511,22 +3835,19 @@ export class AuthController {
   ) {}
 
   @Post('register')
-  async register(@Body() dto: RegisterDto) {
+  async register(@Body() dto: RegisterDto): Promise<ResponseDto<UserResponseDto>> {
     const user = await this.authService.register(
       dto.name,
       dto.email,
       dto.password,
     );
     await this.emailVerificationService.sendVerificationEmail(user);
-    return {
-      message: 'Registration successful. Please verify your email.',
-      user: UserResponseDto.fromEntity(user),
-    };
+    return new ResponseDto(UserResponseDto.fromEntity(user), 'Registration successful. Please verify your email.');
   }
 
   @UseGuards(LocalAuthGuard)
   @Post('login')
-  async login(@Req() req: { user: User }) {
+  async login(@Req() req: { user: User }): Promise<ResponseDto<{ user: UserResponseDto; accessToken: string; refreshToken: string }>> {
     if (!req.user.emailVerifiedAt) {
       await this.emailVerificationService.sendVerificationEmail(req.user);
 
@@ -3535,20 +3856,20 @@ export class AuthController {
       );
     }
     const tokens = await this.authService.signIn(req.user);
-    return {
+    return new ResponseDto({
       user: UserResponseDto.fromEntity(req.user),
       ...tokens,
-    };
+    });
   }
 
   @UseGuards(JwtRefreshGuard)
   @Post('refresh')
-  async refresh(@Body() dto: RefreshDto, @Req() req) {
+  async refresh(@Body() dto: RefreshDto, @Req() req): Promise<ResponseDto<{ user: UserResponseDto; accessToken: string; refreshToken: string }>> {
     const tokens = await this.authService.renewTokens(dto.refreshToken);
-    return {
+    return new ResponseDto({
       user: UserResponseDto.fromEntity(req.user),
       ...tokens,
-    };
+    });
   }
 
   // Step 1: Redirect to Google OAuth
@@ -3561,13 +3882,13 @@ export class AuthController {
   // Step 2: Google callback → GoogleStrategy.validate() → req.user
   @Get('google/callback')
   @UseGuards(AuthGuard('google'))
-  async googleCallback(@Req() req: { user: any }) {
+  async googleCallback(@Req() req: { user: any }): Promise<ResponseDto<{ user: UserResponseDto; accessToken: string; refreshToken: string }>> {
     const user = await this.authService.googleLogin(req.user);
     const tokens = await this.authService.signIn(user);
-    return {
+    return new ResponseDto({
       user: UserResponseDto.fromEntity(user),
       ...tokens,
-    };
+    });
   }
 }
 
@@ -4232,6 +4553,9 @@ import { CommunityResponseDto } from './dto/community-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { User } from '../users/entities/user.entity';
 import { GetUser } from 'src/decorators/user.decorator';
+import { ResponseDto } from 'src/common/dto/response.dto';
+import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
+import { PaginationMetaDto } from 'src/common/dto/pagination-meta.dto';
 
 @Controller('communities')
 export class CommunitiesController {
@@ -4242,8 +4566,7 @@ export class CommunitiesController {
   async create(
     @Body() createCommunityDto: CreateCommunityDto,
     @GetUser() user: User,
-  ): Promise<CommunityResponseDto> {
-
+  ): Promise<ResponseDto<CommunityResponseDto>> {
     const community = await this.communitiesService.create({
        userId :user.id ,
       name: createCommunityDto.name,
@@ -4251,11 +4574,11 @@ export class CommunitiesController {
       description: createCommunityDto.description,
       isPublic: createCommunityDto.isPublic,
     });
-    return CommunityResponseDto.fromEntity(community);
+    return new ResponseDto(CommunityResponseDto.fromEntity(community));
   }
 
   @Get()
-  async findAll(@Query() query: CommunityQueryDto): Promise<[CommunityResponseDto[], number]> {
+  async findAll(@Query() query: CommunityQueryDto): Promise<PaginatedResponseDto<CommunityResponseDto>> {
     const [communities, count] = await this.communitiesService.findAll({
       limit: query.limit,
       page: query.page,
@@ -4264,13 +4587,20 @@ export class CommunitiesController {
       isPublic: query.isPublic,
     });
 
-    return [communities.map(c => CommunityResponseDto.fromEntity(c)), count];
+    const paginationMeta = new PaginationMetaDto(
+      query.page,
+      query.limit,
+      count,
+      communities.length,
+    );
+
+    return new PaginatedResponseDto(communities.map(c => CommunityResponseDto.fromEntity(c)), paginationMeta);
   }
 
   @Get(':id')
-  async findOne(@Param('id', ParseIntPipe) id: number): Promise<CommunityResponseDto> {
+  async findOne(@Param('id', ParseIntPipe) id: number): Promise<ResponseDto<CommunityResponseDto>> {
     const community = await this.communitiesService.findOne(id);
-    return CommunityResponseDto.fromEntity(community);
+    return new ResponseDto(CommunityResponseDto.fromEntity(community));
   }
 
   @Patch(':id')
@@ -4278,9 +4608,7 @@ export class CommunitiesController {
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateCommunityDto: UpdateCommunityDto,
-  ): Promise<CommunityResponseDto> {
-  
-
+  ): Promise<ResponseDto<CommunityResponseDto>> {
     const community = await this.communitiesService.update(  {
       id,
       name: updateCommunityDto.name,
@@ -4288,13 +4616,14 @@ export class CommunitiesController {
       description: updateCommunityDto.description,
       isPublic: updateCommunityDto.isPublic,
     });
-    return CommunityResponseDto.fromEntity(community);
+    return new ResponseDto(CommunityResponseDto.fromEntity(community));
   }
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
-  async remove(@Param('id', ParseIntPipe) id: number) {
-    return this.communitiesService.remove(id);
+  async remove(@Param('id', ParseIntPipe) id: number): Promise<ResponseDto<void>> {
+    const success = await this.communitiesService.remove(id);
+    return new ResponseDto(success);
   }
 }
 
@@ -4679,6 +5008,38 @@ export class ProfileResponseDto {
 ---
 
 
+### FILE: src/profile/interceptors/picture.interceptor.ts ###
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
+
+/**
+ * Reusable interceptor for profile picture uploads.
+ * @param field The name of the file field (default: 'picture')
+ */
+export function PictureInterceptor(field = 'picture') {
+  return FileInterceptor(field, {
+    storage: diskStorage({
+      destination: './uploads',
+      filename: (_req, file, cb) => {
+        const randomName = Array(32)
+          .fill(null)
+          .map(() => Math.floor(Math.random() * 16).toString(16))
+          .join('');
+        cb(null, `${randomName}${extname(file.originalname)}`);
+      },
+    }),
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+    fileFilter: (_req, file, callback) => {
+      const allowedTypes = /jpeg|jpg|png|gif/;
+      callback(null, allowedTypes.test(file.mimetype));
+    },
+  });
+}
+
+---
+
+
 ### FILE: src/profile/profile.controller.ts ###
 import {
   Controller,
@@ -4702,12 +5063,13 @@ import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { ProfileResponseDto } from './dtos/profile-response.dto';
 import { ConfigService } from '@nestjs/config';
+import { PictureInterceptor } from './interceptors/picture.interceptor';
 
 @Controller('profile')
 export class ProfileController {
   constructor(private readonly profileService: ProfileService
 
-  ) {}
+  ) { }
   @UseGuards(JwtAuthGuard)
   @Get()
   async getMyProfile(@GetUser() user: User): Promise<ProfileResponseDto> {
@@ -4717,26 +5079,14 @@ export class ProfileController {
 
   @UseGuards(JwtAuthGuard)
   @Post()
-  @UseInterceptors(
-    FileInterceptor('picture', {
-      storage: diskStorage({
-        destination: './uploads',
-        filename: (req, file, cb) => {
-          const randomName = Array(32)
-            .fill(null)
-            .map(() => Math.floor(Math.random() * 16).toString(16))
-            .join('');
-          cb(null, `${randomName}${extname(file.originalname)}`);
-        },
-      }),
-    }),
+  @UseInterceptors(PictureInterceptor
   )
   async createMyProfile(
     @GetUser() user: User,
     @Body() createProfileDto: CreateProfileDto,
     @UploadedFile() file: Express.Multer.File,
   ): Promise<ProfileResponseDto> {
-  
+
     const profile = await this.profileService.createProfile({
       user,
       username: createProfileDto.username,
@@ -4749,20 +5099,7 @@ export class ProfileController {
 
   @UseGuards(JwtAuthGuard)
   @Patch()
-  @UseInterceptors(
-    FileInterceptor('picture', {
-      storage: diskStorage({
-        destination: './uploads',
-        filename: (req, file, cb) => {
-          const randomName = Array(32)
-            .fill(null)
-            .map(() => Math.floor(Math.random() * 16).toString(16))
-            .join('');
-          cb(null, `${randomName}${extname(file.originalname)}`);
-        },
-      }),
-    }),
-  )
+  @UseInterceptors(PictureInterceptor)
   async updateMyProfile(
     @GetUser() user: User,
     @Body() updateProfileDto: UpdateProfileDto,
@@ -4780,7 +5117,6 @@ export class ProfileController {
     return ProfileResponseDto.fromEntity(updatedProfile);
   }
 }
-
 ---
 
 
@@ -5121,6 +5457,9 @@ import { PostPipe } from 'src/posts/pipes/post.pipe';
 import { CaslService } from 'src/casl/casl.service';
 import { CommentResponseDto } from './dto/comment-response.dto';
 import { CommentQueryDto } from './dto/comment-query.dto';
+import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
+import { PaginationMetaDto } from 'src/common/dto/pagination-meta.dto';
+import { ResponseDto } from 'src/common/dto/response.dto';
 
 @Controller()
 export class CommentsController {
@@ -5130,7 +5469,7 @@ export class CommentsController {
   ) { }
 
   @Get('comments')
-  async findAll(@Query() query: CommentQueryDto) {
+  async findAll(@Query() query: CommentQueryDto): Promise<PaginatedResponseDto<CommentResponseDto>> {
     const { data, count } = await this.commentsService.findAll(
     { page: query.page,
       limit :query.limit,
@@ -5138,19 +5477,21 @@ export class CommentsController {
       authorId :query.authorId,}
     );
 
-    return {
-      data: data.map(CommentResponseDto.fromEntity),
+    const paginationMeta = new PaginationMetaDto(
+      query.page,
+      query.limit,
       count,
-      page: query.page,
-      pages: Math.ceil(count / query.limit),
-    };
+      data.length,
+    );
+
+    return new PaginatedResponseDto(data.map(CommentResponseDto.fromEntity), paginationMeta);
   }
 
   @Get('posts/:postId/comments')
   async findByPost(
     @Param('postId', PostPipe) post: PostEntity,
     @Query() query: CommentQueryDto,
-  ) {
+  ): Promise<PaginatedResponseDto<CommentResponseDto>> {
     const { data, count } = await this.commentsService.findAll(
       {
         postId: post.id,
@@ -5158,12 +5499,15 @@ export class CommentsController {
         limit: query.limit,
       }
     );
-    return {
-      data: data.map(CommentResponseDto.fromEntity),
+
+    const paginationMeta = new PaginationMetaDto(
+      query.page,
+      query.limit,
       count,
-      page: query.page,
-      pages: Math.ceil(count / query.limit),
-    };
+      data.length,
+    );
+    
+    return new PaginatedResponseDto(data.map(CommentResponseDto.fromEntity), paginationMeta);
   }
 
   @HttpPost('posts/:postId/comments')
@@ -5172,7 +5516,7 @@ export class CommentsController {
     @Param('postId', PostPipe) post: PostEntity,
     @Body() dto: CreateCommentDto,
     @GetUser() user: User,
-  ): Promise<CommentResponseDto> {
+  ): Promise<ResponseDto<CommentResponseDto>> {
     this.caslService.enforce(user, Action.Create, Comment);
     const comment = await this.commentsService.createComment(
       post.id,
@@ -5180,12 +5524,12 @@ export class CommentsController {
       user.id,
       dto.parentId,
     );
-    return CommentResponseDto.fromEntity(comment);
+    return new ResponseDto(CommentResponseDto.fromEntity(comment));
   }
 
   @Get('comments/:id')
-  findOne(@Param('id', CommentPipe) comment: Comment): CommentResponseDto {
-    return CommentResponseDto.fromEntity(comment);
+  findOne(@Param('id', CommentPipe) comment: Comment): ResponseDto<CommentResponseDto> {
+    return new ResponseDto(CommentResponseDto.fromEntity(comment));
   }
 
   @Patch('comments/:id')
@@ -5194,7 +5538,7 @@ export class CommentsController {
     @Param('id', CommentPipe) comment: Comment,
     @Body() dto: UpdateCommentDto,
     @GetUser() user: User,
-  ): Promise<CommentResponseDto> {
+  ): Promise<ResponseDto<CommentResponseDto>> {
     this.caslService.enforce(user, Action.Update, comment);
     const updatedComment = await this.commentsService.update(
       {
@@ -5202,7 +5546,7 @@ export class CommentsController {
         content: dto.content,
       }
     );
-    return CommentResponseDto.fromEntity(updatedComment);
+    return new ResponseDto(CommentResponseDto.fromEntity(updatedComment));
   }
 
   @Delete('comments/:id')
@@ -5210,11 +5554,13 @@ export class CommentsController {
   async remove(
     @Param('id', CommentPipe) comment: Comment,
     @GetUser() user: User,
-  ) {
+  ): Promise<ResponseDto<boolean>> {
     this.caslService.enforce(user, Action.Delete, comment);
-    return await this.commentsService.remove(comment.id);
+    const success = await this.commentsService.remove(comment.id);
+    return new ResponseDto(success);
   }
 }
+
 
 ---
 
