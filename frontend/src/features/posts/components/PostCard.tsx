@@ -1,6 +1,7 @@
 import React from 'react';
 import type { Post } from '../types';
 import { Link } from 'react-router-dom';
+import { FaThumbsUp, FaThumbsDown, FaEye, FaUser, FaUsers } from 'react-icons/fa';
 
 interface PostCardProps {
   post: Post;
@@ -14,19 +15,27 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
           {post.title}
         </h2>
       </Link>
-      <p className="text-gray-600 text-sm mt-1">
-        Posted by {post.author.name} on {new Date(post.createdAt).toLocaleDateString()}
+      <p className="text-gray-600 text-sm mt-1 flex items-center space-x-1">
+        <FaUser className="inline-block text-gray-500" />
+        <span>Posted by {post.author.name} on {new Date(post.createdAt).toLocaleDateString()}</span>
         {post.community && (
-          <span> in <Link to={`/communities/${post.community.id}`} className="text-blue-500 hover:underline">{post.community.name}</Link></span>
+          <span className="flex items-center space-x-1 ml-2">
+            <FaUsers className="inline-block text-gray-500" />
+            <span>in <Link to={`/communities/${post.community.id}`} className="text-blue-500 hover:underline">{post.community.name}</Link></span>
+          </span>
         )}
       </p>
       <p className="text-gray-700 mt-2 line-clamp-3">{post.content}</p>
-      <div className="flex items-center mt-3 text-gray-500 text-sm">
-        <span>{post.likesCount} Likes</span>
-        <span className="mx-2">•</span>
-        <span>{post.dislikesCount} Dislikes</span>
-        <span className="mx-2">•</span>
-        <span>{post.views} Views</span>
+      <div className="flex items-center mt-3 text-gray-500 text-sm space-x-4">
+        <span className="flex items-center space-x-1">
+          <FaThumbsUp /> <span>{post.likesCount}</span>
+        </span>
+        <span className="flex items-center space-x-1">
+          <FaThumbsDown /> <span>{post.dislikesCount}</span>
+        </span>
+        <span className="flex items-center space-x-1">
+          <FaEye /> <span>{post.views}</span>
+        </span>
       </div>
     </div>
   );
