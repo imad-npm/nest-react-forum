@@ -5,6 +5,8 @@ import { useRegisterMutation } from '../services/authApi';
 import type { RegisterDto } from '../types';
 import { Button } from '../../../shared/components/ui/Button';
 import { Input } from '../../../shared/components/ui/Input';
+import { Label } from '../../../shared/components/ui/Label';
+import { InputError } from '../../../shared/components/ui/InputError';
 import { useNavigate } from 'react-router-dom';
 
 const registerSchema = z.object({
@@ -39,27 +41,29 @@ const Register = () => {
         <h1 className="text-2xl font-bold text-center">Register</h1>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div>
-            <label htmlFor="name">Name</label>
+            <Label htmlFor="name">Name</Label>
             <Input id="name" {...formRegister('name')} />
-            {errors.name && <p className="text-red-500">{errors.name.message}</p>}
+            <InputError message={errors.name?.message} />
           </div>
           <div>
-            <label htmlFor="email">Email</label>
+            <Label htmlFor="email">Email</Label>
             <Input id="email" {...formRegister('email')} />
-            {errors.email && <p className="text-red-500">{errors.email.message}</p>}
+            <InputError message={errors.email?.message} />
           </div>
           <div>
-            <label htmlFor="password">Password</label>
+            <Label htmlFor="password">Password</Label>
             <Input id="password" type="password" {...formRegister('password')} />
-            {errors.password && <p className="text-red-500">{errors.password.message}</p>}
+            <InputError message={errors.password?.message} />
           </div>
           <Button type="submit" disabled={isLoading} className="w-full">
             {isLoading ? 'Registering...' : 'Register'}
           </Button>
           {error && (
-            <p className="text-red-500">
-              An error occurred: {error.data?.message || error.message || 'Unknown error'}
-            </p>
+            <InputError
+              message={
+                (error as any).data?.message || (error as any).message || 'Unknown error'
+              }
+            />
           )}
         </form>
       </div>

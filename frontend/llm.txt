@@ -1,0 +1,238 @@
+
+
+--- CONFIGURATION FILES ---
+
+
+### FILE: package.json ###
+{
+  "name": "frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "^5.2.2",
+    "@reduxjs/toolkit": "^2.11.2",
+    "@tailwindcss/vite": "^4.1.18",
+    "axios": "^1.13.2",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-hook-form": "^7.68.0",
+    "react-icons": "^5.5.0",
+    "react-redux": "^9.2.0",
+    "react-router-dom": "^7.10.1",
+    "tailwindcss": "^4.1.18",
+    "zod": "^4.2.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.5",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
+    "eslint": "^9.39.1",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "globals": "^16.5.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.46.4",
+    "vite": "^7.2.4"
+  }
+}
+
+---
+
+### FILE: tsconfig.json ###
+{
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.app.json" },
+    { "path": "./tsconfig.node.json" }
+  ]
+}
+
+---
+
+### FILE: src/features/auth/types.ts ###
+export interface RegisterDto {
+    name: string;
+    email: string;
+    password: string;
+  }
+  
+  export interface LoginDto {
+    email: string;
+    password: string;
+  }
+
+  export interface UserResponseDto {
+    id: string;
+    name: string;
+    email: string;
+  }
+
+  export interface ResponseDto<T> {
+    data: T;
+    message: string;
+  }
+  
+---
+
+
+### FILE: src/features/auth/stores/authSlice.ts ###
+import { createSlice } from '@reduxjs/toolkit';
+import type { UserResponseDto } from '../types';
+import { authApi } from '../services/authApi';
+
+interface AuthState {
+  user: UserResponseDto | null;
+  accessToken: string | null;
+  refreshToken: string | null;
+}
+
+const initialState: AuthState = {
+  user: null,
+  accessToken: null,
+  refreshToken: null,
+};
+
+const authSlice = createSlice({
+  name: 'auth',
+  initialState,
+  reducers: {
+    logout: (state) => {
+      state.user = null;
+      state.accessToken = null;
+      state.refreshToken = null;
+    },
+  },
+  extraReducers: (builder) => {
+    builder.addMatcher(
+      authApi.endpoints.login.matchFulfilled,
+      (state, action) => {
+        state.user = action.payload.data.user;
+        state.accessToken = action.payload.data.accessToken;
+        state.refreshToken = action.payload.data.refreshToken;
+      }
+    );
+  },
+});
+
+export const { logout } = authSlice.actions;
+
+export default authSlice.reducer;
+
+---
+
+
+### FILE: src/features/auth/services/authApi.ts ###
+import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import type { LoginDto, RegisterDto, UserResponseDto, ResponseDto } from '../types';
+
+export const authApi = createApi({
+  reducerPath: 'authApi',
+  baseQuery: fetchBaseQuery({ baseUrl: 'http://localhost:3000/api/' }),
+  endpoints: (builder) => ({
+    register: builder.mutation<ResponseDto<UserResponseDto>, RegisterDto>({
+      query: (credentials) => ({
+        url: 'auth/register',
+        method: 'POST',
+        body: credentials,
+      }),
+    }),
+    login: builder.mutation<ResponseDto<{ user: UserResponseDto, accessToken: string, refreshToken: string }>, LoginDto>({
+      query: (credentials) => ({
+        url: 'auth/login',
+        method: 'POST',
+        body: credentials,
+      }),
+    }),
+    refresh: builder.mutation<ResponseDto<{ user: UserResponseDto, accessToken: string, refreshToken: string }>, { refreshToken: string }>({
+        query: ({refreshToken}) => ({
+            url: 'auth/refresh',
+            method: 'POST',
+            body: {refreshToken}
+        })
+    }),
+    resendEmailVerification: builder.mutation<ResponseDto<null>, { email: string }>({
+      query: ({ email }) => ({
+        url: 'email-verification/resend',
+        method: 'POST',
+        body: { email },
+      }),
+    }),
+  }),
+});
+export const { useRegisterMutation, useLoginMutation, useRefreshMutation, useResendEmailVerificationMutation } = authApi;
+
+---
+
+
+### FILE: src/shared/stores/hooks.ts ###
+import { useDispatch, useSelector } from 'react-redux'
+import type { RootState, AppDispatch } from './store'
+
+// Use throughout your app instead of plain `useDispatch` and `useSelector`
+export const useAppDispatch = useDispatch.withTypes<AppDispatch>()
+export const useAppSelector = useSelector.withTypes<RootState>()
+
+---
+
+
+### FILE: src/shared/stores/store.ts ###
+import { configureStore } from '@reduxjs/toolkit';
+import { setupListeners } from '@reduxjs/toolkit/query';
+import { authApi } from '../../features/auth/services/authApi';
+import authReducer from '../../features/auth/stores/authSlice';
+
+export const store = configureStore({
+  reducer: {
+    [authApi.reducerPath]: authApi.reducer,
+    auth: authReducer,
+  },
+  middleware: (getDefaultMiddleware) =>
+    getDefaultMiddleware().concat(authApi.middleware),
+});
+
+setupListeners(store.dispatch);
+
+export type RootState = ReturnType<typeof store.getState>;
+export type AppDispatch = typeof store.dispatch;
+
+---
+
+
+### FILE: src/shared/hooks/useToast.ts ###
+import { useState, useCallback } from 'react';
+import type { ToastType } from '../components/ui/Toast';
+
+export interface ToastData {
+  message: string;
+  type: ToastType;
+}
+
+export const useToast = () => {
+  const [toast, setToast] = useState<ToastData | null>(null);
+
+  const showToast = useCallback((message: string, type: ToastType) => {
+    setToast({ message, type });
+  }, []);
+
+  const hideToast = useCallback(() => {
+    setToast(null);
+  }, []);
+
+  return {
+    toast,
+    showToast,
+    hideToast,
+  };
+};
+
+---
+
