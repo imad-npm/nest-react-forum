@@ -1,12 +1,14 @@
+import { Button } from '../../../shared/components/ui/Button';
+
 const GoogleLogin = () => {
   const googleLogin = () => {
     window.location.href = 'http://localhost:3000/api/auth/google';
   };
 
   return (
-    <button onClick={googleLogin}>
+    <Button onClick={googleLogin} className="w-full">
       Login with Google
-    </button>
+    </Button>
   );
 };
 

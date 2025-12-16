@@ -32,15 +32,23 @@ export class AuthService {
   // -------------------------------------------------------------------------
   // Validate credentials (used by LocalStrategy)
   // -------------------------------------------------------------------------
-  async validateUser(email: string, password: string): Promise<User | null> {
-    const user = await this.userService.findByEmail(email);
-
-    // Social-only accounts have no password
-    if (!user.password) return null;
-
-    const isMatch = await bcrypt.compare(password, user.password);
-    return isMatch ? user : null;
+ // In auth.service.ts, update the validateUser method:
+async validateUser(email: string, password: string): Promise<User> {
+  const user = await this.userService.findByEmail(email);
+  
+  // If user doesn't exist or has no password (social-only account)
+  if (!user || !user.password) {
+    throw new UnauthorizedException('Invalid credentials');
   }
+  
+  const isMatch = await bcrypt.compare(password, user.password);
+  
+  if (!isMatch) {
+    throw new UnauthorizedException('Invalid credentials');
+  }
+  
+  return user;
+}
 
   // -------------------------------------------------------------------------
   // Sign in (called after successful local or refresh validation)
