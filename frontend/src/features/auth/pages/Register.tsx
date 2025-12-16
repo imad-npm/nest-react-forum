@@ -5,7 +5,7 @@ import { useRegisterMutation } from '../services/authApi';
 import type { RegisterDto } from '../types';
 import { Button } from '../../../shared/components/ui/Button';
 import { Input } from '../../../shared/components/ui/Input';
-import { useToastContext } from '../../../shared/providers/ToastProvider';
+import { useNavigate } from 'react-router-dom';
 
 const registerSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -15,7 +15,7 @@ const registerSchema = z.object({
 
 const Register = () => {
   const [register, { isLoading, error }] = useRegisterMutation();
-  const { showToast } = useToastContext();
+  const navigate = useNavigate();
   const {
     register: formRegister,
     handleSubmit,
@@ -26,11 +26,9 @@ const Register = () => {
 
   const onSubmit = async (data: RegisterDto) => {
     try {
-      const response = await register(data).unwrap();
-      showToast(response.message, 'success');
+      await register(data).unwrap();
+      navigate('/email-verification', { state: { email: data.email } });
     } catch (err: any) {
-      const errorMessage = err.data?.message || err.message || 'Unknown error';
-      showToast(errorMessage, 'error');
       console.error('Failed to register: ', err);
     }
   };

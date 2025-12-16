@@ -49,7 +49,7 @@ export class EmailVerificationService {
   private generateVerificationLink(token: string): string {
     // You can move APP_DOMAIN to ConfigService if needed
     const domain = this.configService.get<string>('APP_DOMAIN'); // e.g. https://myapp.com
-    const path = '/email/verify';
+    const path = '/api/email/verify';
     return `${domain}${path}?token=${token}`;
   }
 

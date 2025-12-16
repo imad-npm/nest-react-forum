@@ -25,7 +25,14 @@ export const authApi = createApi({
             method: 'POST',
             body: {refreshToken}
         })
-    })
+    }),
+    resendEmailVerification: builder.mutation<ResponseDto<null>, { email: string }>({
+      query: ({ email }) => ({
+        url: 'email-verification/resend',
+        method: 'POST',
+        body: { email },
+      }),
+    }),
   }),
 });
-export const { useRegisterMutation, useLoginMutation, useRefreshMutation } = authApi;
+export const { useRegisterMutation, useLoginMutation, useRefreshMutation, useResendEmailVerificationMutation } = authApi;
