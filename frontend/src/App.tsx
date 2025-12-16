@@ -1,11 +1,11 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Login from './features/auth/pages/Login';
 import Register from './features/auth/pages/Register';
-import Home from './pages/Home';
 import AuthGuard from './features/auth/components/AuthGard';
 import Header from './layout/Header';
 import EmailVerification from './features/auth/pages/EmailVerification';
 import VerificationResult from './features/auth/pages/VerificationResult';
+import FeedPage from './features/feed/pages/FeedPage'; // Import FeedPage
 
 function App() {
   return (
@@ -21,7 +21,7 @@ function App() {
             path="/"
             element={
               <AuthGuard>
-                <Home />
+                <FeedPage /> {/* Use FeedPage for the main route */}
               </AuthGuard>
             }
           />
