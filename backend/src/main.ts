@@ -21,13 +21,10 @@ async function bootstrap() {
   );
      app.setGlobalPrefix('api'); // all routes will now start with /api
 
-  useContainer(app.select(AppModule), { fallbackOnErrors: true });
-    app.enableCors({
-    origin: true, // allow any origin
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-    allowedHeaders: '*',
-    credentials: true, // if you need cookies
-  });
+app.enableCors({
+  origin: '*', // allow any origin
+});
+
   // Get ConfigService instance
   const configService = app.get(ConfigService);
   const port = configService.get<number>('PORT') ?? 3000;

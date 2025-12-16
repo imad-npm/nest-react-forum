@@ -1,4 +1,4 @@
-import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
+import { createSlice } from '@reduxjs/toolkit';
 import type { UserResponseDto } from '../types';
 import { authApi } from '../services/authApi';
 

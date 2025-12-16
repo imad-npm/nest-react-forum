@@ -5,6 +5,7 @@ import { useRegisterMutation } from '../services/authApi';
 import type { RegisterDto } from '../types';
 import { Button } from '../../../shared/components/ui/Button';
 import { Input } from '../../../shared/components/ui/Input';
+import { useToastContext } from '../../../shared/providers/ToastProvider';
 
 const registerSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -14,6 +15,7 @@ const registerSchema = z.object({
 
 const Register = () => {
   const [register, { isLoading, error }] = useRegisterMutation();
+  const { showToast } = useToastContext();
   const {
     register: formRegister,
     handleSubmit,
@@ -22,8 +24,15 @@ const Register = () => {
     resolver: zodResolver(registerSchema),
   });
 
-  const onSubmit = (data: RegisterDto) => {
-    register(data);
+  const onSubmit = async (data: RegisterDto) => {
+    try {
+      const response = await register(data).unwrap();
+      showToast(response.message, 'success');
+    } catch (err: any) {
+      const errorMessage = err.data?.message || err.message || 'Unknown error';
+      showToast(errorMessage, 'error');
+      console.error('Failed to register: ', err);
+    }
   };
 
   return (
@@ -49,7 +58,11 @@ const Register = () => {
           <Button type="submit" disabled={isLoading} className="w-full">
             {isLoading ? 'Registering...' : 'Register'}
           </Button>
-          {error && <p className="text-red-500">An error occurred</p>}
+          {error && (
+            <p className="text-red-500">
+              An error occurred: {error.data?.message || error.message || 'Unknown error'}
+            </p>
+          )}
         </form>
       </div>
     </div>

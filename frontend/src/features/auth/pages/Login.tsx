@@ -31,6 +31,7 @@ const Login = () => {
     } catch (err) {
       console.error('Failed to login: ', err);
     }
+
   };
 
   return (
@@ -51,7 +52,9 @@ const Login = () => {
           <Button type="submit" disabled={isLoading} className="w-full">
             {isLoading ? 'Logging in...' : 'Login'}
           </Button>
-          {error && <p className="text-red-500">An error occurred</p>}
+          {error &&
+           <p className="text-red-500">An error occurred 
+           {error.data.message}</p>}
         </form>
         <div className="relative">
           <div className="absolute inset-0 flex items-center">
