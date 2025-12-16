@@ -13,6 +13,7 @@ export interface Post {
     views: number;
     likesCount: number;
     dislikesCount: number;
+    commentsCount: number; // Added commentsCount
     createdAt: string;
     updatedAt: string;
 }

@@ -42,7 +42,8 @@ export class PostsService {
       .createQueryBuilder('post')
       .leftJoinAndSelect('post.author', 'author')
       .leftJoinAndSelect('post.comments', 'comments')
-      .leftJoinAndSelect('post.reactions', 'reactions');
+      .leftJoinAndSelect('post.reactions', 'reactions')
+      .leftJoinAndSelect('post.community', 'community');
 
     if (search) {
       query.where(
@@ -90,7 +91,7 @@ export class PostsService {
   findOne(id: number): Promise<Post | null> {
     return this.postsRepository.findOne({
       where: { id },
-      relations: ['author', 'comments', 'reactions'],
+      relations: ['author', 'comments', 'reactions', 'community'],
     });
   }
 
@@ -115,9 +116,6 @@ export class PostsService {
       id: number;
       title?: string;
       content?: string;
-      views?: number;
-      likesCount?: number;
-      dislikesCount?: number;
     },
   ): Promise<Post> {
     const post = await this.postsRepository.findOneBy({ id: postUpdateData.id });
@@ -127,9 +125,6 @@ export class PostsService {
 
     if (postUpdateData.title !== undefined) post.title = postUpdateData.title;
     if (postUpdateData.content !== undefined) post.content = postUpdateData.content;
-    if (postUpdateData.views !== undefined) post.views = postUpdateData.views;
-    if (postUpdateData.likesCount !== undefined) post.likesCount = postUpdateData.likesCount;
-    if (postUpdateData.dislikesCount !== undefined) post.dislikesCount = postUpdateData.dislikesCount;
 
     return this.postsRepository.save(post);
   }
@@ -141,5 +136,33 @@ export class PostsService {
     }
     const res = await this.postsRepository.remove(post);
     return !!res;
+  }
+
+  async incrementCommentsCount(postId: number): Promise<void> {
+    await this.postsRepository.increment({ id: postId }, 'commentsCount', 1);
+  }
+
+  async decrementCommentsCount(postId: number): Promise<void> {
+    await this.postsRepository.decrement({ id: postId }, 'commentsCount', 1);
+  }
+
+  async incrementLikesCount(postId: number): Promise<void> {
+    await this.postsRepository.increment({ id: postId }, 'likesCount', 1);
+  }
+
+  async decrementLikesCount(postId: number): Promise<void> {
+    await this.postsRepository.decrement({ id: postId }, 'likesCount', 1);
+  }
+
+  async incrementDislikesCount(postId: number): Promise<void> {
+    await this.postsRepository.increment({ id: postId }, 'dislikesCount', 1);
+  }
+
+  async decrementDislikesCount(postId: number): Promise<void> {
+    await this.postsRepository.decrement({ id: postId }, 'dislikesCount', 1);
+  }
+
+  async incrementViews(postId: number): Promise<void> {
+    await this.postsRepository.increment({ id: postId }, 'views', 1);
   }
 }

@@ -70,11 +70,10 @@ export class ReactionsService {
         this.postReactionRepo.create({ type, userId, postId }),
       );
       if (newReaction.type === ReactionType.LIKE) {
-        post.likesCount++;
+        await this.postsService.incrementLikesCount(postId);
       } else {
-        post.dislikesCount++;
+        await this.postsService.incrementDislikesCount(postId);
       }
-      await this.postsService.update({ id: postId, likesCount: post.likesCount, dislikesCount: post.dislikesCount });
       return newReaction;
     }
     else if (commentId) {
@@ -95,11 +94,10 @@ export class ReactionsService {
         this.commentReactionRepo.create({ type, userId, commentId }),
       );
       if (newReaction.type === ReactionType.LIKE) {
-        comment.likesCount++;
+        await this.commentsService.incrementLikesCount(commentId);
       } else {
-        comment.dislikesCount++;
+        await this.commentsService.incrementDislikesCount(commentId);
       }
-      await this.commentsService.update({ id: commentId, likesCount: comment.likesCount, dislikesCount: comment.dislikesCount });
       return newReaction;
     }
     throw new BadRequestException(
@@ -107,59 +105,59 @@ export class ReactionsService {
     );
 
   }
-async findByPost({
-  postId,
-  page = 1,
-  limit = 10,
-}: {
-  postId: number;
-  page?: number;
-  limit?: number;
-}): Promise<{ data: PostReaction[]; count: number }> {
-  const skip = (page - 1) * limit;
+  async findByPost({
+    postId,
+    page = 1,
+    limit = 10,
+  }: {
+    postId: number;
+    page?: number;
+    limit?: number;
+  }): Promise<{ data: PostReaction[]; count: number }> {
+    const skip = (page - 1) * limit;
 
-  const [data, count] = await this.postReactionRepo.findAndCount({
-    where: { postId },
-    relations: ['user'],
-    select: {
-      id: true,
-      type: true,
-      createdAt: true,
-      user: { id: true, name: true },
-    },
-    skip,
-    take: limit,
-  });
+    const [data, count] = await this.postReactionRepo.findAndCount({
+      where: { postId },
+      relations: ['user'],
+      select: {
+        id: true,
+        type: true,
+        createdAt: true,
+        user: { id: true, name: true },
+      },
+      skip,
+      take: limit,
+    });
 
-  return { data, count };
-}
+    return { data, count };
+  }
 
-async findByComment({
-  commentId,
-  page = 1,
-  limit = 10,
-}: {
-  commentId: number;
-  page?: number;
-  limit?: number;
-}): Promise<{ data: CommentReaction[]; count: number }> {
-  const skip = (page - 1) * limit;
+  async findByComment({
+    commentId,
+    page = 1,
+    limit = 10,
+  }: {
+    commentId: number;
+    page?: number;
+    limit?: number;
+  }): Promise<{ data: CommentReaction[]; count: number }> {
+    const skip = (page - 1) * limit;
 
-  const [data, count] = await this.commentReactionRepo.findAndCount({
-    where: { commentId },
-    relations: ['user'],
-    select: {
-      id: true,
-      type: true,
-      createdAt: true,
-      user: { id: true, name: true },
-    },
-    skip,
-    take: limit,
-  });
+    const [data, count] = await this.commentReactionRepo.findAndCount({
+      where: { commentId },
+      relations: ['user'],
+      select: {
+        id: true,
+        type: true,
+        createdAt: true,
+        user: { id: true, name: true },
+      },
+      skip,
+      take: limit,
+    });
 
-  return { data, count };
-}
+    return { data, count };
+  }
 
   async getUserReactionOnPost(
     userId: number,
@@ -196,13 +194,14 @@ async findByComment({
     const result = await this.postReactionRepo.delete(id);
     if (result.affected) {
       const post = await this.postsService.findOne(reaction.postId);
-      if (!post) throw new NotFoundException(`Post with ID ${reaction.postId} not found`);
+      if (!post) throw new NotFoundException(`Post with ID               
+     ${reaction.postId} not found`);
+
       if (reaction.type === ReactionType.LIKE) {
-        post.likesCount--;
+        await this.postsService.decrementLikesCount(reaction.postId);
       } else {
-        post.dislikesCount--;
+        await this.postsService.decrementDislikesCount(reaction.postId);
       }
-      await this.postsService.update({ id: reaction.postId, likesCount: post.likesCount, dislikesCount: post.dislikesCount });
     }
   }
 
@@ -214,14 +213,15 @@ async findByComment({
 
     const result = await this.commentReactionRepo.delete(id);
     if (result.affected) {
-      const comment = await this.commentsService.findOne(reaction.commentId);
-      if (!comment) throw new NotFoundException(`Comment with ID ${reaction.commentId} not found`);
+       const comment = await this.commentsService.findOne(reaction.commentId);
+      if (!comment) throw new NotFoundException(`Comment with ID               
+     ${reaction.commentId} not found`);
+     
       if (reaction.type === ReactionType.LIKE) {
-        comment.likesCount--;
+        await this.commentsService.decrementLikesCount(reaction.commentId);
       } else {
-        comment.dislikesCount--;
+        await this.commentsService.decrementDislikesCount(reaction.commentId);
       }
-      await this.commentsService.update({ id: reaction.commentId, likesCount: comment.likesCount, dislikesCount: comment.dislikesCount });
     }
   }
 }

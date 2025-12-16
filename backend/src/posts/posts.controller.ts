@@ -56,7 +56,7 @@ export class PostsController {
 
   @Get(':id')
   findOne(@Param('id', PostPipe) post: PostEntity): ResponseDto<PostResponseDto> {
-    this.postsService.update({ id:post.id, views: post.views + 1 });
+    this.postsService.incrementViews(post.id);
     return new ResponseDto(PostResponseDto.fromEntity(post));
   }
 

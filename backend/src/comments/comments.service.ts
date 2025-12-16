@@ -4,12 +4,14 @@ import { Brackets, Repository } from 'typeorm';
 import { Comment } from './entities/comment.entity';
 import { User } from 'src/users/entities/user.entity';
 import { Post } from 'src/posts/entities/post.entity';
+import { PostsService } from 'src/posts/posts.service';
 
 @Injectable()
 export class CommentsService {
   constructor(
     @InjectRepository(Comment)
     private readonly commentRepo: Repository<Comment>,
+    private readonly postsService: PostsService, // Inject PostsService
   ) { }
 
 async findAll(options: {
@@ -58,7 +60,8 @@ async findAll(options: {
     userId: number,
     parentId?: number,
   ) {
-    const post = await this.commentRepo.manager.findOneBy(Post, { id: postId });
+    // We get the post via postsService.findOne to ensure consistency and proper typeorm relations loading
+    const post = await this.postsService.findOne(postId);
     if (!post) {
       throw new NotFoundException('Post not found');
     }
@@ -66,6 +69,7 @@ async findAll(options: {
     const comment = this.commentRepo.create({
       content,
       authorId: userId,
+      post: post,
     });
 
     if (parentId) {
@@ -80,22 +84,21 @@ async findAll(options: {
           'Parent comment does not belong to this post',
         );
       }
-
       comment.parent = parent;
-      comment.post = parent.post;
-    } else {
-      comment.post = post;
     }
 
-    return this.commentRepo.save(comment);
+    const savedComment = await this.commentRepo.save(comment);
+
+    // Increment commentsCount on the post using PostsService
+    await this.postsService.incrementCommentsCount(post.id);
+
+    return savedComment;
   }
 
   async update(
     updateCommentData: {
       id: number;
       content?: string;
-      likesCount?: number;
-      dislikesCount?: number;
     },
   ): Promise<Comment> {
     const comment = await this.commentRepo.findOneBy({
@@ -107,20 +110,41 @@ async findAll(options: {
 
     if (updateCommentData.content !== undefined)
       comment.content = updateCommentData.content;
-    if (updateCommentData.likesCount !== undefined)
-      comment.likesCount = updateCommentData.likesCount;
-    if (updateCommentData.dislikesCount !== undefined)
-      comment.dislikesCount = updateCommentData.dislikesCount;
 
     return this.commentRepo.save(comment);
   }
 
   async remove(id: number): Promise<boolean> {
-    const comment = await this.commentRepo.findOneBy({ id });
+    const comment = await this.commentRepo.findOne({
+      where: { id },
+      relations: ['post'], // Load post relation to update commentsCount
+    });
     if (!comment) {
       throw new NotFoundException('Comment not found');
     }
+
+    // Decrement commentsCount on the post using PostsService
+    if (comment.post) {
+      await this.postsService.decrementCommentsCount(comment.post.id);
+    }
+
     await this.commentRepo.remove(comment);
     return true;
+  }
+
+  async incrementLikesCount(commentId: number): Promise<void> {
+    await this.commentRepo.increment({ id: commentId }, 'likesCount', 1);
+  }
+
+  async decrementLikesCount(commentId: number): Promise<void> {
+    await this.commentRepo.decrement({ id: commentId }, 'likesCount', 1);
+  }
+
+  async incrementDislikesCount(commentId: number): Promise<void> {
+    await this.commentRepo.increment({ id: commentId }, 'dislikesCount', 1);
+  }
+
+  async decrementDislikesCount(commentId: number): Promise<void> {
+    await this.commentRepo.decrement({ id: commentId }, 'dislikesCount', 1);
   }
 }

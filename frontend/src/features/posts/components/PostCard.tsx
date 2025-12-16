@@ -57,16 +57,16 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
       <p className="text-gray-700 text-sm line-clamp-3 mb-4">{post.content}</p> {/* Increased mb */}
 
       {/* Action Buttons and Votes */}
-      <div className="flex items-center justify-between mt-3 text-gray-500 text-sm  "> {/* Increased mt, added border-t and pt */}
+      <div className="flex items-center justify-between mt-3 text-gray-500 text-sm  ">
         <div className="flex items-center space-x-4">
           {/* Vote Buttons */}
-          <div className="flex items-center space-x-2"> {/* Increased space-x */}
+          <div className="flex items-center space-x-2">
             <button
               onClick={() => handleVote('up')}
               className="text-gray-400 hover:text-blue-500 transition-colors p-1"
               aria-label="Upvote"
             >
-              <FaArrowUp size={18} /> {/* Increased icon size slightly */}
+              <FaArrowUp size={18} />
             </button>
             <span className="font-bold text-gray-700">
               {post.likesCount - post.dislikesCount}
@@ -76,13 +76,13 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
               className="text-gray-400 hover:text-red-500 transition-colors p-1"
               aria-label="Downvote"
             >
-              <FaArrowDown size={18} /> {/* Increased icon size slightly */}
+              <FaArrowDown size={18} />
             </button>
           </div>
 
           {/* Other Action Buttons */}
           <button className="flex items-center space-x-1 hover:text-blue-600 transition-colors">
-            <FaCommentAlt /> <span>{post.comments?.length || 0} Comments</span>
+            <FaCommentAlt /> <span>{post.commentsCount || 0} Comments</span>
           </button>
           <button className="flex items-center space-x-1 hover:text-blue-600 transition-colors">
             <FaShareAlt /> <span>Share</span>

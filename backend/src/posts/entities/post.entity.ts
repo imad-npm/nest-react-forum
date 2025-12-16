@@ -42,6 +42,9 @@ export class Post {
   @Column({ nullable: true })
   communityId: number;
 
+  @Column({ default: 0 })
+  commentsCount: number;
+
   @OneToMany(() => Comment, (comment) => comment.post)
   comments: Comment[];
 

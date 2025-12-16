@@ -1,34 +1,19 @@
-import { Expose, Type, plainToInstance } from 'class-transformer';
-import { UserResponseDto } from '../../users/dtos/user-response.dto';
+import { Exclude, Expose, plainToInstance } from 'class-transformer';
 import { Community } from '../entities/community.entity';
 
+@Exclude()
 export class CommunityResponseDto {
-  @Expose()
-  id: number;
-
-  @Expose()
-  name: string;
-
-  @Expose()
-  displayName: string;
-
-  @Expose()
-  description: string;
-
-  @Expose()
-  createdAt: Date;
-
-  @Expose()
-  isPublic: boolean;
-
-  @Expose()
-  subscribersCount: number;
-
-  @Expose()
-  @Type(() => UserResponseDto)
-  createdBy: UserResponseDto;
+  @Expose() readonly id: number;
+  @Expose() readonly name: string;
+  @Expose() readonly displayName: string;
+  @Expose() readonly description: string;
+  @Expose() readonly isPublic: boolean;
+  @Expose() readonly subscribersCount: number;
+  @Expose() readonly createdAt: Date;
 
   static fromEntity(entity: Community): CommunityResponseDto {
-    return plainToInstance(CommunityResponseDto, entity);
+    return plainToInstance(CommunityResponseDto, entity, {
+      excludeExtraneousValues: true,
+    });
   }
 }

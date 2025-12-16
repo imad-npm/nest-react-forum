@@ -102,7 +102,7 @@ const PostDetailPage = () => {
 
               {/* Other Action Buttons */}
               <button className="flex items-center space-x-1 hover:text-blue-600 transition-colors">
-                <FaCommentAlt /> <span>{post.comments?.length || 0} Comments</span>
+                <FaCommentAlt /> <span>{post.commentsCount || 0} Comments</span>
               </button>
               <button className="flex items-center space-x-1 hover:text-blue-600 transition-colors">
                 <FaShareAlt /> <span>Share</span>
