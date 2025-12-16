@@ -3,18 +3,19 @@ import Login from './features/auth/pages/Login';
 import Register from './features/auth/pages/Register';
 import AuthGuard from './features/auth/components/AuthGard';
 import Header from './layout/Header';
-import LeftSidebar from './layout/LeftSidebar'; // Import LeftSidebar
+import LeftSidebar from './layout/LeftSidebar';
 import EmailVerification from './features/auth/pages/EmailVerification';
 import VerificationResult from './features/auth/pages/VerificationResult';
-import FeedPage from './features/feed/pages/FeedPage'; // Import FeedPage
+import FeedPage from './features/feed/pages/FeedPage';
+import PostDetailPage from './features/posts/pages/PostDetailPage'; // Import PostDetailPage
 
 function App() {
   return (
     <BrowserRouter>
       <Header />
-      <div className="flex"> {/* Flex container for sidebar and main content */}
-        <LeftSidebar /> {/* Render LeftSidebar */}
-        <main className="flex-grow p-4"> {/* Main content takes remaining space */}
+      <div className="flex">
+        <LeftSidebar />
+        <main className="flex-grow p-4">
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
@@ -24,7 +25,15 @@ function App() {
               path="/"
               element={
                 <AuthGuard>
-                  <FeedPage /> {/* Use FeedPage for the main route */}
+                  <FeedPage />
+                </AuthGuard>
+              }
+            />
+            <Route
+              path="/posts/:id"
+              element={
+                <AuthGuard>
+                  <PostDetailPage />
                 </AuthGuard>
               }
             />

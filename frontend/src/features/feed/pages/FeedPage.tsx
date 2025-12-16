@@ -21,6 +21,8 @@ const FeedPage = () => {
     page,
   });
 
+  console.log(data);
+  
   const { showToast } = useToastContext();
   const observer = useRef<IntersectionObserver>();
 

@@ -1,41 +1,32 @@
-export interface Post {
+export interface Comment {
     id: number;
-    title: string;
     content: string;
     author: {
         id: number;
         name: string;
     };
-    community?: {
-        id: number;
-        name: string;
-    };
-    views: number;
+    postId: number;
+    parentId?: number; // For replies
     likesCount: number;
     dislikesCount: number;
     createdAt: string;
     updatedAt: string;
 }
 
-export interface CreatePostDto {
-    title: string;
+export interface CreateCommentDto {
     content: string;
-    communityId?: number;
+    parentId?: number;
 }
 
-export interface UpdatePostDto {
-    title?: string;
-    content?: string;
+export interface UpdateCommentDto {
+    content: string;
 }
 
-export interface PostQueryDto {
+export interface CommentQueryDto {
     page?: number;
     limit?: number;
-    search?: string;
+    postId?: number;
     authorId?: number;
-    sort?: string;
-    startDate?: string;
-    endDate?: string;
 }
 
 export interface PaginatedResponse<T> {
