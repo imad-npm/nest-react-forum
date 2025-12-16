@@ -1,13 +1,30 @@
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import Login from './features/auth/pages/Login';
+import Register from './features/auth/pages/Register';
+import Home from './pages/Home';
+import AuthGuard from './features/auth/components/AuthGard';
+import Header from './layout/Header';
 
 function App() {
   return (
-    <div>App
-
-      <h3 className="bg-blue-400">Lorem ipsum dolor sit amet consectetur 
-        adipisicing elit. Magni vero quidem autem maxime
-         expedita repudiandae ex neque sapiente consequuntur, aut nisi ad nihil ducimus earum saepe quisquam atque doloribus fugiat!</h3>
-    </div>
-  )
+    <BrowserRouter>
+      <Header />
+      <main>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route
+            path="/"
+            element={
+              <AuthGuard>
+                <Home />
+              </AuthGuard>
+            }
+          />
+        </Routes>
+      </main>
+    </BrowserRouter>
+  );
 }
 
-export default App
+export default App;
