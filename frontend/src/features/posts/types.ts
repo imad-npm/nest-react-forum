@@ -43,10 +43,11 @@ export interface PaginatedResponse<T> {
     meta: {
         page: number;
         limit: number;
-        itemCount: number;
-        pageCount: number;
-        hasPreviousPage: boolean;
-        hasNextPage: boolean;
+          totalItems: number;
+
+  totalPages: number;
+
+  itemCount: number;
     };
 }
 

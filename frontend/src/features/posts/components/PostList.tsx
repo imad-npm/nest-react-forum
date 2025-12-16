@@ -19,11 +19,11 @@ const PostList: React.FC<PostListProps> = ({ posts, isLoading, error }) => {
   }
 
   return (
-    <div className="container mx-auto p-4">
+    <div className="p-0"> {/* Adjusted padding as FeedPage provides container padding */}
       {posts.length === 0 ? (
         <p className="text-center text-gray-600 mt-8">No posts found.</p>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-6 grid-cols-1"> {/* Changed to single column */}
           {posts.map((post) => (
             <PostCard key={post.id} post={post} />
           ))}
