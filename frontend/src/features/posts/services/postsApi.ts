@@ -1,17 +1,7 @@
-import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import { apiSlice } from '../../../shared/services/apiSlice';
 import type { Post, CreatePostDto, UpdatePostDto, PostQueryDto, PaginatedResponse, ResponseDto } from '../types';
 
-export const postsApi = createApi({
-    reducerPath: 'postsApi',
-    baseQuery: fetchBaseQuery({
-        baseUrl: 'http://localhost:3000/api/',
-        prepareHeaders: (headers, { getState }) => {
-            const token = (getState() as any).auth?.accessToken;
-            if (token) headers.set('Authorization', `Bearer ${token}`);
-            return headers;
-        },
-    }),
-    tagTypes: ['Posts'],
+export const postsApi = apiSlice.injectEndpoints({
     endpoints: (builder) => ({
         getPosts: builder.query<PaginatedResponse<Post>, PostQueryDto>({
             query: (params) => ({ url: '/posts', params }),

@@ -1,10 +1,8 @@
-import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import { apiSlice } from '../../../shared/services/apiSlice';
 import type { Comment, CreateCommentDto, UpdateCommentDto, CommentQueryDto, PaginatedResponse, ResponseDto } from '../types';
 
-export const commentsApi = createApi({
-    reducerPath: 'commentsApi',
-    baseQuery: fetchBaseQuery({ baseUrl: 'http://localhost:3000/api/' }),
-    tagTypes: ['Comments'],
+export const commentsApi = apiSlice.injectEndpoints({
+    overrideExisting: false, // Ensure this is not overriding existing endpoints
     endpoints: (builder) => ({
         getCommentsByPostId: builder.query<PaginatedResponse<Comment>, CommentQueryDto & { postId: number }>({
             query: ({ postId, ...params }) => ({

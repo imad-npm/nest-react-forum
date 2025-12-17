@@ -1,9 +1,7 @@
-import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import { apiSlice } from '../../../shared/services/apiSlice';
 import type { LoginDto, RegisterDto, UserResponseDto, ResponseDto } from '../types';
 
-export const authApi = createApi({
-  reducerPath: 'authApi',
-  baseQuery: fetchBaseQuery({ baseUrl: 'http://localhost:3000/api/' }),
+export const authApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
     register: builder.mutation<ResponseDto<UserResponseDto>, RegisterDto>({
       query: (credentials) => ({

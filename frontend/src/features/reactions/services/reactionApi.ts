@@ -1,4 +1,4 @@
-import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import { apiSlice } from '../../../shared/services/apiSlice';
 import type {
   PostReaction,
   CommentReaction,
@@ -9,17 +9,8 @@ import type {
   ResponseDto
 } from '../types/types';
 
-export const reactionApi = createApi({
-  reducerPath: 'reactionApi',
-  baseQuery: fetchBaseQuery({
-    baseUrl: 'http://localhost:3000/api/',
-    prepareHeaders: (headers, { getState }) => {
-      const token = (getState() as any).auth?.accessToken;
-      if (token) headers.set('Authorization', `Bearer ${token}`);
-      return headers;
-    },
-  }),
-  tagTypes: ['Posts', 'PostReaction', 'PostStats', 'Comment', 'CommentReaction', 'CommentStats'],
+export const reactionApi = apiSlice.injectEndpoints({
+  overrideExisting: false, // Ensure this is not overriding existing endpoints
   endpoints: (builder) => ({
     getPostReactions: builder.query<PaginatedResponse<PostReaction>, { postId: number } & ReactionQueryDto>({
       query: ({ postId, ...params }) => ({ url: `/posts/${postId}/reactions`, params }),
@@ -61,7 +52,7 @@ export const reactionApi = createApi({
     createCommentReaction: builder.mutation<ResponseDto<CommentReaction>, { commentId: number; data: CreateReactionDto }>({
       query: ({ commentId, data }) => ({ url: `/comments/${commentId}/reactions`, method: 'POST', body: data }),
       invalidatesTags: (_result, _error, { commentId }) => [
-        { type: 'Comment', id: commentId },      // refresh comment itself
+        { type: 'Comments', id: commentId },      // refresh comment itself
         { type: 'CommentReaction', id: commentId },
         { type: 'CommentStats', id: commentId },
       ],
@@ -70,7 +61,7 @@ export const reactionApi = createApi({
     updateCommentReaction: builder.mutation<ResponseDto<CommentReaction>, { commentId: number; reactionId: number; data: UpdateReactionDto }>({
       query: ({ commentId, reactionId, data }) => ({ url: `/comments/${commentId}/reactions/${reactionId}`, method: 'PATCH', body: data }),
       invalidatesTags: (_result, _error, { commentId }) => [
-        { type: 'Comment', id: commentId },
+        { type: 'Comments', id: commentId },
         { type: 'CommentReaction', id: commentId },
         { type: 'CommentStats', id: commentId },
       ],
@@ -79,7 +70,7 @@ export const reactionApi = createApi({
     deleteCommentReaction: builder.mutation<ResponseDto<boolean>, { commentId: number; reactionId: number }>({
       query: ({ commentId, reactionId }) => ({ url: `/comments/${commentId}/reactions/${reactionId}`, method: 'DELETE' }),
       invalidatesTags: (_result, _error, { commentId }) => [
-        { type: 'Comment', id: commentId },
+        { type: 'Comments', id: commentId },
         { type: 'CommentReaction', id: commentId },
         { type: 'CommentStats', id: commentId },
       ],

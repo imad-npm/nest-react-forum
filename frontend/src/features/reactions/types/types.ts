@@ -33,6 +33,10 @@ export interface CreateReactionDto {
     type: ReactionType;
 }
 
+export interface UpdateReactionDto {
+    type: ReactionType;
+}
+
 
 export interface ReactionQueryDto {
     page?: number;

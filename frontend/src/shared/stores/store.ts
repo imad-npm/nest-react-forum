@@ -1,26 +1,15 @@
 import { configureStore } from '@reduxjs/toolkit';
 import { setupListeners } from '@reduxjs/toolkit/query';
-import { authApi } from '../../features/auth/services/authApi';
 import authReducer from '../../features/auth/stores/authSlice';
-import { postsApi } from '../../features/posts/services/postsApi';
-import { commentsApi } from '../../features/comments/services/commentsApi';
-import { reactionApi } from '../../features/reactions/services/reactionApi'; // Import reactionApi
+import { apiSlice } from '../services/apiSlice';
 
 export const store = configureStore({
   reducer: {
-    [authApi.reducerPath]: authApi.reducer,
-    [postsApi.reducerPath]: postsApi.reducer,
-    [commentsApi.reducerPath]: commentsApi.reducer,
-    [reactionApi.reducerPath]: reactionApi.reducer, // Add reactionApi reducer
+    [apiSlice.reducerPath]: apiSlice.reducer, // Use the base apiSlice reducer
     auth: authReducer,
   },
   middleware: (getDefaultMiddleware) =>
-    getDefaultMiddleware().concat(
-      authApi.middleware, 
-      postsApi.middleware, 
-      commentsApi.middleware,
-      reactionApi.middleware // Add reactionApi middleware
-    ),
+    getDefaultMiddleware().concat(apiSlice.middleware), // Use the base apiSlice middleware
 });
 
 setupListeners(store.dispatch);
