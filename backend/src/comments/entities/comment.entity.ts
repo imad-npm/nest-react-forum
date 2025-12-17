@@ -12,7 +12,7 @@ import { Post } from '../../posts/entities/post.entity';
 import { User } from '../../users/entities/user.entity';
 import { CommentReaction } from '../../reactions/entities/comment-reaction.entity';
 
-@Entity()
+@Entity('comments')
 export class Comment {
   @PrimaryGeneratedColumn()
   id: number;

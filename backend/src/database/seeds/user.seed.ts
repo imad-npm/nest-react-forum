@@ -13,11 +13,12 @@ export async function seedUsers() {
   user.name = 'Test User';
   user.email = 'test@example.com';
   user.password = bcrypt.hashSync('password123', 10);
+  user.emailVerifiedAt=new Date()
 
   users.push(user);
 
   await userRepo.save(users);
-  console.log('Seeded 5 users ✅');
+  console.log('Seeded 101 users ✅');
 
   return users;
 }

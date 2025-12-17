@@ -79,7 +79,7 @@ export async function seedReactions(
         (
           SELECT COUNT(*)
           FROM post_reactions pr
-          WHERE pr.postId = post.id
+          WHERE pr.postId = posts.id
             AND pr.type = 'like'
         )
       `,
@@ -87,7 +87,7 @@ export async function seedReactions(
         (
           SELECT COUNT(*)
           FROM post_reactions pr
-          WHERE pr.postId = post.id
+          WHERE pr.postId = posts.id
             AND pr.type = 'dislike'
         )
       `,
@@ -103,7 +103,7 @@ export async function seedReactions(
         (
           SELECT COUNT(*)
           FROM comment_reactions cr
-          WHERE cr.commentId = comment.id
+          WHERE cr.commentId = comments.id
             AND cr.type = 'like'
         )
       `,
@@ -111,7 +111,7 @@ export async function seedReactions(
         (
           SELECT COUNT(*)
           FROM comment_reactions cr
-          WHERE cr.commentId = comment.id
+          WHERE cr.commentId = comments.id
             AND cr.type = 'dislike'
         )
       `,
