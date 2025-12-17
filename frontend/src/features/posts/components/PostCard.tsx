@@ -9,7 +9,7 @@ import {
   FaShareAlt, // Share icon
   FaBookmark, // Save icon
 } from 'react-icons/fa';
-import { PostReactionButtons } from '../../reactions';
+import { PostReactionButtons } from '../../reactions/components/PostReactionButtons';
 
 interface PostCardProps {
   post: Post;
@@ -52,10 +52,7 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
         <div className="flex items-center space-x-4">
           {/* Vote Buttons */}
           <PostReactionButtons
-            postId={post.id}
-            initialLikesCount={post.likesCount}
-            initialDislikesCount={post.dislikesCount}
-            initialUserReaction={post.userReaction}
+            post={post}
           />
 
           {/* Other Action Buttons */}

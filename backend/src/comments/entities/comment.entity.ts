@@ -11,6 +11,7 @@ import {
 import { Post } from '../../posts/entities/post.entity';
 import { User } from '../../users/entities/user.entity';
 import { CommentReaction } from '../../reactions/entities/comment-reaction.entity';
+import { ReactionType } from 'src/reactions/reactions.types';
 
 @Entity('comments')
 export class Comment {
@@ -49,6 +50,8 @@ export class Comment {
 
   @Column({ default: 0 })
   dislikesCount: number;
+
+  userReaction?: { id: number; type: ReactionType };
 
   @CreateDateColumn()
   createdAt: Date;

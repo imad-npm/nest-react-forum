@@ -1,4 +1,9 @@
-export type ReactionType = 'like' | 'dislike';
+export const ReactionType = {
+  LIKE: 'like',
+  DISLIKE: 'dislike',
+} as const;
+
+export type ReactionType = typeof ReactionType[keyof typeof ReactionType];
 
 export interface Reaction {
     id: number;

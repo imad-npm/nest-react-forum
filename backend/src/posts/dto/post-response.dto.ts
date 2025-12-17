@@ -22,7 +22,8 @@ export class PostResponseDto {
   @Expose() readonly likesCount: number;
   @Expose() readonly dislikesCount: number;
   
-  @Expose() @Type(() => ReactionResponseDto) readonly userReaction?: ReactionResponseDto | null;
+  @Expose() @Type(() => ReactionResponseDto) 
+  readonly userReaction?: ReactionResponseDto | null;
 
   static fromEntity(entity: Post & { userReaction?: any }): PostResponseDto {
     return plainToInstance(

@@ -5,7 +5,6 @@ import PostList from '../../posts/components/PostList';
 import { useToastContext } from '../../../shared/providers/ToastProvider';
 import type { PostQueryDto } from '../../posts/types';
 import FeedFilters from '../components/FeedFilters';
-import { Button } from '../../../shared/components/ui/Button';
 
 const FeedPage = () => {
   const [page, setPage] = useState(1);
@@ -13,7 +12,6 @@ const FeedPage = () => {
   
   const [queryParams, setQueryParams] = useState<Omit<PostQueryDto, 'page'>>({
     limit: 10,
-    sort: 'newest',
   });
 
   const { data, error, isLoading, isFetching } = useGetPostsQuery({
@@ -24,7 +22,7 @@ const FeedPage = () => {
   console.log(data);
   
   const { showToast } = useToastContext();
-  const observer = useRef<IntersectionObserver>();
+const observer = useRef<IntersectionObserver | null>(null);
 
   // Reset to page 1 when filters change
   useEffect(() => {

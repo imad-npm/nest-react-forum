@@ -36,9 +36,10 @@ export class PostsController {
   ) {}
 
   @Get()
-  @UseGuards(OptionalJwtAuthGuard)
+  @UseGuards(JwtAuthGuard)
   async findAll(@Query() query: PostQueryDto,
-    @GetUser() user :User): Promise<PaginatedResponseDto<PostResponseDto>> {
+    @Req() req : any
+  ): Promise<PaginatedResponseDto<PostResponseDto>> {
 
     const { data, count } = await this.postsService.findAll({
       page: query.page,
@@ -48,7 +49,7 @@ export class PostsController {
       sort: query.sort,
       startDate: query.startDate,
       endDate: query.endDate,
-      currentUserId : user?.id ??undefined,
+      currentUserId : req.user?.id ??undefined,
     });
 
     const paginationMeta = new PaginationMetaDto(

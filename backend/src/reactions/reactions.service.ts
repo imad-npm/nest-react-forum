@@ -59,7 +59,8 @@ export class ReactionsService {
       const existing = await this.postReactionRepo.findOne({
         where: { userId, postId },
       });
-
+      console.log(existing);
+      
       if (existing) {
         throw new ForbiddenException(
           'You already reacted to this post',

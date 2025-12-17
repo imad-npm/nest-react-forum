@@ -3,7 +3,14 @@ import type { Post, CreatePostDto, UpdatePostDto, PostQueryDto, PaginatedRespons
 
 export const postsApi = createApi({
     reducerPath: 'postsApi',
-    baseQuery: fetchBaseQuery({ baseUrl: 'http://localhost:3000/api/' }),
+    baseQuery: fetchBaseQuery({
+        baseUrl: 'http://localhost:3000/api/',
+        prepareHeaders: (headers, { getState }) => {
+            const token = (getState() as any).auth?.accessToken;
+            if (token) headers.set('Authorization', `Bearer ${token}`);
+            return headers;
+        },
+    }),
     tagTypes: ['Posts'],
     endpoints: (builder) => ({
         getPosts: builder.query<PaginatedResponse<Post>, PostQueryDto>({

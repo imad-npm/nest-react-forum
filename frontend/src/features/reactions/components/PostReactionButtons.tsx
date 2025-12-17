@@ -1,6 +1,7 @@
 import { ReactionButtons } from './ReactionButtons';
-import { useCreatePostReactionMutation, useDeletePostReactionMutation } from '../services/reactionApi';
+import { useCreatePostReactionMutation, useDeletePostReactionMutation, useUpdatePostReactionMutation } from '../services/reactionApi';
 import type { Post } from '../../posts/types';
+import { ReactionType } from '../types/types';
 
 interface PostReactionButtonsProps {
     post: Post; // contains id, userReaction, likesCount, dislikesCount
@@ -9,20 +10,27 @@ interface PostReactionButtonsProps {
 export const PostReactionButtons: React.FC<PostReactionButtonsProps> = ({ post }) => {
     const [createReaction] = useCreatePostReactionMutation();
     const [deleteReaction] = useDeletePostReactionMutation();
+    const [updateReaction] = useUpdatePostReactionMutation();
 
     const handleLike = async () => {
-        if (post.userReaction === 'like') {
-            await deleteReaction({ postId: post.id, reactionId: post.userReactionId! });
-        } else {
-            await createReaction({ postId: post.id, data: { type: 'like' } });
+        if (post.userReaction?.type === ReactionType.LIKE) {
+            await deleteReaction({ postId: post.id, reactionId: post.userReaction.id! });
+        } else if (post.userReaction?.type === ReactionType.DISLIKE) {
+            await updateReaction({ postId: post.id, reactionId: post.userReaction.id!, data: { type: ReactionType.LIKE } });
+        }
+        else {
+            await createReaction({ postId: post.id, data: { type: ReactionType.LIKE } });
         }
     };
 
     const handleDislike = async () => {
-        if (post.userReaction === 'dislike') {
-            await deleteReaction({ postId: post.id, reactionId: post.userReactionId! });
-        } else {
-            await createReaction({ postId: post.id, data: { type: 'dislike' } });
+        if (post.userReaction?.type === ReactionType.DISLIKE) {
+            await deleteReaction({ postId: post.id, reactionId: post.userReaction.id! });
+        } else if (post.userReaction?.type === ReactionType.LIKE) {
+            await updateReaction({ postId: post.id, reactionId: post.userReaction.id!, data: { type: ReactionType.DISLIKE } });
+        }
+        else {
+            await createReaction({ postId: post.id, data: { type: ReactionType.DISLIKE } });
         }
     };
 
@@ -30,7 +38,7 @@ export const PostReactionButtons: React.FC<PostReactionButtonsProps> = ({ post }
         <ReactionButtons
             likesCount={post.likesCount}
             dislikesCount={post.dislikesCount}
-            userReaction={post.userReaction}
+            userReaction={post.userReaction?.type}
             onLike={handleLike}
             onDislike={handleDislike}
             disabled={false} // you can set loading state if needed

@@ -20,14 +20,25 @@ async findAll(options: {
   search?: string;
   page?: number;
   limit?: number;
+  currentUserId?: number;
 }): Promise<{ data: Comment[]; count: number }> {
-  const { postId, authorId, search, page = 1, limit = 10 } = options;
+  const { postId, authorId, search, page = 1, limit = 10, currentUserId } = options;
 
   const query = this.commentRepo
     .createQueryBuilder('comment')
     .leftJoinAndSelect('comment.author', 'author')
     .leftJoinAndSelect('comment.post', 'post')
     .leftJoinAndSelect('comment.parent', 'parent');
+
+  if (currentUserId) {
+    query.leftJoin(
+      'comment.reactions',
+      'userReaction',
+      'userReaction.userId = :currentUserId',
+      { currentUserId },
+    )
+    .addSelect(['userReaction.id', 'userReaction.type']);
+  }
 
   if (search) {
     query.andWhere('comment.content ILIKE :search', { search: `%${search}%` });
@@ -43,14 +54,47 @@ async findAll(options: {
 
   const [data, count] = await query.take(limit).skip((page - 1) * limit).getManyAndCount();
 
-  return { data, count };
+  const commentsWithUserReaction = data.map(comment => {
+    return {
+      ...comment,
+      userReaction: comment['userReaction_id'] ? {
+        id: comment['userReaction_id'],
+        type: comment['userReaction_type'],
+      } : undefined
+    };
+  });
+
+  return { data: commentsWithUserReaction, count };
 }
 
 
-  findOne(id: number) {
-    return this.commentRepo.findOne({
-      where: { id },
-      relations: ['author', 'post', 'parent'],
+  findOne(id: number, currentUserId?: number) {
+    const query = this.commentRepo.createQueryBuilder('comment')
+      .leftJoinAndSelect('comment.author', 'author')
+      .leftJoinAndSelect('comment.post', 'post')
+      .leftJoinAndSelect('comment.parent', 'parent');
+
+    if (currentUserId) {
+      query.leftJoin(
+        'comment.reactions',
+        'userReaction',
+        'userReaction.userId = :currentUserId',
+        { currentUserId },
+      )
+      .addSelect(['userReaction.id', 'userReaction.type']);
+    }
+
+    query.where('comment.id = :id', { id });
+
+    return query.getOne().then(comment => {
+      if (!comment) return null;
+      return {
+        ...comment,
+        userReaction: comment['userReaction_id'] ? {
+          id: comment['userReaction_id'],
+          type: comment['userReaction_type'],
+        } : undefined
+      };
     });
   }
 

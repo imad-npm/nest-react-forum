@@ -15,7 +15,7 @@ export const GetUser = createParamDecorator(
 
     if (!user) {
       throw new UnauthorizedException(
-        'No authenticated user found. Token may be missing or invalid.',
+        'No authenticated user found. Token ff may be missing or invalid.',
       );
     }
 

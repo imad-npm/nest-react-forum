@@ -23,7 +23,7 @@ export class PostsService {
       sort?: PostSort;
       startDate?: Date;
       endDate?: Date;
-      currentUserId?:number
+      currentUserId?: number
     },
   ): Promise<{
     data: Post[];
@@ -40,19 +40,23 @@ export class PostsService {
       currentUserId
     } = options;
 
-   const query = this.postsRepository
-    .createQueryBuilder('post')
-    .leftJoinAndSelect('post.author', 'author')
-    .leftJoinAndSelect('post.community', 'community');
+    const query = this.postsRepository
+      .createQueryBuilder('post')
+      .leftJoinAndSelect('post.author', 'author')
+      .leftJoinAndSelect('post.community', 'community');
 
+      console.log(currentUserId);
+      
   if (currentUserId) {
-    query.leftJoinAndSelect(
-      'post.reactions',
-      'myReaction',
-      'myReaction.userId = :userId',
-      { userId: currentUserId },
-    );
-  }
+  query.leftJoinAndMapOne(
+    'post.userReaction',
+    'post.reactions',
+    'userReaction',
+    'userReaction.userId = :currentUserId',
+    { currentUserId },
+  );
+}
+
     if (search) {
       query.where(
         new Brackets((qb) => {
@@ -93,13 +97,47 @@ export class PostsService {
       .skip((page - 1) * limit)
       .getManyAndCount();
 
-    return { data, count };
+    /*const postsWithUserReaction = data.map(post => {
+      return {
+        ...post,
+        userReaction: post['userReaction_id'] ? {
+          id: post['userReaction_id'],
+          type: post['userReaction_type'],
+        } : undefined
+      };
+    });
+*/
+
+    return { data: data, count };
   }
 
-  findOne(id: number): Promise<Post | null> {
-    return this.postsRepository.findOne({
-      where: { id },
-      relations: ['author', 'comments', 'reactions', 'community'],
+  findOne(id: number, currentUserId?: number): Promise<Post | null> {
+    const query = this.postsRepository.createQueryBuilder('post')
+      .leftJoinAndSelect('post.author', 'author')
+      .leftJoinAndSelect('post.comments', 'comments')
+      .leftJoinAndSelect('post.community', 'community');
+
+    if (currentUserId) {
+      query.leftJoin(
+        'post.reactions',
+        'userReaction',
+        'userReaction.userId = :currentUserId',
+        { currentUserId },
+      )
+        .addSelect(['userReaction.id', 'userReaction.type']);
+    }
+
+    query.where('post.id = :id', { id });
+
+    return query.getOne().then(post => {
+      if (!post) return null;
+      return {
+        ...post,
+        userReaction: post['userReaction_id'] ? {
+          id: post['userReaction_id'],
+          type: post['userReaction_type'],
+        } : undefined
+      };
     });
   }
 
