@@ -1,4 +1,3 @@
-import React from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useGetPostByIdQuery } from '../services/postsApi';
 import { useToastContext } from '../../../shared/providers/ToastProvider';
@@ -77,7 +76,7 @@ const PostDetailPage = () => {
           <p className="text-gray-700 text-base mb-6">{post.content}</p>
 
           {/* Action Buttons and Votes */}
-          <div className="flex items-center justify-between mt-4 text-gray-500 text-sm border-t pt-3">
+          <div className="flex items-center justify-between mt-4 text-gray-500 text-sm  pt-3">
             <div className="flex items-center space-x-4">
               {/* Vote Buttons */}
               <div className="flex items-center space-x-2">

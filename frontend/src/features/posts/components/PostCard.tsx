@@ -2,33 +2,24 @@ import React from 'react';
 import type { Post } from '../types';
 import { Link } from 'react-router-dom';
 import {
-  FaThumbsUp,
-  FaThumbsDown,
   FaEye,
   FaUser,
   FaUsers,
-  FaArrowUp, // Upvote icon
-  FaArrowDown, // Downvote icon
   FaCommentAlt, // Comment icon
   FaShareAlt, // Share icon
   FaBookmark, // Save icon
 } from 'react-icons/fa';
+import { PostReactionButtons } from '../../reactions';
 
 interface PostCardProps {
   post: Post;
 }
 
 const PostCard: React.FC<PostCardProps> = ({ post }) => {
-  // Placeholder for vote logic
-  const handleVote = (direction: 'up' | 'down') => {
-    console.log(`Voted ${direction} on post ${post.id}`);
-    // Implement actual API call for voting here
-  };
-
   return (
-    <div className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 mb-6 p-5"> {/* Increased mb and p */}
+    <div className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 mb-6 p-5">
       {/* Post Metadata (Author, Community, Date) */}
-      <div className="flex items-center text-sm text-gray-500 mb-3"> {/* Increased mb */}
+      <div className="flex items-center text-sm text-gray-500 mb-3">
         {post.community && (
           <>
             <FaUsers className="mr-1" />
@@ -49,36 +40,23 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
 
       {/* Post Title */}
       <Link to={`/posts/${post.id}`}>
-        <h2 className="text-xl font-bold text-gray-800 hover:text-blue-600 leading-tight mb-3"> {/* Increased mb */}
+        <h2 className="text-xl font-bold text-gray-800 hover:text-blue-600 leading-tight mb-3">
           {post.title}
         </h2>
       </Link>
       {/* Post Content */}
-      <p className="text-gray-700 text-sm line-clamp-3 mb-4">{post.content}</p> {/* Increased mb */}
+      <p className="text-gray-700 text-sm line-clamp-3 mb-4">{post.content}</p>
 
       {/* Action Buttons and Votes */}
-      <div className="flex items-center justify-between mt-3 text-gray-500 text-sm  ">
+      <div className="flex items-center justify-between mt-3 text-gray-500 text-sm">
         <div className="flex items-center space-x-4">
           {/* Vote Buttons */}
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={() => handleVote('up')}
-              className="text-gray-400 hover:text-blue-500 transition-colors p-1"
-              aria-label="Upvote"
-            >
-              <FaArrowUp size={18} />
-            </button>
-            <span className="font-bold text-gray-700">
-              {post.likesCount - post.dislikesCount}
-            </span>
-            <button
-              onClick={() => handleVote('down')}
-              className="text-gray-400 hover:text-red-500 transition-colors p-1"
-              aria-label="Downvote"
-            >
-              <FaArrowDown size={18} />
-            </button>
-          </div>
+          <PostReactionButtons
+            postId={post.id}
+            initialLikesCount={post.likesCount}
+            initialDislikesCount={post.dislikesCount}
+            initialUserReaction={post.userReaction}
+          />
 
           {/* Other Action Buttons */}
           <button className="flex items-center space-x-1 hover:text-blue-600 transition-colors">
@@ -92,7 +70,7 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
           </button>
         </div>
         <div className="flex items-center space-x-1">
-            <FaEye /> <span>{post.views}</span>
+          <FaEye /> <span>{post.views}</span>
         </div>
       </div>
     </div>

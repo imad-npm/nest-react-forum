@@ -58,6 +58,133 @@
 
 ---
 
+### FILE: src/features/posts/types.ts ###
+export interface Post {
+    id: number;
+    title: string;
+    content: string;
+    author: {
+        id: number;
+        name: string;
+    };
+    community?: {
+        id: number;
+        name: string;
+    };
+    views: number;
+    likesCount: number;
+    dislikesCount: number;
+    commentsCount: number; // Added commentsCount
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface CreatePostDto {
+    title: string;
+    content: string;
+    communityId?: number;
+}
+
+export interface UpdatePostDto {
+    title?: string;
+    content?: string;
+}
+
+export interface PostQueryDto {
+    page?: number;
+    limit?: number;
+    search?: string;
+    authorId?: number;
+    sort?: string;
+    startDate?: string;
+    endDate?: string;
+}
+
+export interface PaginatedResponse<T> {
+    data: T[];
+    meta: {
+        page: number;
+        limit: number;
+        totalItems: number;
+
+        totalPages: number;
+
+        itemCount: number;
+    };
+}
+
+export interface ResponseDto<T> {
+    data: T;
+    message: string;
+}
+
+---
+
+
+### FILE: src/features/posts/services/postsApi.ts ###
+import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import type { Post, CreatePostDto, UpdatePostDto, PostQueryDto, PaginatedResponse, ResponseDto } from '../types';
+
+export const postsApi = createApi({
+    reducerPath: 'postsApi',
+    baseQuery: fetchBaseQuery({ baseUrl: 'http://localhost:3000/api/' }),
+    tagTypes: ['Posts'],
+    endpoints: (builder) => ({
+        getPosts: builder.query<PaginatedResponse<Post>, PostQueryDto>({
+            query: (params) => ({ url: '/posts', params }),
+            serializeQueryArgs: ({ endpointName }) => endpointName, // shared cache
+            merge: (currentCache, newItems) => {
+                currentCache.data.push(...newItems.data);
+                currentCache.meta = newItems.meta;
+            },
+            forceRefetch({ currentArg, previousArg }) {
+                return currentArg?.page !== previousArg?.page;
+            },
+            keepUnusedDataFor: 60, // keeps old data while fetching next page
+            providesTags: ['Posts']
+        }),
+
+        getPostById: builder.query<ResponseDto<Post>, number>({
+            query: (id) => `/posts/${id}`,
+            providesTags: (result, error, id) => [{ type: 'Posts', id }],
+        }),
+    createPost: builder.mutation<ResponseDto<Post>, CreatePostDto>({
+        query: (newPost) => ({
+            url: '/posts',
+            method: 'POST',
+            body: newPost,
+        }),
+        invalidatesTags: ['Posts'],
+    }),
+    updatePost: builder.mutation<ResponseDto<Post>, { id: number; data: UpdatePostDto }>({
+        query: ({ id, data }) => ({
+            url: `/posts/${id}`,
+            method: 'PATCH',
+            body: data,
+        }),
+        invalidatesTags: (result, error, { id }) => [{ type: 'Posts', id }],
+    }),
+    deletePost: builder.mutation<ResponseDto<boolean>, number>({
+        query: (id) => ({
+            url: `/posts/${id}`,
+            method: 'DELETE',
+        }),
+        invalidatesTags: ['Posts'],
+    }),
+}),
+});
+
+export const {
+    useGetPostsQuery,
+    useGetPostByIdQuery,
+    useCreatePostMutation,
+    useUpdatePostMutation,
+    useDeletePostMutation,
+} = postsApi;
+
+---
+
+
 ### FILE: src/features/auth/types.ts ###
 export interface RegisterDto {
     name: string;
@@ -173,6 +300,121 @@ export const { useRegisterMutation, useLoginMutation, useRefreshMutation, useRes
 ---
 
 
+### FILE: src/features/comments/types.ts ###
+export interface Comment {
+    id: number;
+    content: string;
+    author: {
+        id: number;
+        name: string;
+    };
+    postId: number;
+    parentId?: number; // For replies
+    likesCount: number;
+    dislikesCount: number;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface CreateCommentDto {
+    content: string;
+    parentId?: number;
+}
+
+export interface UpdateCommentDto {
+    content: string;
+}
+
+export interface CommentQueryDto {
+    page?: number;
+    limit?: number;
+    postId?: number;
+    authorId?: number;
+}
+
+export interface PaginatedResponse<T> {
+    data: T[];
+    meta: {
+        page: number;
+        limit: number;
+        totalItems: number;
+
+        totalPages: number;
+
+        itemCount: number;
+    };
+}
+
+export interface ResponseDto<T> {
+    data: T;
+    message: string;
+}
+
+---
+
+
+### FILE: src/features/comments/services/commentsApi.ts ###
+import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import type { Comment, CreateCommentDto, UpdateCommentDto, CommentQueryDto, PaginatedResponse, ResponseDto } from '../types';
+
+export const commentsApi = createApi({
+    reducerPath: 'commentsApi',
+    baseQuery: fetchBaseQuery({ baseUrl: 'http://localhost:3000/api/' }),
+    tagTypes: ['Comments'],
+    endpoints: (builder) => ({
+        getCommentsByPostId: builder.query<PaginatedResponse<Comment>, CommentQueryDto & { postId: number }>({
+            query: ({ postId, ...params }) => ({
+                url: `/posts/${postId}/comments`,
+                params: params,
+            }),
+            serializeQueryArgs: ({ endpointName, queryArgs }) => {
+                return `${endpointName}-${queryArgs.postId}`;
+            },
+            merge: (currentCache, newItems) => {
+                currentCache.data.push(...newItems.data);
+                currentCache.meta = newItems.meta;
+            },
+            forceRefetch({ currentArg, previousArg }) {
+                return currentArg?.page !== previousArg?.page;
+            },
+            providesTags: (result, error, { postId }) => [{ type: 'Comments', id: postId }],
+        }),
+        createComment: builder.mutation<ResponseDto<Comment>, { postId: number; data: CreateCommentDto }>({
+            query: ({ postId, data }) => ({
+                url: `/posts/${postId}/comments`,
+                method: 'POST',
+                body: data,
+            }),
+            invalidatesTags: (result, error, { postId }) => [{ type: 'Comments', id: postId }],
+        }),
+        updateComment: builder.mutation<ResponseDto<Comment>, { id: number; data: UpdateCommentDto }>({
+            query: ({ id, data }) => ({
+                url: `/comments/${id}`,
+                method: 'PATCH',
+                body: data,
+            }),
+            invalidatesTags: (result, error, { id }) => [{ type: 'Comments', id }],
+        }),
+        deleteComment: builder.mutation<ResponseDto<boolean>, number>({
+            query: (id) => ({
+                url: `/comments/${id}`,
+                method: 'DELETE',
+            }),
+            invalidatesTags: (result, error, id) => [{ type: 'Comments', id }],
+        }),
+    }),
+});
+
+export const {
+    useGetCommentsByPostIdQuery,
+    useCreateCommentMutation,
+    useUpdateCommentMutation,
+    useDeleteCommentMutation,
+} = commentsApi;
+
+---
+
+
 ### FILE: src/shared/stores/hooks.ts ###
 import { useDispatch, useSelector } from 'react-redux'
 import type { RootState, AppDispatch } from './store'
@@ -189,14 +431,18 @@ import { configureStore } from '@reduxjs/toolkit';
 import { setupListeners } from '@reduxjs/toolkit/query';
 import { authApi } from '../../features/auth/services/authApi';
 import authReducer from '../../features/auth/stores/authSlice';
+import { postsApi } from '../../features/posts/services/postsApi';
+import { commentsApi } from '../../features/comments/services/commentsApi'; // Import commentsApi
 
 export const store = configureStore({
   reducer: {
     [authApi.reducerPath]: authApi.reducer,
+    [postsApi.reducerPath]: postsApi.reducer,
+    [commentsApi.reducerPath]: commentsApi.reducer, // Add commentsApi reducer
     auth: authReducer,
   },
   middleware: (getDefaultMiddleware) =>
-    getDefaultMiddleware().concat(authApi.middleware),
+    getDefaultMiddleware().concat(authApi.middleware, postsApi.middleware, commentsApi.middleware), // Add commentsApi middleware
 });
 
 setupListeners(store.dispatch);
