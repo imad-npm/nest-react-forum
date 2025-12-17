@@ -12,17 +12,17 @@ async function main() {
     // Seed users
     const users = await seedUsers();
 
+    // Seed communities
+    const communities = await seedCommunities(users);
+
     // Seed posts
-    const posts = await seedPosts(users);
+    const posts = await seedPosts(users, communities);
 
     // Seed comments
     const comments = await seedComments(users, posts);
 
     // Seed reactions (optional)
     await seedReactions(posts, comments, users);
-
-    // Seed communities
-    const communities = await seedCommunities(users);
 
     // Seed community subscriptions
     await seedCommunitySubscriptions(users, communities);

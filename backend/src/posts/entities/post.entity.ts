@@ -34,12 +34,12 @@ export class Post {
   authorId: number;
 
   @ManyToOne(() => Community, (community) => community.posts, {
-    nullable: true,
-    onDelete: 'SET NULL',
+    nullable: false,
+    onDelete: 'RESTRICT',
   })
   community: Community;
 
-  @Column({ nullable: true })
+  @Column({ nullable: false })
   communityId: number;
 
   @Column({ default: 0 })

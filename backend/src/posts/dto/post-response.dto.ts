@@ -13,8 +13,10 @@ export class PostResponseDto {
   @Expose() readonly createdAt: Date;
   @Expose() readonly updatedAt: Date;
 
-  @Expose() @Type(() => UserResponseDto) readonly author: UserResponseDto;
-  @Expose() @Type(() => CommunityResponseDto) readonly community: CommunityResponseDto;
+  @Expose() @Type(() => UserResponseDto) 
+  readonly author: UserResponseDto;
+  @Expose() @Type(() => CommunityResponseDto) 
+  readonly community: CommunityResponseDto;
 
   @Expose() readonly commentsCount: number;
   @Expose() readonly likesCount: number;

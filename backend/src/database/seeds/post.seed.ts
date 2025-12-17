@@ -1,14 +1,16 @@
-import { AppDataSource } from '../../data-source';
 import { postFactory } from '../factories/post.factory';
 import { Post } from '../../posts/entities/post.entity';
 import { User } from '../../users/entities/user.entity';
+import { Community } from '../../communities/entities/community.entity'; // Import Community entity
+import { AppDataSource } from '../../data-source';
 
-export async function seedPosts(users: User[]) {
+export async function seedPosts(users: User[], communities: Community[]) {
   const postRepo = AppDataSource.getRepository(Post);
 
   const posts: Post[] = Array.from({ length: 100 }).map(() => {
     const author = users[Math.floor(Math.random() * users.length)];
-    return postFactory(author);
+    const community = communities[Math.floor(Math.random() * communities.length)]; // Select a random community
+    return postFactory(author, community);
   });
 
   await postRepo.save(posts);
@@ -17,4 +19,4 @@ export async function seedPosts(users: User[]) {
   return posts;
 }
 
-if (require.main === module) seedPosts([]);
+if (require.main === module) seedPosts([], []);
