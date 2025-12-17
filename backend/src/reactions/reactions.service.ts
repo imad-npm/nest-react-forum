@@ -1,4 +1,3 @@
-// src/reactions/reactions.service.ts
 import {
   Injectable,
   BadRequestException,
@@ -13,6 +12,7 @@ import { CommentReaction } from './entities/comment-reaction.entity';
 import { ReactionType } from './reactions.types';
 import { PostsService } from 'src/posts/posts.service';
 import { CommentsService } from 'src/comments/comments.service';
+import { UpdateReactionDto } from './dto/update-reaction.dto';
 
 @Injectable()
 export class ReactionsService {
@@ -183,6 +183,78 @@ export class ReactionsService {
   }
 
   // ─────────────────────────────────────────────
+  // UPDATE
+  // ─────────────────────────────────────────────
+ async updatePostReaction({
+  id,
+  type
+}: {
+  id: number;
+  type: ReactionType;
+}) {
+  const reaction = await this.postReactionRepo.findOneBy({ id });
+  if (!reaction) throw new NotFoundException('Post reaction not found');
+  
+  // Return early if no change
+  if (reaction.type === type) return reaction;
+
+  const oldType = reaction.type;
+  const newType = type;
+  const postId = reaction.postId;
+
+  // Update counters based on change
+  if (oldType === ReactionType.LIKE) {
+    await this.postsService.decrementLikesCount(postId);
+  } else if (oldType === ReactionType.DISLIKE) {
+    await this.postsService.decrementDislikesCount(postId);
+  }
+
+  if (newType === ReactionType.LIKE) {
+    await this.postsService.incrementLikesCount(postId);
+  } else if (newType === ReactionType.DISLIKE) {
+    await this.postsService.incrementDislikesCount(postId);
+  }
+
+  // Update reaction type
+  reaction.type = newType;
+  return this.postReactionRepo.save(reaction);
+}
+
+async updateCommentReaction({
+  id,
+  type
+}: {
+  id: number;
+  type: ReactionType;
+}) {
+  const reaction = await this.commentReactionRepo.findOneBy({ id });
+  if (!reaction) throw new NotFoundException('Comment reaction not found');
+
+  // Return early if no change
+  if (reaction.type === type) return reaction;
+
+  const oldType = reaction.type;
+  const newType = type;
+  const commentId = reaction.commentId;
+
+  // Update counters based on change
+  if (oldType === ReactionType.LIKE) {
+    await this.commentsService.decrementLikesCount(commentId);
+  } else if (oldType === ReactionType.DISLIKE) {
+    await this.commentsService.decrementDislikesCount(commentId);
+  }
+
+  if (newType === ReactionType.LIKE) {
+    await this.commentsService.incrementLikesCount(commentId);
+  } else if (newType === ReactionType.DISLIKE) {
+    await this.commentsService.incrementDislikesCount(commentId);
+  }
+
+  // Update reaction type
+  reaction.type = newType;
+  return this.commentReactionRepo.save(reaction);
+}
+  // ─────────────────────────────────────────────
   // DELETE
   // ─────────────────────────────────────────────
   async deletePostReaction(id: number) {
@@ -213,10 +285,10 @@ export class ReactionsService {
 
     const result = await this.commentReactionRepo.delete(id);
     if (result.affected) {
-       const comment = await this.commentsService.findOne(reaction.commentId);
+      const comment = await this.commentsService.findOne(reaction.commentId);
       if (!comment) throw new NotFoundException(`Comment with ID               
      ${reaction.commentId} not found`);
-     
+
       if (reaction.type === ReactionType.LIKE) {
         await this.commentsService.decrementLikesCount(reaction.commentId);
       } else {

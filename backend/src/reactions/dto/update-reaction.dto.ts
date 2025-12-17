@@ -1,4 +1,7 @@
-import { PartialType } from '@nestjs/mapped-types';
-import { CreateReactionDto } from './create-reaction.dto';
+import { IsEnum } from 'class-validator';
+import { ReactionType } from '../reactions.types';
 
-export class UpdateReactionDto extends PartialType(CreateReactionDto) {}
+export class UpdateReactionDto {
+  @IsEnum(ReactionType)
+  type: ReactionType;
+}

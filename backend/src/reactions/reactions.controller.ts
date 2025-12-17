@@ -8,9 +8,11 @@ import {
   UseGuards,
   NotFoundException,
   Query,
+  Patch,
 } from '@nestjs/common';
 import { ReactionsService } from './reactions.service';
 import { CreateReactionDto } from './dto/create-reaction.dto';
+import { UpdateReactionDto } from './dto/update-reaction.dto';
 import { User } from 'src/users/entities/user.entity';
 import { GetUser } from 'src/decorators/user.decorator';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
@@ -69,6 +71,20 @@ export class ReactionsController {
     return new PaginatedResponseDto(data.map(ReactionResponseDto.fromEntity), paginationMeta);
   }
 
+  @Patch('posts/:postId/reactions/:reactionId')
+  @UseGuards(JwtAuthGuard)
+  async updatePostReaction(
+    @Param('reactionId', PostReactionPipe) reaction: PostReaction,
+    @Body() dto: UpdateReactionDto,
+    @GetUser() user: User,
+  ): Promise<ResponseDto<ReactionResponseDto>> {
+    this.caslService.enforce(user, Action.Update, reaction);
+    const updatedReaction = await this.reactionsService.updatePostReaction({
+       id:reaction.id,
+       type:dto.type});
+    return new ResponseDto(ReactionResponseDto.fromEntity(updatedReaction));
+  }
+
   @Post('comments/:commentId/reactions')
   @UseGuards(JwtAuthGuard)
   async createCommentReaction(
@@ -98,6 +114,19 @@ export class ReactionsController {
       data.length,
     );
     return new PaginatedResponseDto(data.map(ReactionResponseDto.fromEntity), paginationMeta);
+  }
+
+  @Patch('comments/:commentId/reactions/:reactionId')
+  @UseGuards(JwtAuthGuard)
+  async updateCommentReaction(
+    @Param('reactionId', CommentReactionPipe) reaction: CommentReaction,
+    @Body() dto: UpdateReactionDto,
+    @GetUser() user: User,
+  ): Promise<ResponseDto<ReactionResponseDto>> {
+    this.caslService.enforce(user, Action.Update, reaction);
+    const updatedReaction = await this.reactionsService.updateCommentReaction({ id:reaction.id,
+      type: dto.type});
+    return new ResponseDto(ReactionResponseDto.fromEntity(updatedReaction));
   }
 
   @Delete('posts/:postId/reactions/:reactionId')
