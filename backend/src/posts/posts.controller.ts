@@ -8,6 +8,7 @@ import {
   Delete,
   UseGuards,
   Query,
+  Req,
 } from '@nestjs/common';
 import { PostsService } from './posts.service';
 import { CreatePostDto } from './dto/create-post.dto';
@@ -24,6 +25,8 @@ import { PostQueryDto } from './dto/post-query.dto';
 import { ResponseDto } from 'src/common/dto/response.dto';
 import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
 import { PaginationMetaDto } from 'src/common/dto/pagination-meta.dto';
+import { OptionalJwtAuthGuard } from 'src/auth/guards/optional-jwt-auth.guard';
+import type { Request } from 'express';
 
 @Controller('posts')
 export class PostsController {
@@ -33,7 +36,10 @@ export class PostsController {
   ) {}
 
   @Get()
-  async findAll(@Query() query: PostQueryDto): Promise<PaginatedResponseDto<PostResponseDto>> {
+  @UseGuards(OptionalJwtAuthGuard)
+  async findAll(@Query() query: PostQueryDto,
+    @GetUser() user :User): Promise<PaginatedResponseDto<PostResponseDto>> {
+
     const { data, count } = await this.postsService.findAll({
       page: query.page,
       limit: query.limit,
@@ -42,6 +48,7 @@ export class PostsController {
       sort: query.sort,
       startDate: query.startDate,
       endDate: query.endDate,
+      currentUserId : user?.id ??undefined,
     });
 
     const paginationMeta = new PaginationMetaDto(

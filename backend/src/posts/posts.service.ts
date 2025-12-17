@@ -23,6 +23,7 @@ export class PostsService {
       sort?: PostSort;
       startDate?: Date;
       endDate?: Date;
+      currentUserId?:number
     },
   ): Promise<{
     data: Post[];
@@ -36,15 +37,22 @@ export class PostsService {
       sort,
       startDate,
       endDate,
+      currentUserId
     } = options;
 
-    const query = this.postsRepository
-      .createQueryBuilder('post')
-      .leftJoinAndSelect('post.author', 'author')
-      .leftJoinAndSelect('post.comments', 'comments')
-      .leftJoinAndSelect('post.reactions', 'reactions')
-      .leftJoinAndSelect('post.community', 'community');
+   const query = this.postsRepository
+    .createQueryBuilder('post')
+    .leftJoinAndSelect('post.author', 'author')
+    .leftJoinAndSelect('post.community', 'community');
 
+  if (currentUserId) {
+    query.leftJoinAndSelect(
+      'post.reactions',
+      'myReaction',
+      'myReaction.userId = :userId',
+      { userId: currentUserId },
+    );
+  }
     if (search) {
       query.where(
         new Brackets((qb) => {
