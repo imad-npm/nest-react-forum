@@ -48,10 +48,13 @@ export class CaslAbilityFactory {
     // PostReaction
     can(Action.Create, PostReaction);
     can(Action.Delete, PostReaction, { userId: user.id });
+    can(Action.Update, PostReaction, { userId: user.id });
+
 
     // CommentReaction
     can(Action.Create, CommentReaction);
     can(Action.Delete, CommentReaction, { userId: user.id });
+    can(Action.Update, CommentReaction, { userId: user.id });
 
     return build({
       detectSubjectType: (item) =>

@@ -6,16 +6,12 @@ export const postsApi = apiSlice.injectEndpoints({
         getPosts: builder.query<PaginatedResponse<Post>, PostQueryDto>({
             query: (params) => ({ url: '/posts', params }),
             serializeQueryArgs: ({ endpointName }) => endpointName, // shared cache
-            merge: (currentCache, newItems) => {
-                currentCache.data.push(...newItems.data);
-                currentCache.meta = newItems.meta;
-            },
-            forceRefetch({ currentArg, previousArg }) {
-                return currentArg?.page !== previousArg?.page;
-            },
+        
             keepUnusedDataFor: 60, // keeps old data while fetching next page
             providesTags: ['Posts']
-        }),
+        } ,
+        
+    ),
 
         getPostById: builder.query<ResponseDto<Post>, number>({
             query: (id) => `/posts/${id}`,

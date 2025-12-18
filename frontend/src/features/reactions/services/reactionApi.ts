@@ -24,29 +24,19 @@ export const reactionApi = apiSlice.injectEndpoints({
 
     createPostReaction: builder.mutation<ResponseDto<PostReaction>, { postId: number; data: CreateReactionDto }>({
       query: ({ postId, data }) => ({ url: `/posts/${postId}/reactions`, method: 'POST', body: data }),
-      invalidatesTags: (_result, _error, { postId }) => [
-        { type: 'Posts', id: postId },          // <--- refresh the post itself
-        { type: 'PostReaction', id: postId },
-        { type: 'PostStats', id: postId },
-      ],
+      invalidatesTags: ['Posts']
     }),
 
     updatePostReaction: builder.mutation<ResponseDto<PostReaction>, { postId: number; reactionId: number; data: UpdateReactionDto }>({
       query: ({ postId, reactionId, data }) => ({ url: `/posts/${postId}/reactions/${reactionId}`, method: 'PATCH', body: data }),
-      invalidatesTags: (_result, _error, { postId }) => [
-        { type: 'Posts', id: postId },
-        { type: 'PostReaction', id: postId },
-        { type: 'PostStats', id: postId },
-      ],
+            invalidatesTags: ['Posts']
+
     }),
 
     deletePostReaction: builder.mutation<ResponseDto<boolean>, { postId: number; reactionId: number }>({
       query: ({ postId, reactionId }) => ({ url: `/posts/${postId}/reactions/${reactionId}`, method: 'DELETE' }),
-      invalidatesTags: (_result, _error, { postId }) => [
-        { type: 'Posts', id: postId },
-        { type: 'PostReaction', id: postId },
-        { type: 'PostStats', id: postId },
-      ],
+          invalidatesTags: ['Posts']
+
     }),
 
     createCommentReaction: builder.mutation<ResponseDto<CommentReaction>, { commentId: number; data: CreateReactionDto }>({
