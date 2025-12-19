@@ -32,7 +32,7 @@ export class PostResponseDto {
         ...entity,
         author: entity.author ? UserResponseDto.fromEntity(entity.author) : null,
         community: entity.community ? CommunityResponseDto.fromEntity(entity.community) : null,
-        commentsCount: entity.comments?.length || 0,
+        commentsCount: entity.commentsCount,
         userReaction: entity.userReaction ? ReactionResponseDto.fromEntity(entity.userReaction) : null,
       },
       { excludeExtraneousValues: true },

@@ -7,7 +7,7 @@ import { AppDataSource } from '../../data-source';
 export async function seedPosts(users: User[], communities: Community[]) {
   const postRepo = AppDataSource.getRepository(Post);
 
-  const posts: Post[] = Array.from({ length: 100 }).map(() => {
+  const posts: Post[] = Array.from({ length: 30 }).map(() => {
     const author = users[Math.floor(Math.random() * users.length)];
     const community = communities[Math.floor(Math.random() * communities.length)]; // Select a random community
     return postFactory(author, community);

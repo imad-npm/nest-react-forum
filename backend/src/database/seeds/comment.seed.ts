@@ -8,14 +8,14 @@ export async function seedComments(users: User[], posts: Post[]) {
   const commentRepo = AppDataSource.getRepository(Comment);
   const postRepo = AppDataSource.getRepository(Post); // Get Post repository
 
-  const comments: Comment[] = Array.from({ length: 100 }).map(() => {
+  const comments: Comment[] = Array.from({ length: 300 }).map(() => {
     const author = users[Math.floor(Math.random() * users.length)];
     const post = posts[Math.floor(Math.random() * posts.length)];
     return commentFactory(author, post);
   });
 
   await commentRepo.save(comments);
-  console.log('Seeded 100 comments ✅');
+  console.log('Seeded 300 comments ✅');
 
   // Efficiently update commentsCount for all posts using a single query
   await postRepo

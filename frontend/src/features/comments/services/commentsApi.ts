@@ -4,22 +4,30 @@ import type { Comment, CreateCommentDto, UpdateCommentDto, CommentQueryDto, Pagi
 export const commentsApi = apiSlice.injectEndpoints({
     overrideExisting: false, // Ensure this is not overriding existing endpoints
     endpoints: (builder) => ({
-        getCommentsByPostId: builder.query<PaginatedResponse<Comment>, CommentQueryDto & { postId: number }>({
-            query: ({ postId, ...params }) => ({
-                url: `/posts/${postId}/comments`,
-                params: params,
+        getCommentsByPostId: builder.infiniteQuery<
+            PaginatedResponse<Comment>,
+            CommentQueryDto, // Simplified type parameter
+            number
+        >({
+            infiniteQueryOptions: {
+                initialPageParam: 1,
+                getNextPageParam: (lastPage) => {
+                    const { page, totalPages } = lastPage.meta;
+                    return page < totalPages ? page + 1 : undefined;
+                },
+            },
+            query: ({ queryArg, pageParam }) => ({ // postId taken from queryArg
+                url: `/posts/${queryArg.postId}/comments`, // Access postId from queryArg
+                params: {
+                    ...(queryArg ?? {}),
+                    page: pageParam,
+                    limit: queryArg?.limit ?? 10,
+                },
             }),
             serializeQueryArgs: ({ endpointName, queryArgs }) => {
                 return `${endpointName}-${queryArgs.postId}`;
             },
-            merge: (currentCache, newItems) => {
-                currentCache.data.push(...newItems.data);
-                currentCache.meta = newItems.meta;
-            },
-            forceRefetch({ currentArg, previousArg }) {
-                return currentArg?.page !== previousArg?.page;
-            },
-            providesTags: (result, error, { postId }) => [{ type: 'Comments', id: postId }],
+            providesTags: ['Comments']
         }),
         createComment: builder.mutation<ResponseDto<Comment>, { postId: number; data: CreateCommentDto }>({
             query: ({ postId, data }) => ({
@@ -48,7 +56,7 @@ export const commentsApi = apiSlice.injectEndpoints({
 });
 
 export const {
-    useGetCommentsByPostIdQuery,
+    useGetCommentsByPostIdInfiniteQuery,
     useCreateCommentMutation,
     useUpdateCommentMutation,
     useDeleteCommentMutation,

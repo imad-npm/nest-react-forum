@@ -20,7 +20,9 @@ const FeedPage = () => {
     hasNextPage,
   } = useGetPostsInfiniteQuery(queryParams);
 
+  
   const posts = data?.pages.flatMap((page) => page.data) ?? [];
+  console.log(posts);
 
   const { showToast } = useToastContext();
   const observer = useRef<IntersectionObserver | null>(null);
