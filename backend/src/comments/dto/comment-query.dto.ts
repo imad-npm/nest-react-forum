@@ -11,4 +11,9 @@ export class CommentQueryDto extends PaginationDto {
   @IsInt()
   @Type(() => Number)
   authorId?: number;
-}
+
+  @IsOptional()
+  @IsInt()
+  @Type(() => Number)
+  parentId?: number;
+  }

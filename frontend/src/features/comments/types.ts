@@ -11,6 +11,7 @@ export interface Comment {
     parentId?: number; // For replies
     likesCount: number;
     dislikesCount: number;
+    repliesCount: number;
     userReaction?: { id: number; type: ReactionType } | null;
     replies?: Comment[]; // Added for nested replies
 
@@ -32,6 +33,7 @@ export interface CommentQueryDto {
     limit?: number;
     postId?: number;
     authorId?: number;
+    parentId?: number;
 }
 
 export interface PaginatedResponse<T> {

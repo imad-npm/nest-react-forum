@@ -72,6 +72,7 @@ export class CommentsController {
         page: query.page,
         limit: query.limit,
         currentUserId: user?.id, // Pass currentUserId
+        parentId: query.parentId,
       }
     );
 
