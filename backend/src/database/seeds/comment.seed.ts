@@ -61,6 +61,17 @@ export async function seedComments(users: User[], posts: Post[]) {
 
   console.log('Updated commentsCount for all posts efficiently ✅');
 
+  await commentRepo
+  .createQueryBuilder()
+  .update(Comment)
+  .set({
+    repliesCount: () =>
+      `(SELECT COUNT(*) FROM comments AS c2 WHERE c2.parentId = comments.id)`,
+  })
+  .execute();
+  
+  console.log('Updated repliesCount for all comments efficiently ✅');
+
   return allComments;
 }
 

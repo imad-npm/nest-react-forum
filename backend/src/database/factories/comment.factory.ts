@@ -8,6 +8,7 @@ export function commentFactory(author: User, post: Post, parentId?: number): Com
   comment.content = faker.lorem.sentence();
   comment.author = author;
   comment.post = post;
+  comment.repliesCount = 0;
   if (parentId) {
     comment.parentId = parentId;
   }

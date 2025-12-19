@@ -39,7 +39,7 @@ export class Comment {
   })
   parent: Comment;
 
- @Column()
+ @Column({nullable :true})
   parentId: number;
 
   @OneToMany(() => Comment, (comment) => comment.parent)
@@ -53,6 +53,9 @@ export class Comment {
 
   @Column({ default: 0 })
   dislikesCount: number;
+
+  @Column({ default: 0 })
+  repliesCount: number;
 
   userReaction?: { id: number; type: ReactionType };
 

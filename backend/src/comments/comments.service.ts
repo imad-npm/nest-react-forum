@@ -347,6 +347,7 @@ export class CommentsService {
         );
       }
       comment.parent = parent;
+      await this.incrementRepliesCount(parentId);
     }
 
     const savedComment = await this.commentRepo.save(comment);
@@ -379,7 +380,7 @@ export class CommentsService {
   async remove(id: number): Promise<boolean> {
     const comment = await this.commentRepo.findOne({
       where: { id },
-      relations: ['post'], // Load post relation to update commentsCount
+      relations: ['post', 'parent'], // Load post and parent relation to update counts
     });
     if (!comment) {
       throw new NotFoundException('Comment not found');
@@ -388,6 +389,11 @@ export class CommentsService {
     // Decrement commentsCount on the post using PostsService
     if (comment.post) {
       await this.postsService.decrementCommentsCount(comment.post.id);
+    }
+
+    // Decrement repliesCount on the parent comment
+    if (comment.parent) {
+      await this.decrementRepliesCount(comment.parent.id);
     }
 
     await this.commentRepo.remove(comment);
@@ -408,5 +414,13 @@ export class CommentsService {
 
   async decrementDislikesCount(commentId: number): Promise<void> {
     await this.commentRepo.decrement({ id: commentId }, 'dislikesCount', 1);
+  }
+
+  async incrementRepliesCount(commentId: number): Promise<void> {
+    await this.commentRepo.increment({ id: commentId }, 'repliesCount', 1);
+  }
+
+  async decrementRepliesCount(commentId: number): Promise<void> {
+    await this.commentRepo.decrement({ id: commentId }, 'repliesCount', 1);
   }
 }

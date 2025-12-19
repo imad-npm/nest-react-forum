@@ -16,6 +16,7 @@ export class CommentResponseDto {
   @Expose() readonly parentId?: number;
   @Expose() readonly likesCount: number;
   @Expose() readonly dislikesCount: number;
+  @Expose() readonly repliesCount: number;
   @Expose() @Type(() => ReactionResponseDto)
   readonly userReaction?: ReactionResponseDto | null;
   @Expose()
