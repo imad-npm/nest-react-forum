@@ -41,29 +41,17 @@ export const reactionApi = apiSlice.injectEndpoints({
 
     createCommentReaction: builder.mutation<ResponseDto<CommentReaction>, { commentId: number; data: CreateReactionDto }>({
       query: ({ commentId, data }) => ({ url: `/comments/${commentId}/reactions`, method: 'POST', body: data }),
-      invalidatesTags: (_result, _error, { commentId }) => [
-        { type: 'Comments', id: commentId },      // refresh comment itself
-        { type: 'CommentReaction', id: commentId },
-        { type: 'CommentStats', id: commentId },
-      ],
+      invalidatesTags: ['Comments'],
     }),
 
     updateCommentReaction: builder.mutation<ResponseDto<CommentReaction>, { commentId: number; reactionId: number; data: UpdateReactionDto }>({
       query: ({ commentId, reactionId, data }) => ({ url: `/comments/${commentId}/reactions/${reactionId}`, method: 'PATCH', body: data }),
-      invalidatesTags: (_result, _error, { commentId }) => [
-        { type: 'Comments', id: commentId },
-        { type: 'CommentReaction', id: commentId },
-        { type: 'CommentStats', id: commentId },
-      ],
+      invalidatesTags: ['Comments'],
     }),
 
     deleteCommentReaction: builder.mutation<ResponseDto<boolean>, { commentId: number; reactionId: number }>({
       query: ({ commentId, reactionId }) => ({ url: `/comments/${commentId}/reactions/${reactionId}`, method: 'DELETE' }),
-      invalidatesTags: (_result, _error, { commentId }) => [
-        { type: 'Comments', id: commentId },
-        { type: 'CommentReaction', id: commentId },
-        { type: 'CommentStats', id: commentId },
-      ],
+      invalidatesTags: ['Comments'],
     }),
   }),
 });

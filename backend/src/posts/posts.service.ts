@@ -111,35 +111,36 @@ export class PostsService {
     return { data: data, count };
   }
 
-  findOne(id: number, currentUserId?: number): Promise<Post | null> {
-    const query = this.postsRepository.createQueryBuilder('post')
-      .leftJoinAndSelect('post.author', 'author')
-      .leftJoinAndSelect('post.comments', 'comments')
-      .leftJoinAndSelect('post.community', 'community');
 
-    if (currentUserId) {
-      query.leftJoin(
-        'post.reactions',
-        'userReaction',
-        'userReaction.userId = :currentUserId',
-        { currentUserId },
-      )
-        .addSelect(['userReaction.id', 'userReaction.type']);
-    }
+  async findOne(id: number, currentUserId?: number): Promise<Post | null> {
+  // Start building query
+  const query = this.postsRepository.createQueryBuilder('post')
+    .leftJoinAndSelect('post.author', 'author')
+    .leftJoinAndSelect('post.comments', 'comments')
+    .leftJoinAndSelect('post.community', 'community');
 
-    query.where('post.id = :id', { id });
+  // Optionally join user's reaction if currentUserId is provided
+  if (currentUserId) {
+  query.leftJoinAndMapOne(
+    'post.userReaction',
+    'post.reactions',
+    'userReaction',
+    'userReaction.userId = :currentUserId',
+    { currentUserId },
+  );
+}
 
-    return query.getOne().then(post => {
-      if (!post) return null;
-      return {
-        ...post,
-        userReaction: post['userReaction_id'] ? {
-          id: post['userReaction_id'],
-          type: post['userReaction_type'],
-        } : undefined
-      };
-    });
-  }
+  // Filter by post ID
+  query.where('post.id = :id', { id });
+
+  // Execute query
+  const post = await query.getOne();
+
+  if (!post) return null;
+
+  
+  return post ;
+}
 
   async create(
     { title, content, author, communityId }: { title: string; content: string; author: User; communityId: number },

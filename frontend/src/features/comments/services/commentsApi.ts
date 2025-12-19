@@ -24,9 +24,7 @@ export const commentsApi = apiSlice.injectEndpoints({
                     limit: queryArg?.limit ?? 10,
                 },
             }),
-            serializeQueryArgs: ({ endpointName, queryArgs }) => {
-                return `${endpointName}-${queryArgs.postId}`;
-            },
+           
             providesTags: ['Comments']
         }),
         createComment: builder.mutation<ResponseDto<Comment>, { postId: number; data: CreateCommentDto }>({

@@ -9,6 +9,7 @@ import {
   UseGuards,
   Query,
   Req,
+  NotFoundException,
 } from '@nestjs/common';
 import { PostsService } from './posts.service';
 import { CreatePostDto } from './dto/create-post.dto';
@@ -63,8 +64,19 @@ export class PostsController {
   }
 
   @Get(':id')
-  findOne(@Param('id', PostPipe) post: PostEntity): ResponseDto<PostResponseDto> {
-    this.postsService.incrementViews(post.id);
+  @UseGuards(OptionalJwtAuthGuard)
+  async findOne(
+    @Param('id') id: string,
+    @GetUser() user?: User, // Get user if authenticated
+  ): Promise<ResponseDto<PostResponseDto>> {
+    const postId = +id;
+    const post = await this.postsService.findOne(postId, user?.id); // Pass currentUserId
+
+     if (!post) {
+    throw new NotFoundException(`Post not found`);
+  }
+
+    this.postsService.incrementViews(postId);
     return new ResponseDto(PostResponseDto.fromEntity(post));
   }
 

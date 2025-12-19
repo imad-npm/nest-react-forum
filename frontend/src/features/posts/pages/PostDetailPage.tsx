@@ -13,6 +13,7 @@ import {
 } from 'react-icons/fa';
 import { Button } from '../../../shared/components/ui/Button';
 import CommentList from '../../comments/components/CommentList'; // Import CommentList
+import { PostReactionButtons } from '../../reactions/components/PostReactionButtons';
 
 const PostDetailPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -43,6 +44,8 @@ const PostDetailPage = () => {
 
   const post = data.data;
 
+  console.log(post);
+  
   return (
     <div className="container mx-auto p-4 flex flex-col md:flex-row gap-6">
       {/* Main Content Area */}
@@ -79,26 +82,7 @@ const PostDetailPage = () => {
           <div className="flex items-center justify-between mt-4 text-gray-500 text-sm  pt-3">
             <div className="flex items-center space-x-4">
               {/* Vote Buttons */}
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => handleVote('up')}
-                  className="text-gray-400 hover:text-blue-500 transition-colors p-1"
-                  aria-label="Upvote"
-                >
-                  <FaArrowUp size={18} />
-                </button>
-                <span className="font-bold text-gray-700">
-                  {post.likesCount - post.dislikesCount}
-                </span>
-                <button
-                  onClick={() => handleVote('down')}
-                  className="text-gray-400 hover:text-red-500 transition-colors p-1"
-                  aria-label="Downvote"
-                >
-                  <FaArrowDown size={18} />
-                </button>
-              </div>
-
+              <PostReactionButtons post={post}/>
               {/* Other Action Buttons */}
               <button className="flex items-center space-x-1 hover:text-blue-600 transition-colors">
                 <FaCommentAlt /> <span>{post.commentsCount || 0} Comments</span>
