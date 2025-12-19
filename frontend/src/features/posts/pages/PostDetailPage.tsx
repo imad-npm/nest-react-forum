@@ -11,9 +11,10 @@ import {
   FaUsers,
   FaEye,
 } from 'react-icons/fa';
-import { Button } from '../../../shared/components/ui/Button';
 import CommentList from '../../comments/components/CommentList'; // Import CommentList
+import { AboutCommunity } from '../../communities/components/AboutCommunity';
 import { PostReactionButtons } from '../../reactions/components/PostReactionButtons';
+import { PostSuggestionsList } from '../components/PostSuggestionsList';
 
 const PostDetailPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -21,12 +22,7 @@ const PostDetailPage = () => {
   const { data, error, isLoading } = useGetPostByIdQuery(postId);
   const { showToast } = useToastContext();
 
-  // Placeholder for vote logic
-  const handleVote = (direction: 'up' | 'down') => {
-    console.log(`Voted ${direction} on post ${postId}`);
-    // Implement actual API call for voting here
-  };
-
+ 
   if (isLoading) {
     return <div className="text-center mt-8">Loading post...</div>;
   }
@@ -49,7 +45,7 @@ const PostDetailPage = () => {
   return (
     <div className="container mx-auto p-4 flex flex-col md:flex-row gap-6">
       {/* Main Content Area */}
-      <div className="md:w-3/4">
+      <div className="md:w-[70%]">
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           {/* Post Metadata (Author, Community, Date) */}
           <div className="flex items-center text-sm text-gray-500 mb-3">
@@ -105,27 +101,13 @@ const PostDetailPage = () => {
       </div>
 
       {/* Sidebar Area (Right) */}
-      <div className="md:w-1/4">
-        <div className="bg-white p-4 rounded-lg shadow-md sticky top-4">
-          <h2 className="text-xl font-bold mb-4">About Community</h2>
-          {post.community ? (
-            <>
-              <p className="text-gray-700 text-sm mb-2">
-                This post belongs to the <span className="font-semibold">{post.community.name}</span> community.
-              </p>
-              <p className="text-gray-700 text-sm">
-                Here you can find discussions about {post.community.name}.
-              </p>
-              <Button variant="default" className="w-full mt-4">
-                Join Community
-              </Button>
-            </>
-          ) : (
-            <p className="text-gray-700 text-sm">
-              This post does not belong to any specific community.
-            </p>
-          )}
-        </div>
+      <div className="md:w-[30%]">
+        <PostSuggestionsList currentPostId={postId} communityId={post.community?.id} />
+        {post.community && (
+          <div className="mt-4">
+            <AboutCommunity communityId={post.community.id} />
+          </div>
+        )}
       </div>
     </div>
   );
