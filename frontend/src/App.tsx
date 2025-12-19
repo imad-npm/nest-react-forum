@@ -8,6 +8,7 @@ import EmailVerification from './features/auth/pages/EmailVerification';
 import VerificationResult from './features/auth/pages/VerificationResult';
 import FeedPage from './features/feed/pages/FeedPage';
 import PostDetailPage from './features/posts/pages/PostDetailPage'; // Import PostDetailPage
+import { CommunityPage } from './features/communities/pages/CommunityPage';
 
 function App() {
   return (
@@ -38,6 +39,14 @@ function App() {
               }
             />
             {/* Add other routes here */}
+            <Route
+              path="/communities/:communityId"
+              element={
+                <AuthGuard>
+                  <CommunityPage />
+                </AuthGuard>
+              }
+            />
           </Routes>
         </main>
       </div>

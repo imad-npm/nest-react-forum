@@ -51,6 +51,7 @@ export class PostsController {
       startDate: query.startDate,
       endDate: query.endDate,
       currentUserId : req.user?.id ??undefined,
+      communityId: query.communityId,
     });
 
     const paginationMeta = new PaginationMetaDto(

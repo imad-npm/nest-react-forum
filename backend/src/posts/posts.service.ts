@@ -23,7 +23,8 @@ export class PostsService {
       sort?: PostSort;
       startDate?: Date;
       endDate?: Date;
-      currentUserId?: number
+      currentUserId?: number;
+      communityId?: number;
     },
   ): Promise<{
     data: Post[];
@@ -37,7 +38,8 @@ export class PostsService {
       sort,
       startDate,
       endDate,
-      currentUserId
+      currentUserId,
+      communityId,
     } = options;
 
     const query = this.postsRepository
@@ -71,9 +73,14 @@ export class PostsService {
       query.andWhere('post.author.id = :authorId', { authorId });
     }
 
+    if (communityId) {
+      query.andWhere('post.community.id = :communityId', { communityId });
+    }
+
     if (startDate) {
       query.andWhere('post.createdAt >= :startDate', { startDate });
     }
+
 
     if (endDate) {
       query.andWhere('post.createdAt <= :endDate', { endDate });

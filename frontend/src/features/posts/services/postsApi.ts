@@ -1,5 +1,6 @@
 import { apiSlice } from '../../../shared/services/apiSlice';
-import type { Post, CreatePostDto, UpdatePostDto, PostQueryDto, PaginatedResponse, ResponseDto } from '../types';
+import type { Post, CreatePostDto, UpdatePostDto, PostQueryDto } from '../types';
+import type { PaginatedResponse, ResponseDto } from '../../../shared/types';
 
 export const postsApi = apiSlice.injectEndpoints({
     endpoints: (builder) => ({

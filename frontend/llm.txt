@@ -243,30 +243,13 @@ export interface PostQueryDto {
   endDate?: string;
 }
 
-export interface PaginatedResponse<T> {
-  data: T[];
-  meta: {
-    page: number;
-    limit: number;
-    totalItems: number;
-
-    totalPages: number;
-
-    itemCount: number;
-  };
-}
-
-export interface ResponseDto<T> {
-  data: T;
-  message: string;
-}
-
 ---
 
 
 ### FILE: src/features/posts/services/postsApi.ts ###
 import { apiSlice } from '../../../shared/services/apiSlice';
-import type { Post, CreatePostDto, UpdatePostDto, PostQueryDto, PaginatedResponse, ResponseDto } from '../types';
+import type { Post, CreatePostDto, UpdatePostDto, PostQueryDto } from '../types';
+import type { PaginatedResponse, ResponseDto } from '../../../shared/types';
 
 export const postsApi = apiSlice.injectEndpoints({
     endpoints: (builder) => ({
@@ -451,6 +434,91 @@ export const { useRegisterMutation, useLoginMutation, useRefreshMutation, useRes
 ---
 
 
+### FILE: src/features/communities/types.ts ###
+export interface Community {
+  id: number;
+  name: string;
+  displayName: string;
+  description: string;
+  isPublic: boolean;
+  subscribersCount: number;
+  createdAt: string;
+}
+
+export interface CreateCommunityDto {
+  name: string;
+  displayName?: string;
+  description?: string;
+  isPublic?: boolean;
+}
+
+export interface UpdateCommunityDto extends Partial<CreateCommunityDto> {}
+
+export interface CommunityQueryDto {
+  name?: string;
+  displayName?: string;
+  isPublic?: boolean;
+  page?: number;
+  limit?: number;
+}
+---
+
+
+### FILE: src/features/communities/services/communitiesApi.ts ###
+import { apiSlice } from '../../../shared/services/apiSlice';
+import type { Community, CreateCommunityDto, UpdateCommunityDto, CommunityQueryDto } from '../types';
+import type { PaginatedResponse, ResponseDto } from '../../../shared/types';
+
+export const communitiesApi = apiSlice.injectEndpoints({
+  endpoints: (builder) => ({
+    getCommunities: builder.query<PaginatedResponse<Community>, CommunityQueryDto>({
+      query: (params) => ({
+        url: '/communities',
+        params,
+      }),
+      providesTags: ['Communities'],
+    }),
+    getCommunityById: builder.query<ResponseDto<Community>, number>({
+      query: (id) => `/communities/${id}`,
+      providesTags: (result, error, id) => [{ type: 'Communities', id }],
+    }),
+    createCommunity: builder.mutation<ResponseDto<Community>, CreateCommunityDto>({
+      query: (newCommunity) => ({
+        url: '/communities',
+        method: 'POST',
+        body: newCommunity,
+      }),
+      invalidatesTags: ['Communities'],
+    }),
+    updateCommunity: builder.mutation<ResponseDto<Community>, { id: number; data: UpdateCommunityDto }>({
+      query: ({ id, data }) => ({
+        url: `/communities/${id}`,
+        method: 'PATCH',
+        body: data,
+      }),
+      invalidatesTags: (result, error, { id }) => [{ type: 'Communities', id }],
+    }),
+    deleteCommunity: builder.mutation<ResponseDto<boolean>, number>({
+      query: (id) => ({
+        url: `/communities/${id}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['Communities'],
+    }),
+  }),
+});
+
+export const {
+  useGetCommunitiesQuery,
+  useGetCommunityByIdQuery,
+  useCreateCommunityMutation,
+  useUpdateCommunityMutation,
+  useDeleteCommunityMutation,
+} = communitiesApi;
+
+---
+
+
 ### FILE: src/features/comments/types.ts ###
 import type { ReactionType } from "../reactions/types/types";
 
@@ -465,7 +533,9 @@ export interface Comment {
     parentId?: number; // For replies
     likesCount: number;
     dislikesCount: number;
-  userReaction?: { id: number; type: ReactionType } | null;
+    repliesCount: number;
+    userReaction?: { id: number; type: ReactionType } | null;
+    replies?: Comment[]; // Added for nested replies
 
     createdAt: string;
     updatedAt: string;
@@ -485,6 +555,7 @@ export interface CommentQueryDto {
     limit?: number;
     postId?: number;
     authorId?: number;
+    parentId?: number;
 }
 
 export interface PaginatedResponse<T> {
@@ -632,6 +703,26 @@ export const apiSlice = createApi({
   tagTypes: ['Posts', 'Comments', 'Users', 'Reactions', 'Auth', 'Communities', 'CommunitySubscriptions', 'EmailVerification', 'Profile', 'ResetPassword', 'PostReaction', 'CommentReaction', 'PostStats', 'CommentStats'],
   endpoints: () => ({}), // Empty endpoints as this is a base slice
 });
+
+---
+
+
+### FILE: src/shared/types/index.ts ###
+export interface PaginatedResponse<T> {
+  data: T[];
+  meta: {
+    page: number;
+    limit: number;
+    totalItems: number;
+    totalPages: number;
+    itemCount: number;
+  };
+}
+
+export interface ResponseDto<T> {
+  data: T;
+  message: string;
+}
 
 ---
 
