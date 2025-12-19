@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import type { Comment } from '../types';
-import { Link } from 'react-router-dom';
 import { FaUser, FaReply } from 'react-icons/fa';
 import { CommentReactionButtons } from '../../reactions/components/CommentReactionButtons';
 import { useGetCommentsByPostIdInfiniteQuery } from '../services/commentsApi';
@@ -9,59 +8,109 @@ import { Button } from '../../../shared/components/ui/Button';
 interface CommentCardProps {
   comment: Comment;
   onReply?: (commentId: number, authorName: string) => void;
-  level: number;
   postId: number;
 }
 
-const CommentCard: React.FC<CommentCardProps> = ({ comment, onReply, level, postId }) => {
-  const [showReplies, setShowReplies] = useState(false);
+const REPLIES_LIMIT = 2;
 
+const CommentCard: React.FC<CommentCardProps> = ({
+  comment,
+  onReply,
+  postId,
+}) => {
+  /* ------------------------------
+   * Initial (preloaded) replies
+   * ------------------------------ */
+  const initialReplies = comment.replies ?? [];
+  const initialRepliesCount = initialReplies.length;
+
+  const hasMoreRepliesThanInitial =
+    comment.repliesCount > initialRepliesCount;
+
+  const [showReplies, setShowReplies] = useState(
+    initialRepliesCount > 0
+  );
+
+  /* ------------------------------
+   * Infinite query (ALWAYS page 1)
+   * ------------------------------ */
   const {
     data,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
   } = useGetCommentsByPostIdInfiniteQuery(
-    { postId, parentId: comment.id, limit: 2 },
-    { skip: !showReplies || !comment.repliesCount }
+    {
+      postId,
+      parentId: comment.id,
+      limit: REPLIES_LIMIT,
+    },
+    {
+      skip: !showReplies || !hasMoreRepliesThanInitial,
+      initialPageParam: 1,
+    }
   );
-  const allReplies = data?.pages?.flatMap(p => p.data) || [];
 
-  /*
-    const allReplies = useMemo(() => {
-      const initialReplies = comment.replies || [];
-      const fetchedReplies = data?.pages?.flatMap(p => p.data) || [];
-  
-      const map = new Map<number, Comment>();
-      [...initialReplies, ...fetchedReplies].forEach(r => map.set(r.id, r));
-  
-      return [...map.values()].sort(
-        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-      );
-    }, [comment.replies, data]);
-  */
+  /* ------------------------------
+   * Merge + dedupe + enforce limit
+   * ------------------------------ */
+  const allReplies = useMemo(() => {
+    const fetchedReplies =
+      data?.pages.flatMap(page => page.data) ?? [];
+
+    const merged = [...initialReplies, ...fetchedReplies];
+
+    // Deduplicate by id
+    const unique = new Map<number, Comment>();
+    merged.forEach(reply => unique.set(reply.id, reply));
+
+    const sorted = Array.from(unique.values()).sort(
+      (a, b) =>
+        new Date(a.createdAt).getTime() -
+        new Date(b.createdAt).getTime()
+    );
+
+    // Enforce max replies based on loaded pages
+    const loadedPages = data?.pages.length ?? 1;
+    const maxAllowed = REPLIES_LIMIT * loadedPages;
+
+    return sorted.slice(0, maxAllowed);
+  }, [initialReplies, data]);
+
+  /* ------------------------------
+   * Render
+   * ------------------------------ */
   return (
     <div className="mb-3">
-      {/* COMMENT CARD (never indented) */}
-      <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
-        <div className="flex items-center text-sm text-gray-500 mb-2">
+      {/* COMMENT CARD */}
+      <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+        <div className="mb-2 flex items-center text-sm text-gray-500">
           <FaUser className="mr-1" />
           <span>u/{comment.author.name}</span>
           <span className="mx-1">•</span>
-          <span>{new Date(comment.createdAt).toLocaleDateString()}</span>
+          <span>
+            {new Date(comment.createdAt).toLocaleDateString()}
+          </span>
         </div>
-        {/* DEBUG INFO */}
-        <div className="text-xs text-gray-400 mb-1">
-          id: {comment.id}, parentId: {comment.parentId ?? 'null'}
+
+        {/* DEBUG */}
+        <div className="mb-1 text-xs text-gray-400">
+          id: {comment.id}, parentId:{' '}
+          {comment.parentId ?? 'null'}
         </div>
-        <p className="text-gray-800 text-sm mb-3">{comment.content}</p>
+
+        <p className="mb-3 text-sm text-gray-800">
+          {comment.content}
+        </p>
 
         <div className="flex items-center space-x-4 text-xs text-gray-500">
           <CommentReactionButtons comment={comment} />
 
           {onReply && (
             <button
-              onClick={() => onReply(comment.id, comment.author.name)}
+              onClick={() =>
+                onReply(comment.id, comment.author.name)
+              }
               className="flex items-center space-x-1 hover:text-blue-600"
             >
               <FaReply />
@@ -70,19 +119,21 @@ const CommentCard: React.FC<CommentCardProps> = ({ comment, onReply, level, post
           )}
 
           {comment.repliesCount > 0 && (
-            <button
+            <Button
               onClick={() => setShowReplies(v => !v)}
-              className="text-blue-600 hover:underline"
+             variant="link"
             >
               {showReplies
                 ? `Hide replies (${comment.repliesCount})`
+                : hasMoreRepliesThanInitial
+                ? `+ Load replies (${comment.repliesCount - allReplies.length} remaining)`
                 : `View replies (${comment.repliesCount})`}
-            </button>
+            </Button>
           )}
         </div>
       </div>
 
-      {/* REPLIES (only this is indented) */}
+      {/* REPLIES */}
       {showReplies && allReplies.length > 0 && (
         <div className="mt-3 ml-6 border-l border-gray-200 pl-4">
           {allReplies.map(reply => (
@@ -90,17 +141,22 @@ const CommentCard: React.FC<CommentCardProps> = ({ comment, onReply, level, post
               key={reply.id}
               comment={reply}
               onReply={onReply}
-              level={level + 1}
               postId={postId}
             />
           ))}
         </div>
       )}
 
-      {showReplies && comment.repliesCount > allReplies.length && hasNextPage && (
-        <div className="flex justify-center mt-2 ml-6">
-          <Button onClick={fetchNextPage} disabled={isFetchingNextPage}>
-            {isFetchingNextPage ? 'Loading more replies…' : 'Load more replies'}
+      {showReplies && hasNextPage && (
+        <div className="mt-2 ml-6 flex justify-center">
+          <Button
+          variant='link'
+            onClick={fetchNextPage}
+            disabled={isFetchingNextPage}
+          >
+            {isFetchingNextPage
+              ? 'Loading more replies…'
+              : '+ Load more replies'}
           </Button>
         </div>
       )}
