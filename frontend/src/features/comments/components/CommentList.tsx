@@ -31,7 +31,7 @@ const CommentList: React.FC<CommentListProps> = ({ postId }) => {
                 <p>No comments yet. Be the first to comment!</p>
             ) : (
                 allComments.map((comment) => (
-                    <CommentCard key={comment.id} comment={comment} />
+                    <CommentCard key={comment.id} comment={comment} level={0} />
                 ))
             )}
             {hasNextPage && (

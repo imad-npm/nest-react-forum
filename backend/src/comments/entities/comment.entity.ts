@@ -39,6 +39,9 @@ export class Comment {
   })
   parent: Comment;
 
+ @Column()
+  parentId: number;
+
   @OneToMany(() => Comment, (comment) => comment.parent)
   replies: Comment[];
 

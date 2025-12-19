@@ -58,46 +58,125 @@
 
 ---
 
-### FILE: src/features/posts/types.ts ###
-export interface Post {
+### FILE: src/features/reactions/services/reactionApi.ts ###
+import { apiSlice } from '../../../shared/services/apiSlice';
+import type {
+  PostReaction,
+  CommentReaction,
+  CreateReactionDto,
+  UpdateReactionDto,
+  ReactionQueryDto,
+  PaginatedResponse,
+  ResponseDto
+} from '../types/types';
+
+export const reactionApi = apiSlice.injectEndpoints({
+  overrideExisting: false, // Ensure this is not overriding existing endpoints
+  endpoints: (builder) => ({
+    getPostReactions: builder.query<PaginatedResponse<PostReaction>, { postId: number } & ReactionQueryDto>({
+      query: ({ postId, ...params }) => ({ url: `/posts/${postId}/reactions`, params }),
+      providesTags: (_result, _error, { postId }) => [{ type: 'PostReaction', id: postId }],
+    }),
+
+    getCommentReactions: builder.query<PaginatedResponse<CommentReaction>, { commentId: number } & ReactionQueryDto>({
+      query: ({ commentId, ...params }) => ({ url: `/comments/${commentId}/reactions`, params }),
+      providesTags: (_result, _error, { commentId }) => [{ type: 'CommentReaction', id: commentId }],
+    }),
+
+    createPostReaction: builder.mutation<ResponseDto<PostReaction>, { postId: number; data: CreateReactionDto }>({
+      query: ({ postId, data }) => ({ url: `/posts/${postId}/reactions`, method: 'POST', body: data }),
+      invalidatesTags: ['Posts']
+    }),
+
+    updatePostReaction: builder.mutation<ResponseDto<PostReaction>, { postId: number; reactionId: number; data: UpdateReactionDto }>({
+      query: ({ postId, reactionId, data }) => ({ url: `/posts/${postId}/reactions/${reactionId}`, method: 'PATCH', body: data }),
+            invalidatesTags: ['Posts']
+
+    }),
+
+    deletePostReaction: builder.mutation<ResponseDto<boolean>, { postId: number; reactionId: number }>({
+      query: ({ postId, reactionId }) => ({ url: `/posts/${postId}/reactions/${reactionId}`, method: 'DELETE' }),
+          invalidatesTags: ['Posts']
+
+    }),
+
+    createCommentReaction: builder.mutation<ResponseDto<CommentReaction>, { commentId: number; data: CreateReactionDto }>({
+      query: ({ commentId, data }) => ({ url: `/comments/${commentId}/reactions`, method: 'POST', body: data }),
+      invalidatesTags: ['Comments'],
+    }),
+
+    updateCommentReaction: builder.mutation<ResponseDto<CommentReaction>, { commentId: number; reactionId: number; data: UpdateReactionDto }>({
+      query: ({ commentId, reactionId, data }) => ({ url: `/comments/${commentId}/reactions/${reactionId}`, method: 'PATCH', body: data }),
+      invalidatesTags: ['Comments'],
+    }),
+
+    deleteCommentReaction: builder.mutation<ResponseDto<boolean>, { commentId: number; reactionId: number }>({
+      query: ({ commentId, reactionId }) => ({ url: `/comments/${commentId}/reactions/${reactionId}`, method: 'DELETE' }),
+      invalidatesTags: ['Comments'],
+    }),
+  }),
+});
+
+export const {
+  useGetPostReactionsQuery,
+  useGetCommentReactionsQuery,
+  useCreatePostReactionMutation,
+  useUpdatePostReactionMutation,
+  useCreateCommentReactionMutation,
+  useUpdateCommentReactionMutation,
+  useDeletePostReactionMutation,
+  useDeleteCommentReactionMutation,
+} = reactionApi;
+
+---
+
+
+### FILE: src/features/reactions/types/types.ts ###
+export const ReactionType = {
+  LIKE: 'like',
+  DISLIKE: 'dislike',
+} as const;
+
+export type ReactionType = typeof ReactionType[keyof typeof ReactionType];
+
+export interface Reaction {
     id: number;
-    title: string;
-    content: string;
-    author: {
-        id: number;
-        name: string;
-    };
-    community?: {
-        id: number;
-        name: string;
-    };
-    views: number;
-    likesCount: number;
-    dislikesCount: number;
-    commentsCount: number; // Added commentsCount
+    type: ReactionType;
+    userId: number;
     createdAt: string;
     updatedAt: string;
 }
 
-export interface CreatePostDto {
-    title: string;
-    content: string;
-    communityId?: number;
+export interface PostReaction extends Reaction {
+    postId: number;
+    user: {
+        id: number;
+        name: string;
+    };
 }
 
-export interface UpdatePostDto {
-    title?: string;
-    content?: string;
+export interface CommentReaction extends Reaction {
+    commentId: number;
+    user: {
+        id: number;
+        name: string;
+    };
 }
 
-export interface PostQueryDto {
+export interface CreateReactionDto {
+    type: ReactionType;
+}
+
+export interface UpdateReactionDto {
+    type: ReactionType;
+}
+
+
+export interface ReactionQueryDto {
     page?: number;
     limit?: number;
-    search?: string;
-    authorId?: number;
-    sort?: string;
-    startDate?: string;
-    endDate?: string;
+    type?: ReactionType;
+    userId?: number;
 }
 
 export interface PaginatedResponse<T> {
@@ -106,9 +185,7 @@ export interface PaginatedResponse<T> {
         page: number;
         limit: number;
         totalItems: number;
-
         totalPages: number;
-
         itemCount: number;
     };
 }
@@ -121,61 +198,137 @@ export interface ResponseDto<T> {
 ---
 
 
+### FILE: src/features/posts/types.ts ###
+import type { ReactionType } from "../reactions/types/types";
+
+export interface Post {
+  id: number;
+  title: string;
+  content: string;
+  author: {
+    id: number;
+    name: string;
+  };
+  community?: {
+    id: number;
+    name: string;
+  };
+  views: number;
+  likesCount: number;
+  dislikesCount: number;
+  commentsCount: number; // Added commentsCount
+  userReaction?: { id: number; type: ReactionType };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreatePostDto {
+  title: string;
+  content: string;
+  communityId?: number;
+}
+
+export interface UpdatePostDto {
+  title?: string;
+  content?: string;
+}
+
+export interface PostQueryDto {
+  page?: number;
+  limit?: number;
+  search?: string;
+  authorId?: number;
+  sort?: string;
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  meta: {
+    page: number;
+    limit: number;
+    totalItems: number;
+
+    totalPages: number;
+
+    itemCount: number;
+  };
+}
+
+export interface ResponseDto<T> {
+  data: T;
+  message: string;
+}
+
+---
+
+
 ### FILE: src/features/posts/services/postsApi.ts ###
-import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import { apiSlice } from '../../../shared/services/apiSlice';
 import type { Post, CreatePostDto, UpdatePostDto, PostQueryDto, PaginatedResponse, ResponseDto } from '../types';
 
-export const postsApi = createApi({
-    reducerPath: 'postsApi',
-    baseQuery: fetchBaseQuery({ baseUrl: 'http://localhost:3000/api/' }),
-    tagTypes: ['Posts'],
+export const postsApi = apiSlice.injectEndpoints({
     endpoints: (builder) => ({
-        getPosts: builder.query<PaginatedResponse<Post>, PostQueryDto>({
-            query: (params) => ({ url: '/posts', params }),
-            serializeQueryArgs: ({ endpointName }) => endpointName, // shared cache
-            merge: (currentCache, newItems) => {
-                currentCache.data.push(...newItems.data);
-                currentCache.meta = newItems.meta;
-            },
-            forceRefetch({ currentArg, previousArg }) {
-                return currentArg?.page !== previousArg?.page;
-            },
-            keepUnusedDataFor: 60, // keeps old data while fetching next page
-            providesTags: ['Posts']
-        }),
+        
+      getPosts: builder.infiniteQuery<
+  PaginatedResponse<Post>,
+  PostQueryDto,
+  number
+>({
+  infiniteQueryOptions: {
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => {
+      const { page, totalPages } = lastPage.meta;
+      return page < totalPages ? page + 1 : undefined;
+    },
+  },
 
+  query: ({ queryArg, pageParam }) => ({
+    url: '/posts',
+    params: {
+      ...(queryArg ?? {}),
+      page: pageParam,
+      limit: queryArg?.limit ?? 10,
+    },
+  }),
+
+  keepUnusedDataFor: 60,
+  providesTags: ['Posts'],
+}),
         getPostById: builder.query<ResponseDto<Post>, number>({
             query: (id) => `/posts/${id}`,
             providesTags: (result, error, id) => [{ type: 'Posts', id }],
         }),
-    createPost: builder.mutation<ResponseDto<Post>, CreatePostDto>({
-        query: (newPost) => ({
-            url: '/posts',
-            method: 'POST',
-            body: newPost,
+        createPost: builder.mutation<ResponseDto<Post>, CreatePostDto>({
+            query: (newPost) => ({
+                url: '/posts',
+                method: 'POST',
+                body: newPost,
+            }),
+            invalidatesTags: ['Posts'],
         }),
-        invalidatesTags: ['Posts'],
-    }),
-    updatePost: builder.mutation<ResponseDto<Post>, { id: number; data: UpdatePostDto }>({
-        query: ({ id, data }) => ({
-            url: `/posts/${id}`,
-            method: 'PATCH',
-            body: data,
+        updatePost: builder.mutation<ResponseDto<Post>, { id: number; data: UpdatePostDto }>({
+            query: ({ id, data }) => ({
+                url: `/posts/${id}`,
+                method: 'PATCH',
+                body: data,
+            }),
+            invalidatesTags: (result, error, { id }) => [{ type: 'Posts', id }],
         }),
-        invalidatesTags: (result, error, { id }) => [{ type: 'Posts', id }],
-    }),
-    deletePost: builder.mutation<ResponseDto<boolean>, number>({
-        query: (id) => ({
-            url: `/posts/${id}`,
-            method: 'DELETE',
+        deletePost: builder.mutation<ResponseDto<boolean>, number>({
+            query: (id) => ({
+                url: `/posts/${id}`,
+                method: 'DELETE',
+            }),
+            invalidatesTags: ['Posts'],
         }),
-        invalidatesTags: ['Posts'],
     }),
-}),
 });
 
 export const {
-    useGetPostsQuery,
+    
+      useGetPostsInfiniteQuery,
     useGetPostByIdQuery,
     useCreatePostMutation,
     useUpdatePostMutation,
@@ -258,12 +411,10 @@ export default authSlice.reducer;
 
 
 ### FILE: src/features/auth/services/authApi.ts ###
-import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import { apiSlice } from '../../../shared/services/apiSlice';
 import type { LoginDto, RegisterDto, UserResponseDto, ResponseDto } from '../types';
 
-export const authApi = createApi({
-  reducerPath: 'authApi',
-  baseQuery: fetchBaseQuery({ baseUrl: 'http://localhost:3000/api/' }),
+export const authApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
     register: builder.mutation<ResponseDto<UserResponseDto>, RegisterDto>({
       query: (credentials) => ({
@@ -301,6 +452,8 @@ export const { useRegisterMutation, useLoginMutation, useRefreshMutation, useRes
 
 
 ### FILE: src/features/comments/types.ts ###
+import type { ReactionType } from "../reactions/types/types";
+
 export interface Comment {
     id: number;
     content: string;
@@ -312,6 +465,8 @@ export interface Comment {
     parentId?: number; // For replies
     likesCount: number;
     dislikesCount: number;
+  userReaction?: { id: number; type: ReactionType } | null;
+
     createdAt: string;
     updatedAt: string;
 }
@@ -354,30 +509,34 @@ export interface ResponseDto<T> {
 
 
 ### FILE: src/features/comments/services/commentsApi.ts ###
-import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import { apiSlice } from '../../../shared/services/apiSlice';
 import type { Comment, CreateCommentDto, UpdateCommentDto, CommentQueryDto, PaginatedResponse, ResponseDto } from '../types';
 
-export const commentsApi = createApi({
-    reducerPath: 'commentsApi',
-    baseQuery: fetchBaseQuery({ baseUrl: 'http://localhost:3000/api/' }),
-    tagTypes: ['Comments'],
+export const commentsApi = apiSlice.injectEndpoints({
+    overrideExisting: false, // Ensure this is not overriding existing endpoints
     endpoints: (builder) => ({
-        getCommentsByPostId: builder.query<PaginatedResponse<Comment>, CommentQueryDto & { postId: number }>({
-            query: ({ postId, ...params }) => ({
-                url: `/posts/${postId}/comments`,
-                params: params,
+        getCommentsByPostId: builder.infiniteQuery<
+            PaginatedResponse<Comment>,
+            CommentQueryDto, // Simplified type parameter
+            number
+        >({
+            infiniteQueryOptions: {
+                initialPageParam: 1,
+                getNextPageParam: (lastPage) => {
+                    const { page, totalPages } = lastPage.meta;
+                    return page < totalPages ? page + 1 : undefined;
+                },
+            },
+            query: ({ queryArg, pageParam }) => ({ // postId taken from queryArg
+                url: `/posts/${queryArg.postId}/comments`, // Access postId from queryArg
+                params: {
+                    ...(queryArg ?? {}),
+                    page: pageParam,
+                    limit: queryArg?.limit ?? 10,
+                },
             }),
-            serializeQueryArgs: ({ endpointName, queryArgs }) => {
-                return `${endpointName}-${queryArgs.postId}`;
-            },
-            merge: (currentCache, newItems) => {
-                currentCache.data.push(...newItems.data);
-                currentCache.meta = newItems.meta;
-            },
-            forceRefetch({ currentArg, previousArg }) {
-                return currentArg?.page !== previousArg?.page;
-            },
-            providesTags: (result, error, { postId }) => [{ type: 'Comments', id: postId }],
+           
+            providesTags: ['Comments']
         }),
         createComment: builder.mutation<ResponseDto<Comment>, { postId: number; data: CreateCommentDto }>({
             query: ({ postId, data }) => ({
@@ -406,7 +565,7 @@ export const commentsApi = createApi({
 });
 
 export const {
-    useGetCommentsByPostIdQuery,
+    useGetCommentsByPostIdInfiniteQuery,
     useCreateCommentMutation,
     useUpdateCommentMutation,
     useDeleteCommentMutation,
@@ -429,26 +588,50 @@ export const useAppSelector = useSelector.withTypes<RootState>()
 ### FILE: src/shared/stores/store.ts ###
 import { configureStore } from '@reduxjs/toolkit';
 import { setupListeners } from '@reduxjs/toolkit/query';
-import { authApi } from '../../features/auth/services/authApi';
 import authReducer from '../../features/auth/stores/authSlice';
-import { postsApi } from '../../features/posts/services/postsApi';
-import { commentsApi } from '../../features/comments/services/commentsApi'; // Import commentsApi
+import { apiSlice } from '../services/apiSlice';
 
 export const store = configureStore({
   reducer: {
-    [authApi.reducerPath]: authApi.reducer,
-    [postsApi.reducerPath]: postsApi.reducer,
-    [commentsApi.reducerPath]: commentsApi.reducer, // Add commentsApi reducer
+    [apiSlice.reducerPath]: apiSlice.reducer, // Use the base apiSlice reducer
     auth: authReducer,
   },
   middleware: (getDefaultMiddleware) =>
-    getDefaultMiddleware().concat(authApi.middleware, postsApi.middleware, commentsApi.middleware), // Add commentsApi middleware
+    getDefaultMiddleware().concat(apiSlice.middleware), // Use the base apiSlice middleware
 });
 
 setupListeners(store.dispatch);
 
 export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;
+
+---
+
+
+### FILE: src/shared/services/apiSlice.ts ###
+import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react'
+
+// Create a base query with authentication headers
+const baseQuery = fetchBaseQuery({
+  baseUrl: 'http://localhost:3000/api/',
+  prepareHeaders: (headers, { getState }) => {
+    // Assuming your auth slice is named 'auth' and has an 'accessToken' field
+    const token = (getState() as any).auth?.accessToken;
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+    return headers;
+  },
+});
+
+// Create a base API slice that other API slices can extend
+export const apiSlice = createApi({
+  reducerPath: 'api',
+  baseQuery,
+  // Define common tag types here if any, otherwise leave empty
+  tagTypes: ['Posts', 'Comments', 'Users', 'Reactions', 'Auth', 'Communities', 'CommunitySubscriptions', 'EmailVerification', 'Profile', 'ResetPassword', 'PostReaction', 'CommentReaction', 'PostStats', 'CommentStats'],
+  endpoints: () => ({}), // Empty endpoints as this is a base slice
+});
 
 ---
 

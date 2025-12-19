@@ -11,7 +11,8 @@ export interface Comment {
     parentId?: number; // For replies
     likesCount: number;
     dislikesCount: number;
-  userReaction?: { id: number; type: ReactionType } | null;
+    userReaction?: { id: number; type: ReactionType } | null;
+    replies?: Comment[]; // Added for nested replies
 
     createdAt: string;
     updatedAt: string;

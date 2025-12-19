@@ -14,73 +14,309 @@ export class CommentsService {
     private readonly postsService: PostsService, // Inject PostsService
   ) { }
 
-async findAll(options: {
-  postId?: number;
-  authorId?: number;
-  search?: string;
-  page?: number;
-  limit?: number;
-  currentUserId?: number;
-}): Promise<{ data: Comment[]; count: number }> {
-  const { postId, authorId, search, page = 1, limit = 10, currentUserId } = options;
+  async findAll(options: {
 
-  const query = this.commentRepo
-    .createQueryBuilder('comment')
-    .leftJoinAndSelect('comment.author', 'author')
-    .leftJoinAndSelect('comment.post', 'post')
-    .leftJoinAndSelect('comment.parent', 'parent');
+    postId?: number;
 
-    
-  if (currentUserId) {
-    query.leftJoinAndMapOne(
-      'comment.userReaction',
-      'comment.reactions',
-      'userReaction',
-      'userReaction.userId = :currentUserId',
-    );
-    query.setParameter('currentUserId', currentUserId);
-  }
+    authorId?: number;
 
-  if (search) {
-    query.andWhere('comment.content ILIKE :search', { search: `%${search}%` });
-  }
-  if (authorId) {
-    query.andWhere('comment.author.id = :authorId', { authorId });
-  }
-  if (postId) {
-    query.andWhere('comment.post.id = :postId', { postId });
-  }
+    search?: string;
 
-  query.orderBy('comment.createdAt', 'DESC');
+    page?: number;
 
-  const [data, count] = await query.take(limit).skip((page - 1) * limit).getManyAndCount();
+    limit?: number;
 
-  return { data, count };
-}
+    currentUserId?: number;
 
+  }): Promise<{ data: Comment[]; count: number }> {
 
-  findOne(id: number, currentUserId?: number) {
-    const query = this.commentRepo.createQueryBuilder('comment')
+    const { postId, authorId, search, page = 1, limit = 10, currentUserId } = options;
+
+  
+
+    // 1. Fetch top-level comments first, without their replies
+
+    const topLevelQuery = this.commentRepo
+
+      .createQueryBuilder('comment')
+
       .leftJoinAndSelect('comment.author', 'author')
+
       .leftJoinAndSelect('comment.post', 'post')
+
       .leftJoinAndSelect('comment.parent', 'parent');
 
+  
+
+    topLevelQuery.andWhere('comment.parentId IS NULL');
+
+  
+
     if (currentUserId) {
-      query.leftJoinAndMapOne(
+
+      topLevelQuery.leftJoinAndMapOne(
+
         'comment.userReaction',
+
         'comment.reactions',
+
         'userReaction',
+
         'userReaction.userId = :currentUserId',
+
       );
-      query.setParameter('currentUserId', currentUserId);
+
+      topLevelQuery.setParameter('currentUserId', currentUserId);
+
     }
 
-    query.where('comment.id = :id', { id });
+  
 
-    return query.getOne();
+    if (search) {
+
+      topLevelQuery.andWhere('comment.content ILIKE :search', { search: `%${search}%` });
+
+    }
+
+    if (authorId) {
+
+      topLevelQuery.andWhere('comment.author.id = :authorId', { authorId });
+
+    }
+
+    if (postId) {
+
+      topLevelQuery.andWhere('comment.post.id = :postId', { postId });
+
+    }
+
+  
+
+    topLevelQuery.orderBy('comment.createdAt', 'DESC');
+
+  
+
+    const [topLevelComments, count] = await topLevelQuery.take(limit).skip((page - 1) * limit).getManyAndCount();
+
+  
+
+    // 2. For each top-level comment, fetch its first 2 replies
+
+    const commentsWithLimitedReplies = await Promise.all(
+
+      topLevelComments.map(async (comment) => {
+
+        const repliesQuery = this.commentRepo
+
+          .createQueryBuilder('reply')
+
+          .leftJoinAndSelect('reply.author', 'author')
+
+          .where('reply.parentId = :commentId', { commentId: comment.id })
+
+          .orderBy('reply.createdAt', 'ASC')
+
+          .take(2); // Limit to 2 replies
+
+  
+
+        if (currentUserId) {
+
+          repliesQuery.leftJoinAndMapOne(
+
+            'reply.userReaction',
+
+            'reply.reactions',
+
+            'userReaction',
+
+            'userReaction.userId = :currentUserId',
+
+          );
+
+          repliesQuery.setParameter('currentUserId', currentUserId);
+
+        }
+
+  
+
+        comment.replies = await repliesQuery.getMany();
+
+        return comment;
+
+      })
+
+    );
+
+  
+
+    return { data: commentsWithLimitedReplies, count };
+
   }
 
-  async createComment(
+
+
+    async findOne(id: number, currentUserId?: number) {
+
+
+
+      const mainCommentQuery = this.commentRepo.createQueryBuilder('comment')
+
+
+
+        .leftJoinAndSelect('comment.author', 'author')
+
+
+
+        .leftJoinAndSelect('comment.post', 'post')
+
+
+
+        .leftJoinAndSelect('comment.parent', 'parent');
+
+
+
+  
+
+
+
+      if (currentUserId) {
+
+
+
+        mainCommentQuery.leftJoinAndMapOne(
+
+
+
+          'comment.userReaction',
+
+
+
+          'comment.reactions',
+
+
+
+          'userReaction',
+
+
+
+          'userReaction.userId = :currentUserId',
+
+
+
+        );
+
+
+
+        mainCommentQuery.setParameter('currentUserId', currentUserId);
+
+
+
+      }
+
+
+
+  
+
+
+
+      mainCommentQuery.where('comment.id = :id', { id });
+
+
+
+  
+
+
+
+      const comment = await mainCommentQuery.getOne();
+
+
+
+  
+
+
+
+      if (comment) {
+
+
+
+        const repliesQuery = this.commentRepo
+
+
+
+          .createQueryBuilder('reply')
+
+
+
+          .leftJoinAndSelect('reply.author', 'author')
+
+
+
+          .where('reply.parentId = :commentId', { commentId: comment.id })
+
+
+
+          .orderBy('reply.createdAt', 'ASC')
+
+
+
+          .take(2); // Limit to 2 replies
+
+
+
+  
+
+
+
+        if (currentUserId) {
+
+
+
+          repliesQuery.leftJoinAndMapOne(
+
+
+
+            'reply.userReaction',
+
+
+
+            'reply.reactions',
+
+
+
+            'userReaction',
+
+
+
+            'userReaction.userId = :currentUserId',
+
+
+
+          );
+
+
+
+          repliesQuery.setParameter('currentUserId', currentUserId);
+
+
+
+        }
+
+
+
+        comment.replies = await repliesQuery.getMany();
+
+
+
+      }
+
+
+
+      return comment;
+
+
+
+    } async createComment(
     postId: number,
     content: string,
     userId: number,
