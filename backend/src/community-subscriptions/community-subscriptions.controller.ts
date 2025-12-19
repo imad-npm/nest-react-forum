@@ -20,7 +20,6 @@ import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
 import { PaginationMetaDto } from 'src/common/dto/pagination-meta.dto';
 
 @Controller()
-//@UseGuards(JwtAuthGuard)
 export class CommunitySubscriptionsController {
   constructor(
     private readonly communitySubscriptionsService: CommunitySubscriptionsService,
@@ -51,7 +50,7 @@ export class CommunitySubscriptionsController {
     return new PaginatedResponseDto(data.map(CommunitySubscriptionResponseDto.fromEntity), paginationMeta);
   }
 
-
+@UseGuards(JwtAuthGuard)
   @Post('communities/:communityId/subscriptions')
   async subscribe(
     @Param('communityId', ParseIntPipe) communityId: number,
@@ -63,7 +62,8 @@ export class CommunitySubscriptionsController {
     );
     return new ResponseDto(CommunitySubscriptionResponseDto.fromEntity(subscription));
   }
-
+  
+@UseGuards(JwtAuthGuard)
   @Delete('users/me/communities/:communityId/subscriptions')
   async unsubscribe(
     @Param('communityId', ParseIntPipe) communityId: number,
