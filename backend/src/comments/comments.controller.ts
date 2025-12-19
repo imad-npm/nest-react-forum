@@ -8,6 +8,7 @@ import {
   Body,
   UseGuards,
   Query,
+  NotFoundException, // Added
 } from '@nestjs/common';
 import { CommentsService } from './comments.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
@@ -15,9 +16,10 @@ import { UpdateCommentDto } from './dto/update-comment.dto';
 import { GetUser } from 'src/decorators/user.decorator';
 import { User } from 'src/users/entities/user.entity';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from 'src/auth/guards/optional-jwt-auth.guard'; // Added
 import { Action } from 'src/casl/casl.types';
 import { Comment } from './entities/comment.entity';
-import { CommentPipe } from 'src/comments/pipes/comment.pipe';
+// Removed CommentPipe
 import { Post as PostEntity } from 'src/posts/entities/post.entity';
 import { PostPipe } from 'src/posts/pipes/post.pipe';
 import { CaslService } from 'src/casl/casl.service';
@@ -26,6 +28,7 @@ import { CommentQueryDto } from './dto/comment-query.dto';
 import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
 import { PaginationMetaDto } from 'src/common/dto/pagination-meta.dto';
 import { ResponseDto } from 'src/common/dto/response.dto';
+import { CommentPipe } from './pipes/comment.pipe';
 
 @Controller()
 export class CommentsController {
@@ -35,12 +38,15 @@ export class CommentsController {
   ) { }
 
   @Get('comments')
-  async findAll(@Query() query: CommentQueryDto): Promise<PaginatedResponseDto<CommentResponseDto>> {
+  @UseGuards(OptionalJwtAuthGuard) // Add guard to get user
+  async findAll(@Query() query: CommentQueryDto, @GetUser() user: User): Promise<PaginatedResponseDto<CommentResponseDto>> {
     const { data, count } = await this.commentsService.findAll(
     { page: query.page,
       limit :query.limit,
       search :query.search,
-      authorId :query.authorId,}
+      authorId :query.authorId,
+      currentUserId: user?.id, // Pass currentUserId
+    }
     );
 
     const paginationMeta = new PaginationMetaDto(
@@ -54,15 +60,18 @@ export class CommentsController {
   }
 
   @Get('posts/:postId/comments')
+  @UseGuards(OptionalJwtAuthGuard) // Add guard to get user
   async findByPost(
     @Param('postId', PostPipe) post: PostEntity,
     @Query() query: CommentQueryDto,
+    @GetUser() user: User, // Get current user
   ): Promise<PaginatedResponseDto<CommentResponseDto>> {
     const { data, count } = await this.commentsService.findAll(
       {
         postId: post.id,
         page: query.page,
         limit: query.limit,
+        currentUserId: user?.id, // Pass currentUserId
       }
     );
 
@@ -94,7 +103,15 @@ export class CommentsController {
   }
 
   @Get('comments/:id')
-  findOne(@Param('id', CommentPipe) comment: Comment): ResponseDto<CommentResponseDto> {
+  @UseGuards(OptionalJwtAuthGuard) // Add guard to get user
+  async findOne(
+    @Param('id') id: number, // Get id directly
+    @GetUser() user: User, // Get current user
+  ): Promise<ResponseDto<CommentResponseDto>> {
+    const comment = await this.commentsService.findOne(id, user?.id); // Call service method
+    if (!comment) {
+      throw new NotFoundException('Comment not found');
+    }
     return new ResponseDto(CommentResponseDto.fromEntity(comment));
   }
 

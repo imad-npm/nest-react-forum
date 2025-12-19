@@ -1,52 +1,38 @@
-import React, { useState, useCallback } from 'react';
 import { ReactionButtons } from './ReactionButtons';
-import { useUpdateCommentReactionMutation, useCreateCommentReactionMutation, useDeleteCommentReactionMutation } from '../services/reactionApi';
-import type { Comment } from '../../comments/types';
+import { useCreateCommentReactionMutation, useDeleteCommentReactionMutation, useUpdateCommentReactionMutation } from '../services/reactionApi';
+import type { Comment } from '../../comments/types'; // Import Comment type
 import { ReactionType } from '../types/types';
 
-
 interface CommentReactionButtonsProps {
-    comment: Comment; // contains id, userReaction, userReactionId, likesCount, dislikesCount
+    comment: Comment; // contains id, userReaction, likesCount, dislikesCount
 }
 
 export const CommentReactionButtons: React.FC<CommentReactionButtonsProps> = ({ comment }) => {
-    const [updateReaction] = useUpdateCommentReactionMutation();
     const [createReaction] = useCreateCommentReactionMutation();
     const [deleteReaction] = useDeleteCommentReactionMutation();
-    const [isLoading, setIsLoading] = useState(false);
+    const [updateReaction] = useUpdateCommentReactionMutation();
 
-    const handleReaction = useCallback(async (type: ReactionType) => {
-        setIsLoading(true);
-
-        try {
-            // Case 1: Clicking the same reaction type - remove it
-            if (comment.userReaction?.type === type && comment.userReaction?.id) {
-                await deleteReaction({ commentId: comment.id, reactionId: comment.userReaction.id }).unwrap();
-            }
-            // Case 2: Switching reaction type (like ↔ dislike) - update existing
-            else if (comment.userReaction && comment.userReaction.type !== type && comment.userReaction.id) {
-                await updateReaction({
-                    commentId: comment.id,
-                    reactionId: comment.userReaction.id,
-                    data: { type }
-                }).unwrap();
-            }
-            // Case 3: No existing reaction - create new
-            else {
-                await createReaction({
-                    commentId: comment.id,
-                    data: { type }
-                }).unwrap();
-            }
-        } catch (error) {
-            console.error('Failed to update reaction:', error);
-        } finally {
-            setIsLoading(false);
+    const handleLike = async () => {
+        if (comment.userReaction?.type === ReactionType.LIKE) {
+            await deleteReaction({ commentId: comment.id, reactionId: comment.userReaction.id! });
+        } else if (comment.userReaction?.type === ReactionType.DISLIKE) {
+            await updateReaction({ commentId: comment.id, reactionId: comment.userReaction.id!, data: { type: ReactionType.LIKE } });
         }
-    }, [comment.userReaction, comment.id, updateReaction, createReaction, deleteReaction]);
+        else {
+            await createReaction({ commentId: comment.id, data: { type: ReactionType.LIKE } });
+        }
+    };
 
-    const handleLike = () => handleReaction(ReactionType.LIKE);
-    const handleDislike = () => handleReaction(ReactionType.DISLIKE);
+    const handleDislike = async () => {
+        if (comment.userReaction?.type === ReactionType.DISLIKE) {
+            await deleteReaction({ commentId: comment.id, reactionId: comment.userReaction.id! });
+        } else if (comment.userReaction?.type === ReactionType.LIKE) {
+            await updateReaction({ commentId: comment.id, reactionId: comment.userReaction.id!, data: { type: ReactionType.DISLIKE } });
+        }
+        else {
+            await createReaction({ commentId: comment.id, data: { type: ReactionType.DISLIKE } });
+        }
+    };
 
     return (
         <ReactionButtons
@@ -55,7 +41,7 @@ export const CommentReactionButtons: React.FC<CommentReactionButtonsProps> = ({ 
             userReaction={comment.userReaction?.type}
             onLike={handleLike}
             onDislike={handleDislike}
-            disabled={isLoading}
+            disabled={false} // you can set loading state if needed
         />
     );
 };

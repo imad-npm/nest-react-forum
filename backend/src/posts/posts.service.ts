@@ -128,7 +128,7 @@ export class PostsService {
     'userReaction.userId = :currentUserId',
     { currentUserId },
   );
-}
+} 
 
   // Filter by post ID
   query.where('post.id = :id', { id });

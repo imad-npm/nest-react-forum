@@ -30,14 +30,15 @@ async findAll(options: {
     .leftJoinAndSelect('comment.post', 'post')
     .leftJoinAndSelect('comment.parent', 'parent');
 
+    
   if (currentUserId) {
-    query.leftJoin(
+    query.leftJoinAndMapOne(
+      'comment.userReaction',
       'comment.reactions',
       'userReaction',
       'userReaction.userId = :currentUserId',
-      { currentUserId },
-    )
-    .addSelect(['userReaction.id', 'userReaction.type']);
+    );
+    query.setParameter('currentUserId', currentUserId);
   }
 
   if (search) {
@@ -54,17 +55,7 @@ async findAll(options: {
 
   const [data, count] = await query.take(limit).skip((page - 1) * limit).getManyAndCount();
 
-  const commentsWithUserReaction = data.map(comment => {
-    return {
-      ...comment,
-      userReaction: comment['userReaction_id'] ? {
-        id: comment['userReaction_id'],
-        type: comment['userReaction_type'],
-      } : undefined
-    };
-  });
-
-  return { data: commentsWithUserReaction, count };
+  return { data, count };
 }
 
 
@@ -75,27 +66,18 @@ async findAll(options: {
       .leftJoinAndSelect('comment.parent', 'parent');
 
     if (currentUserId) {
-      query.leftJoin(
+      query.leftJoinAndMapOne(
+        'comment.userReaction',
         'comment.reactions',
         'userReaction',
         'userReaction.userId = :currentUserId',
-        { currentUserId },
-      )
-      .addSelect(['userReaction.id', 'userReaction.type']);
+      );
+      query.setParameter('currentUserId', currentUserId);
     }
 
     query.where('comment.id = :id', { id });
 
-    return query.getOne().then(comment => {
-      if (!comment) return null;
-      return {
-        ...comment,
-        userReaction: comment['userReaction_id'] ? {
-          id: comment['userReaction_id'],
-          type: comment['userReaction_type'],
-        } : undefined
-      };
-    });
+    return query.getOne();
   }
 
   async createComment(

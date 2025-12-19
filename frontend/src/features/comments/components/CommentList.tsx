@@ -20,6 +20,8 @@ const CommentList: React.FC<CommentListProps> = ({ postId }) => {
 
     const allComments = data?.pages?.flatMap((page) => page.data) || [];
 
+    console.log(allComments);
+    
     if (isLoading) return <div>Loading comments...</div>;
     if (error) return <div>Error: {error.message}</div>;
 
