@@ -1,39 +1,44 @@
 import React from 'react';
+import { Button } from '../../../shared/components/ui/Button';
+import { FaRegThumbsDown, FaRegThumbsUp, FaThumbsDown, FaThumbsUp } from 'react-icons/fa';
 
 interface ReactionButtonProps {
-    active: boolean;
-    icon: React.ReactNode;
+
     onClick: () => void;
     count?: number; // optional count
     disabled?: boolean;
     type: 'like' | 'dislike';
-    ariaLabel?: string;
+    userReaction?: 'like' | 'dislike' | null;
 }
 
 export const ReactionButton: React.FC<ReactionButtonProps> = ({
-    active,
-    icon,
     onClick,
     count = 0,
     disabled = false,
     type,
-    ariaLabel,
+    userReaction,
 }) => {
-    const colorClasses = active
-        ? type === 'like'
-            ? 'bg-blue-100 text-blue-600 hover:bg-blue-200'
-            : 'bg-red-100 text-red-600 hover:bg-red-200'
-        : 'bg-gray-100 text-gray-600 hover:bg-gray-200';
+  const isActive = userReaction === type;
+    const ariaLabel = userReaction === 'like' ? 'Remove like' : 'Like'
 
     return (
-        <button
+        <Button
             onClick={onClick}
             disabled={disabled}
-            className={`flex items-center space-x-1 px-3 py-1 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${colorClasses}`}
+            size='sm'
+            variant='secondary'
+
             aria-label={ariaLabel ?? type}
         >
-            {icon}
-            {count > 0 && <span className="text-sm font-medium">{count}</span>}
-        </button>
+                 {type === 'like' ? (
+        isActive ? <FaThumbsUp /> : <FaRegThumbsUp />
+      ) : isActive ? (
+        <FaThumbsDown />
+      ) : (
+        <FaRegThumbsDown />
+      )}
+            
+            {count > 0 && <span className="text-sm ms-2 font-medium">{count}</span>}
+        </Button>
     );
 };

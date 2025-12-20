@@ -23,7 +23,7 @@ export const AboutCommunity: React.FC<AboutCommunityProps> = ({ communityId }) =
   return (
     <div className="bg-white rounded-lg shadow p-4">
       <h2 className="text-lg font-semibold mb-2">
-        About <Link to={`/communities/${community.id}`} className="text-blue-600 hover:underline">r/{community.name}</Link></h2>
+        About <Link to={`/communities/${community.id}`} className="text-primary-600 hover:underline">r/{community.name}</Link></h2>
       {community.description && <p className="text-sm text-gray-700 mb-3">{community.description}</p>}
       <div className="flex justify-between items-center text-sm text-gray-600 mb-3">
         <span>Members: {community.subscribersCount.toLocaleString()}</span>

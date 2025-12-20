@@ -100,7 +100,7 @@ useEffect(() => {
 
           <button
             onClick={() => setShowReplyInput(v => !v)} // Toggle reply input
-            className="flex items-center space-x-1 hover:text-blue-600"
+            className="flex items-center space-x-1 hover:text-primary-600"
           >
             <FaReply />
             <span>Reply</span>

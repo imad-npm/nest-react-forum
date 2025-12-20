@@ -24,23 +24,19 @@ export const ReactionButtons: React.FC<ReactionButtonsProps> = ({
 }) => (
     <div className={`flex items-center space-x-3 ${className}`}>
         <ReactionButton
-            active={userReaction === 'like'}
             count={likesCount}
-            icon={<FaThumbsUp className={userReaction === 'like' ? 'fill-blue-600' : 'fill-gray-400'} />}
             onClick={onLike}
             disabled={disabled}
             type="like"
-            ariaLabel={userReaction === 'like' ? 'Remove like' : 'Like'}
+            userReaction={userReaction}
         />
 
         <ReactionButton
-            active={userReaction === 'dislike'}
             count={dislikesCount}
-            icon={<FaThumbsDown className={userReaction === 'dislike' ? 'fill-red-600' : 'fill-gray-400'} />}
             onClick={onDislike}
             disabled={disabled}
             type="dislike"
-            ariaLabel={userReaction === 'dislike' ? 'Remove dislike' : 'Dislike'}
+            userReaction={userReaction}
         />
     </div>
 );

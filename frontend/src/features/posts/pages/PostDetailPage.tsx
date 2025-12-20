@@ -80,13 +80,13 @@ const PostDetailPage = () => {
               {/* Vote Buttons */}
               <PostReactionButtons post={post}/>
               {/* Other Action Buttons */}
-              <button className="flex items-center space-x-1 hover:text-blue-600 transition-colors">
+              <button className="flex items-center space-x-1 hover:text-primary-600 transition-colors">
                 <FaCommentAlt /> <span>{post.commentsCount || 0} Comments</span>
               </button>
-              <button className="flex items-center space-x-1 hover:text-blue-600 transition-colors">
+              <button className="flex items-center space-x-1 hover:text-primary-600 transition-colors">
                 <FaShareAlt /> <span>Share</span>
               </button>
-              <button className="flex items-center space-x-1 hover:text-blue-600 transition-colors">
+              <button className="flex items-center space-x-1 hover:text-primary-600 transition-colors">
                 <FaBookmark /> <span>Save</span>
               </button>
             </div>
