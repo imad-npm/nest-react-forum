@@ -9,6 +9,8 @@ import VerificationResult from './features/auth/pages/VerificationResult';
 import FeedPage from './features/feed/pages/FeedPage';
 import PostDetailPage from './features/posts/pages/PostDetailPage'; // Import PostDetailPage
 import { CommunityPage } from './features/communities/pages/CommunityPage';
+import MyCommunitiesPage from './features/communities/pages/MyCommunitiesPage';
+import ExploreCommunitiesPage from './features/communities/pages/ExploreCommunitiesPage'; // Import ExploreCommunitiesPage
 
 function App() {
   return (
@@ -44,6 +46,22 @@ function App() {
               element={
                 <AuthGuard>
                   <CommunityPage />
+                </AuthGuard>
+              }
+            />
+            <Route
+              path="/my-communities"
+              element={
+                <AuthGuard>
+                  <MyCommunitiesPage />
+                </AuthGuard>
+              }
+            />
+            <Route
+              path="/explore-communities"
+              element={
+                <AuthGuard>
+                  <ExploreCommunitiesPage />
                 </AuthGuard>
               }
             />

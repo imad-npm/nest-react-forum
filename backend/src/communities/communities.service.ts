@@ -54,7 +54,7 @@ findAll(query: {
     .skip((page - 1) * limit);
 
   if (name) {
-    queryBuilder.andWhere('community.name ILIKE :name', {
+    queryBuilder.andWhere('community.name LIKE :name', {
       name: `%${name}%`,
     });
   }

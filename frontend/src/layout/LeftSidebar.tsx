@@ -20,7 +20,12 @@ const LeftSidebar: React.FC = () => {
               </Link>
             </li>
             <li>
-              <Link to="/communities" className="flex items-center space-x-2 p-2 rounded-md hover:bg-gray-100 text-gray-700">
+              <Link to="/explore-communities" className="flex items-center space-x-2 p-2 rounded-md hover:bg-gray-100 text-gray-700">
+                <FaUsers /> <span>Explore Communities</span>
+              </Link>
+            </li>
+            <li>
+              <Link to="/my-communities" className="flex items-center space-x-2 p-2 rounded-md hover:bg-gray-100 text-gray-700">
                 <FaUsers /> <span>My Communities</span>
               </Link>
             </li>
