@@ -62,9 +62,9 @@ export class PostsService {
     if (search) {
       query.where(
         new Brackets((qb) => {
-          qb.where('post.title ILIKE :search', {
+          qb.where('post.title LIKE :search', {
             search: `%${search}%`,
-          }).orWhere('post.content ILIKE :search', { search: `%${search}%` });
+          }).orWhere('post.content LIKE :search', { search: `%${search}%` });
         }),
       );
     }

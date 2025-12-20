@@ -48,7 +48,7 @@ export class CommentsService {
     }
 
     if (search) {
-      query.andWhere('comment.content ILIKE :search', { search: `%${search}%` });
+      query.andWhere('comment.content LIKE :search', { search: `%${search}%` });
     }
     if (authorId) {
       query.andWhere('comment.author.id = :authorId', { authorId });

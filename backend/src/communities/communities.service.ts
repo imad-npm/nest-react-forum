@@ -60,7 +60,7 @@ findAll(query: {
   }
 
   if (displayName) {
-    queryBuilder.andWhere('community.displayName ILIKE :displayName', {
+    queryBuilder.andWhere('community.displayName LIKE :displayName', {
       displayName: `%${displayName}%`,
     });
   }

@@ -4,7 +4,7 @@ import { FaHome, FaCompass, FaUsers, FaPlusSquare } from 'react-icons/fa'; // Ex
 
 const LeftSidebar: React.FC = () => {
   return (
-    <aside className="w-64 bg-white p-4 border border-gray-300 h-screen sticky top-0 hidden md:block">
+    <aside className="w-64 bg-white p-4 border-r border-gray-300 h-screen sticky top-0 hidden md:block">
       <nav className="space-y-4">
         <div>
           <h2 className="text-lg font-semibold text-gray-800 mb-2">Navigation</h2>

@@ -24,10 +24,10 @@ export class UsersService {
     if (search) {
       query.where(
         new Brackets((qb) => {
-          qb.where('user.name ILIKE :search', {
+          qb.where('user.name LIKE :search', {
             search: `%${search}%`,
-          }).orWhere('user.email ILIKE :search', { search: `%${search}%` })
-          .orWhere('profile.username ILIKE :search', { search: `%${search}%` }); // Search in profile username
+          }).orWhere('user.email LIKE :search', { search: `%${search}%` })
+          .orWhere('profile.username LIKE :search', { search: `%${search}%` }); // Search in profile username
         }),
       );
     }
