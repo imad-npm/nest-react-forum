@@ -5,6 +5,7 @@ import PostList from '../../posts/components/PostList';
 import { useToastContext } from '../../../shared/providers/ToastProvider';
 import type { PostQueryDto } from '../../posts/types';
 import FeedFilters from '../components/FeedFilters';
+import SuggestedCommunities from '../../communities/components/SuggestedCommunities';
 
 const FeedPage = () => {
   const [queryParams, setQueryParams] = useState<Omit<PostQueryDto, 'page'>>({
@@ -97,7 +98,7 @@ const FeedPage = () => {
 
       {/* Sidebar */}
       <div className="md:w-1/4">
-        {/* ... sidebar content ... */}
+        <SuggestedCommunities />
       </div>
     </div>
   );

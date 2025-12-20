@@ -74,7 +74,7 @@ useEffect(() => {
   return (
     <div className="mb-3">
       {/* COMMENT CARD */}
-      <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+      <div className="rounded-lg border border-gray-300 bg-white p-4 ">
         <div className="mb-2 flex items-center text-sm text-gray-500">
           <FaUser className="mr-1" />
           <span>u/{comment.author.name}</span>

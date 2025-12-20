@@ -47,7 +47,7 @@ const timeAgo = (dateString: string) => {
 
 const PostCard: React.FC<PostCardProps> = ({ post }) => {
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 mb-6 p-5">
+    <div className="bg-white dark:bg-gray-800 rounded-lg s border border-gray-300 hover:shadow-lg transition-shadow duration-200 mb-6 p-5">
       {/* Post Metadata */}
       <div className="flex items-center text-xs md:text-sm text-gray-500 dark:text-gray-400 mb-2 space-x-1">
         {post.community && (
@@ -70,13 +70,13 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
 
       {/* Post Title */}
       <Link to={`/posts/${post.id}`}>
-        <h2 className="text-lg md:text-xl font-bold text-gray-900 dark:text-gray-100 hover:text-primary-600 leading-tight mb-2 line-clamp-2">
+        <h2 className="text-lg  font-bold text-gray-900 dark:text-gray-100 hover:text-primary-600 leading-tight mb-2 line-clamp-2">
           {post.title}
         </h2>
       </Link>
 
       {/* Post Content */}
-      <p className="text-gray-700 dark:text-gray-300 text-sm md:text-base line-clamp-3 mb-4">
+      <p className="text-gray-700 dark:text-gray-300 text-sm  line-clamp-3 mb-4">
         {post.content}
       </p>
 

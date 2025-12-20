@@ -20,7 +20,7 @@ export const CommunityHeader: React.FC<CommunityHeaderProps> = ({ communityId })
   const community = data.data;
 
   return (
-    <div className="overflow-hidden rounded-lg border bg-white">
+    <div className="overflow-hidden rounded-lg border border-gray-300 bg-white">
       {/* Banner */}
       <div className="h-28 bg-gradient-to-r from-indigo-500 to-purple-600" />
 

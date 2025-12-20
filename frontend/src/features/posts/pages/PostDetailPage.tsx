@@ -15,6 +15,7 @@ import CommentList from '../../comments/components/CommentList'; // Import Comme
 import { AboutCommunity } from '../../communities/components/AboutCommunity';
 import { PostReactionButtons } from '../../reactions/components/PostReactionButtons';
 import { PostSuggestionsList } from '../components/PostSuggestionsList';
+import PostCard from '../components/PostCard';
 
 const PostDetailPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -46,55 +47,7 @@ const PostDetailPage = () => {
     <div className="container mx-auto p-4 flex flex-col md:flex-row gap-6">
       {/* Main Content Area */}
       <div className="md:w-[70%]">
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          {/* Post Metadata (Author, Community, Date) */}
-          <div className="flex items-center text-sm text-gray-500 mb-3">
-            {post.community && (
-              <>
-                <FaUsers className="mr-1" />
-                <Link
-                  to={`/communities/${post.community.id}`}
-                  className="font-semibold hover:underline mr-2"
-                >
-                  c/{post.community.name}
-                </Link>
-                <span className="mx-1">•</span>
-              </>
-            )}
-            <FaUser className="mr-1" />
-            <span>Posted by u/{post.author.name}</span>
-            <span className="mx-1">•</span>
-            <span>{new Date(post.createdAt).toLocaleDateString()}</span>
-          </div>
-
-          {/* Post Title */}
-          <h1 className="text-3xl font-bold text-gray-800 leading-tight mb-4">
-            {post.title}
-          </h1>
-          {/* Post Content */}
-          <p className="text-gray-700 text-base mb-6">{post.content}</p>
-
-          {/* Action Buttons and Votes */}
-          <div className="flex items-center justify-between mt-4 text-gray-500 text-sm  pt-3">
-            <div className="flex items-center space-x-4">
-              {/* Vote Buttons */}
-              <PostReactionButtons post={post}/>
-              {/* Other Action Buttons */}
-              <button className="flex items-center space-x-1 hover:text-primary-600 transition-colors">
-                <FaCommentAlt /> <span>{post.commentsCount || 0} Comments</span>
-              </button>
-              <button className="flex items-center space-x-1 hover:text-primary-600 transition-colors">
-                <FaShareAlt /> <span>Share</span>
-              </button>
-              <button className="flex items-center space-x-1 hover:text-primary-600 transition-colors">
-                <FaBookmark /> <span>Save</span>
-              </button>
-            </div>
-            <div className="flex items-center space-x-1">
-              <FaEye /> <span>{post.views}</span>
-            </div>
-          </div>
-        </div>
+   <PostCard post={post} />
 
         {/* Comments Section */}
         <CommentList postId={postId} />

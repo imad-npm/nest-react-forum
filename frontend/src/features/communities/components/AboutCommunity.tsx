@@ -21,7 +21,7 @@ export const AboutCommunity: React.FC<AboutCommunityProps> = ({ communityId }) =
   const community = communityData.data;
 
   return (
-    <div className="bg-white rounded-lg shadow p-4">
+    <div className="bg-white rounded-lg border border-gray-300 p-4">
       <h2 className="text-lg font-semibold mb-2">
         About <Link to={`/communities/${community.id}`} className="text-primary-600 hover:underline">r/{community.name}</Link></h2>
       {community.description && <p className="text-sm text-gray-700 mb-3">{community.description}</p>}

@@ -15,4 +15,8 @@ export class CommunityQueryDto extends PaginationDto {
   @Transform(({ value }) => value === 'true')
   @IsBoolean()
   isPublic?: boolean;
+
+  @IsOptional()
+  @IsString()
+  sort?: string;
 }

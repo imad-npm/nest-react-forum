@@ -50,6 +50,7 @@ export class CommunitiesController {
       name: query.name,
       displayName: query.displayName,
       isPublic: query.isPublic,
+      sort: query.sort,
     });
 
     const paginationMeta = new PaginationMetaDto(

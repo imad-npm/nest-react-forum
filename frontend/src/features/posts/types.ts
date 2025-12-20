@@ -17,6 +17,8 @@ export interface Post {
   dislikesCount: number;
   commentsCount: number; // Added commentsCount
   userReaction?: { id: number; type: ReactionType };
+    userSaved?: any;
+
   createdAt: string;
   updatedAt: string;
 }

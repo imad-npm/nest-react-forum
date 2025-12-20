@@ -2,8 +2,6 @@
 @import "tailwindcss";
 /* index.css */
 
-/* index.css */
-@import "tailwindcss";
 
 @theme {
   /* =========================================================
@@ -65,8 +63,6 @@
   --color-bg: #ffffff;
   --color-surface: #ffffff;
   --color-surface-muted: #f9fafb;
-  --color-border: #e6e8eb;
-  --color-divider: #e6e8eb;
 
     --color-primary-foreground: #ffffff;
 }

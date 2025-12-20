@@ -44,13 +44,14 @@ findAll(query: {
   name?: string;
   displayName?: string;
   isPublic?: boolean;
+  sort?: string;
 }) {
-  const { limit = 10, page = 1, name, displayName, isPublic } = query; // defaults
+  const { limit = 10, page = 1, name, displayName, isPublic, sort } = query;
   const queryBuilder = this.communitiesRepository
     .createQueryBuilder('community')
     .leftJoinAndSelect('community.createdBy', 'createdBy')
     .take(limit)
-    .skip((page - 1) * limit); // calculate skip based on page
+    .skip((page - 1) * limit);
 
   if (name) {
     queryBuilder.andWhere('community.name ILIKE :name', {
@@ -66,6 +67,10 @@ findAll(query: {
 
   if (isPublic !== undefined) {
     queryBuilder.andWhere('community.isPublic = :isPublic', { isPublic });
+  }
+
+  if (sort === 'popular') {
+    queryBuilder.orderBy('community.subscribersCount', 'DESC');
   }
 
   return queryBuilder.getManyAndCount();

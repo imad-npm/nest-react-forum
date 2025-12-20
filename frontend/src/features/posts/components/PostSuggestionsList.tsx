@@ -32,7 +32,7 @@ export const PostSuggestionsList: React.FC<PostSuggestionsListProps> = ({ curren
   }
 
   return (
-    <div className="bg-white p-4 rounded-lg shadow-md">
+    <div className="bg-white p-4 rounded-lg border border-gray-300">
       <h2 className="text-xl font-bold mb-4">More Posts Like This</h2>
       <div className="flex flex-col gap-3">
         {suggestions.map((post) => (
