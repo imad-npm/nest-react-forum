@@ -8,6 +8,7 @@ import EmailVerification from './features/auth/pages/EmailVerification';
 import VerificationResult from './features/auth/pages/VerificationResult';
 import FeedPage from './features/feed/pages/FeedPage';
 import PostDetailPage from './features/posts/pages/PostDetailPage'; // Import PostDetailPage
+import CreatePostPage from './features/posts/pages/CreatePostPage'; // Import CreatePostPage
 import { CommunityPage } from './features/communities/pages/CommunityPage';
 import MyCommunitiesPage from './features/communities/pages/MyCommunitiesPage';
 import ExploreCommunitiesPage from './features/communities/pages/ExploreCommunitiesPage'; // Import ExploreCommunitiesPage
@@ -37,6 +38,14 @@ function App() {
               element={
                 <AuthGuard>
                   <PostDetailPage />
+                </AuthGuard>
+              }
+            />
+            <Route
+              path="/submit"
+              element={
+                <AuthGuard>
+                  <CreatePostPage />
                 </AuthGuard>
               }
             />

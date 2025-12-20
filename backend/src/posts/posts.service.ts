@@ -86,15 +86,16 @@ export class PostsService {
       query.andWhere('post.createdAt <= :endDate', { endDate });
     }
 
-    if (sort === PostSort.NEWEST) {
+    if (sort === PostSort.POPULAR) {
+      query
+        .leftJoin('post.reactions', 'allReactions') // Join all reactions for the post
+        .addSelect('COUNT(allReactions.id)', 'reactionCount')
+        .groupBy('post.id')
+        .orderBy('reactionCount', 'DESC');
+    } else if (sort === PostSort.NEWEST) {
       query.orderBy('post.createdAt', 'DESC');
     } else if (sort === PostSort.OLDEST) {
       query.orderBy('post.createdAt', 'ASC');
-    } else if (sort === PostSort.POPULAR) {
-      query
-        .addSelect('COUNT(reactions.id)', 'reactionCount')
-        .groupBy('post.id')
-        .orderBy('reactionCount', 'DESC');
     } else {
       query.orderBy('post.createdAt', 'DESC');
     }
