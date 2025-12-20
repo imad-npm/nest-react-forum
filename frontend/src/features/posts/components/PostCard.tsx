@@ -14,36 +14,7 @@ import {
 import { FiShare2 } from 'react-icons/fi';
 import { PostReactionButtons } from '../../reactions/components/PostReactionButtons';
 import PostActionButtons from './PostActionButtons'; // Import the new component
-
-interface PostCardProps {
-  post: Post;
-}
-
-// Pure JS time ago
-const timeAgo = (dateString: string) => {
-  const now = new Date();
-  const postDate = new Date(dateString);
-  const seconds = Math.floor((now.getTime() - postDate.getTime()) / 1000);
-
-  const intervals = [
-    { label: 'year', seconds: 31536000 },
-    { label: 'month', seconds: 2592000 },
-    { label: 'week', seconds: 604800 },
-    { label: 'day', seconds: 86400 },
-    { label: 'hour', seconds: 3600 },
-    { label: 'minute', seconds: 60 },
-    { label: 'second', seconds: 1 },
-  ];
-
-  for (const interval of intervals) {
-    const count = Math.floor(seconds / interval.seconds);
-    if (count >= 1) {
-      return `${count} ${interval.label}${count > 1 ? 's' : ''} ago`;
-    }
-  }
-
-  return 'just now';
-};
+import { timeAgo } from '../../../shared/utils/date'; // Import timeAgo from shared utils
 
 const PostCard: React.FC<PostCardProps> = ({ post }) => {
   return (
@@ -65,7 +36,7 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
         <FaUser className="mr-1" />
         <span>u/{post.author.name}</span>
         <span className="mx-1">•</span>
-        <span>{timeAgo(post.createdAt)}</span>
+        <span className='text-xs'>{timeAgo(post.createdAt)}</span>
       </div>
 
       {/* Post Title */}

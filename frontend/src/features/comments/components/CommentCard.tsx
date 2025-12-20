@@ -5,6 +5,7 @@ import { CommentReactionButtons } from '../../reactions/components/CommentReacti
 import { useGetCommentsByPostIdInfiniteQuery } from '../services/commentsApi';
 import { Button } from '../../../shared/components/ui/Button';
 import { CommentInput } from './CommentInput'; // Import CommentInput
+import { timeAgo } from '../../../shared/utils/date';
 
 interface CommentCardProps {
   comment: Comment;
@@ -79,8 +80,8 @@ useEffect(() => {
           <FaUser className="mr-1" />
           <span>u/{comment.author.name}</span>
           <span className="mx-1">•</span>
-          <span>
-            {new Date(comment.createdAt).toLocaleDateString()}
+          <span className='text-xs'>
+            {timeAgo(comment.createdAt)}
           </span>
         </div>
 

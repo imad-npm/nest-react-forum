@@ -63,11 +63,11 @@ export const SubscribeUnsubscribeButton: React.FC<SubscribeUnsubscribeButtonProp
   return (
     <>
       {isSubscribed ? (
-        <Button size="sm" onClick={handleUnsubscribe}>
+        <Button  onClick={handleUnsubscribe}>
           Joined
         </Button>
       ) : (
-        <Button size="sm" onClick={handleSubscribe}>
+        <Button  onClick={handleSubscribe}>
           Join
         </Button>
       )}
