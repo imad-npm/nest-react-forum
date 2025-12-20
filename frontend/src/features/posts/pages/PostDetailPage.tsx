@@ -15,7 +15,7 @@ import CommentList from '../../comments/components/CommentList'; // Import Comme
 import { AboutCommunity } from '../../communities/components/AboutCommunity';
 import { PostReactionButtons } from '../../reactions/components/PostReactionButtons';
 import { PostSuggestionsList } from '../components/PostSuggestionsList';
-import PostCard from '../components/PostCard';
+import PostDetailCard from '../components/PostDetailCard'; // Import PostDetailCard
 
 const PostDetailPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -45,13 +45,12 @@ const PostDetailPage = () => {
   
   return (
     <div className="container mx-auto p-4 flex flex-col md:flex-row gap-6">
-      {/* Main Content Area */}
-      <div className="md:w-[70%]">
-   <PostCard post={post} />
-
-        {/* Comments Section */}
-        <CommentList postId={postId} />
-      </div>
+            {/* Main Content Area */}
+            <div className="md:w-[70%]">
+              <PostDetailCard post={post} />
+              {/* Comments Section */}
+              <CommentList postId={postId} />
+            </div>
 
       {/* Sidebar Area (Right) */}
       <div className="md:w-[30%]">

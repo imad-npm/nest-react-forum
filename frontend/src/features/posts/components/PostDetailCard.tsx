@@ -1,25 +1,15 @@
 import React from 'react';
 import type { Post } from '../types';
 import { Link } from 'react-router-dom';
-import {
-  FaEye,
-  FaRegEye,
-  FaUser,
-  FaUsers,
-  FaRegCommentAlt,
-  FaCommentAlt,
-  FaRegBookmark,
-  FaBookmark,
-} from 'react-icons/fa';
-import { FiShare2 } from 'react-icons/fi';
+import { FaUser, FaUsers, FaEye } from 'react-icons/fa';
 import { PostReactionButtons } from '../../reactions/components/PostReactionButtons';
-import PostActionButtons from './PostActionButtons'; // Import the new component
+import PostActionButtons from './PostActionButtons'; // Assuming it's in the same directory
 
-interface PostCardProps {
+interface PostDetailCardProps {
   post: Post;
 }
 
-// Pure JS time ago
+// Pure JS time ago (re-using from PostCard for now)
 const timeAgo = (dateString: string) => {
   const now = new Date();
   const postDate = new Date(dateString);
@@ -45,11 +35,11 @@ const timeAgo = (dateString: string) => {
   return 'just now';
 };
 
-const PostCard: React.FC<PostCardProps> = ({ post }) => {
+const PostDetailCard: React.FC<PostDetailCardProps> = ({ post }) => {
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg s border border-gray-300 hover:shadow-lg transition-shadow duration-200 mb-6 p-5">
+    <div className="bg-white dark:bg-gray-800 rounded-lg  p-6 mb-6 border border-gray-300">
       {/* Post Metadata */}
-      <div className="flex items-center text-xs md:text-sm text-gray-500 dark:text-gray-400 mb-2 space-x-1">
+      <div className="flex items-center text-sm text-gray-500 dark:text-gray-400 mb-3 space-x-1">
         {post.community && (
           <>
             <FaUsers className="mr-1" />
@@ -69,34 +59,30 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
       </div>
 
       {/* Post Title */}
-      <Link to={`/posts/${post.id}`}>
-        <h2 className="text-lg  font-bold text-gray-900 dark:text-gray-100 hover:text-primary-600 leading-tight mb-2 line-clamp-2">
-          {post.title}
-        </h2>
-      </Link>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 leading-tight mb-4">
+        {post.title}
+      </h1>
 
       {/* Post Content */}
-      <p className="text-gray-700 dark:text-gray-300 text-sm  line-clamp-3 mb-4">
+      <p className="text-gray-700 dark:text-gray-300 text-base mb-6">
         {post.content}
       </p>
 
       {/* Actions */}
-      <div className="flex items-center justify-between mt-3  dark:text-gray-400 text-sm md:text-base">
-        <div className="flex items-center space-x-3 md:space-x-4">
-          {/* Vote Buttons */}
+      <div className="flex items-center justify-between border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
+        <div className="flex items-center space-x-4">
           <PostReactionButtons post={post} />
-          {/* Comment, Share, Save Buttons */}
           <PostActionButtons post={post} />
         </div>
 
         {/* Views */}
-        <div className="flex items-center space-x-1">
+        <div className="flex items-center space-x-1 text-sm text-gray-500 dark:text-gray-400">
           <FaEye />
-          <span>{post.views}</span>
+          <span>{post.views} Views</span>
         </div>
       </div>
     </div>
   );
 };
 
-export default PostCard;
+export default PostDetailCard;
