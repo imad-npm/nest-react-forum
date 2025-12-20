@@ -1,6 +1,7 @@
 import { Button } from '../../../shared/components/ui/Button';
 import { useGetCommentsByPostIdInfiniteQuery } from '../services/commentsApi';
 import CommentCard from './CommentCard';
+import { CommentInput } from './CommentInput'; // Import CommentInput
 
 interface CommentListProps {
     postId: number;
@@ -20,6 +21,8 @@ const CommentList: React.FC<CommentListProps> = ({ postId }) => {
 
     const allComments = data?.pages?.flatMap((page) => page.data) || [];
 
+   
+    
     console.log(allComments);
     
     if (isLoading) return <div>Loading comments...</div>;
@@ -27,6 +30,8 @@ const CommentList: React.FC<CommentListProps> = ({ postId }) => {
 
     return (
         <div className="space-y-4">
+            <CommentInput postId={postId} 
+         />
             {allComments.length === 0 ? (
                 <p>No comments yet. Be the first to comment!</p>
             ) : (

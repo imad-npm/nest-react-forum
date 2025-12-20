@@ -1,39 +1,42 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import type { Comment } from '../types';
 import { FaUser, FaReply } from 'react-icons/fa';
 import { CommentReactionButtons } from '../../reactions/components/CommentReactionButtons';
 import { useGetCommentsByPostIdInfiniteQuery } from '../services/commentsApi';
 import { Button } from '../../../shared/components/ui/Button';
+import { CommentInput } from './CommentInput'; // Import CommentInput
 
 interface CommentCardProps {
   comment: Comment;
-  onReply?: (commentId: number, authorName: string) => void;
   postId: number;
+  level: number; // Ensure level is passed
 }
 
 const REPLIES_LIMIT = 2;
 
 const CommentCard: React.FC<CommentCardProps> = ({
   comment,
-  onReply,
   postId,
+  level,
 }) => {
-  /* ------------------------------
-   * Initial (preloaded) replies
-   * ------------------------------ */
+const [showReplies, setShowReplies] = useState(false);
+
+useEffect(() => {
+  if (comment.repliesCount > 0) {
+    setShowReplies(true);
+  }
+}, [comment.repliesCount]);
+  const [showReplyInput, setShowReplyInput] = useState(false); // State for reply input visibility
+
   const initialReplies = comment.replies ?? [];
   const initialRepliesCount = initialReplies.length;
 
-  const hasMoreRepliesThanInitial =
-    comment.repliesCount > initialRepliesCount;
+  const hasMoreRepliesThanInitial = comment.repliesCount > initialRepliesCount;
 
-  const [showReplies, setShowReplies] = useState(
-    initialRepliesCount > 0
-  );
+  // Calculate the initial page parameter for the infinite query
+  // If we already have initial replies, start fetching from the next page
+  const initialQueryPageParam = 1
 
-  /* ------------------------------
-   * Infinite query (ALWAYS page 1)
-   * ------------------------------ */
   const {
     data,
     fetchNextPage,
@@ -47,39 +50,27 @@ const CommentCard: React.FC<CommentCardProps> = ({
     },
     {
       skip: !showReplies || !hasMoreRepliesThanInitial,
-      initialPageParam: 1,
+      initialPageParam: initialQueryPageParam, // Set the initial page to start fetching from
     }
   );
 
-  /* ------------------------------
-   * Merge + dedupe + enforce limit
-   * ------------------------------ */
   const allReplies = useMemo(() => {
-    const fetchedReplies =
-      data?.pages.flatMap(page => page.data) ?? [];
+    const fetchedReplies = data?.pages.flatMap(page => page.data) || [];
+    const combinedReplies = [...initialReplies, ...fetchedReplies];
 
-    const merged = [...initialReplies, ...fetchedReplies];
+    const map = new Map<number, Comment>();
+    combinedReplies.forEach(reply => map.set(reply.id, reply));
 
-    // Deduplicate by id
-    const unique = new Map<number, Comment>();
-    merged.forEach(reply => unique.set(reply.id, reply));
-
-    const sorted = Array.from(unique.values()).sort(
-      (a, b) =>
-        new Date(a.createdAt).getTime() -
-        new Date(b.createdAt).getTime()
+    return [...map.values()].sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
     );
-
-    // Enforce max replies based on loaded pages
-    const loadedPages = data?.pages.length ?? 1;
-    const maxAllowed = REPLIES_LIMIT * loadedPages;
-
-    return sorted.slice(0, maxAllowed);
   }, [initialReplies, data]);
+  const remainingReplies = Math.max(0, comment.repliesCount - allReplies.length);
+  const handleReplyPosted = () => {
+    setShowReplyInput(false);
+    // Rely on RTK Query cache invalidation for UI update
+  };
 
-  /* ------------------------------
-   * Render
-   * ------------------------------ */
   return (
     <div className="mb-3">
       {/* COMMENT CARD */}
@@ -97,6 +88,7 @@ const CommentCard: React.FC<CommentCardProps> = ({
         <div className="mb-1 text-xs text-gray-400">
           id: {comment.id}, parentId:{' '}
           {comment.parentId ?? 'null'}
+          { showReplies? " 1" : " 0"}
         </div>
 
         <p className="mb-3 text-sm text-gray-800">
@@ -106,32 +98,39 @@ const CommentCard: React.FC<CommentCardProps> = ({
         <div className="flex items-center space-x-4 text-xs text-gray-500">
           <CommentReactionButtons comment={comment} />
 
-          {onReply && (
-            <button
-              onClick={() =>
-                onReply(comment.id, comment.author.name)
-              }
-              className="flex items-center space-x-1 hover:text-blue-600"
-            >
-              <FaReply />
-              <span>Reply</span>
-            </button>
-          )}
+          <button
+            onClick={() => setShowReplyInput(v => !v)} // Toggle reply input
+            className="flex items-center space-x-1 hover:text-blue-600"
+          >
+            <FaReply />
+            <span>Reply</span>
+          </button>
 
-          {comment.repliesCount > 0 && (
-            <Button
-              onClick={() => setShowReplies(v => !v)}
-             variant="link"
-            >
-              {showReplies
-                ? `Hide replies (${comment.repliesCount})`
-                : hasMoreRepliesThanInitial
-                ? `+ Load replies (${comment.repliesCount - allReplies.length} remaining)`
-                : `View replies (${comment.repliesCount})`}
+            {comment.repliesCount > 0 && (
+            <Button onClick={() => setShowReplies(v => !v)} variant="link">
+              {showReplies ? (
+                `Hide replies (${comment.repliesCount})`
+              ) : remainingReplies > 0 ? (
+                `+ Load replies (${remainingReplies} remaining)`
+              ) : (
+                `View replies (${comment.repliesCount})`
+              )}
             </Button>
           )}
         </div>
       </div>
+
+      {showReplyInput && (
+        <div className="mt-3 ml-6 border-l border-gray-200 pl-4">
+          <CommentInput
+            postId={postId}
+            parentId={comment.id}
+            onCommentPosted={handleReplyPosted}
+            onCancel={() => setShowReplyInput(false)}
+            autoFocus
+          />
+        </div>
+      )}
 
       {/* REPLIES */}
       {showReplies && allReplies.length > 0 && (
@@ -140,17 +139,17 @@ const CommentCard: React.FC<CommentCardProps> = ({
             <CommentCard
               key={reply.id}
               comment={reply}
-              onReply={onReply}
               postId={postId}
+              level={level + 1}
             />
           ))}
         </div>
       )}
 
       {showReplies && hasNextPage && (
-        <div className="mt-2 ml-6 flex justify-center">
+        <div className="flex justify-center mt-2 ml-6">
           <Button
-          variant='link'
+            variant='link'
             onClick={fetchNextPage}
             disabled={isFetchingNextPage}
           >

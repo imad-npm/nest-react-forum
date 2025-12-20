@@ -33,7 +33,7 @@ export const commentsApi = apiSlice.injectEndpoints({
                 method: 'POST',
                 body: data,
             }),
-            invalidatesTags: (result, error, { postId }) => [{ type: 'Comments', id: postId }],
+            invalidatesTags: ['Comments',"Posts"],
         }),
         updateComment: builder.mutation<ResponseDto<Comment>, { id: number; data: UpdateCommentDto }>({
             query: ({ id, data }) => ({
@@ -41,14 +41,14 @@ export const commentsApi = apiSlice.injectEndpoints({
                 method: 'PATCH',
                 body: data,
             }),
-            invalidatesTags: (result, error, { id }) => [{ type: 'Comments', id }],
+            invalidatesTags: ['Comments',"Posts"],
         }),
         deleteComment: builder.mutation<ResponseDto<boolean>, number>({
             query: (id) => ({
                 url: `/comments/${id}`,
                 method: 'DELETE',
             }),
-            invalidatesTags: (result, error, id) => [{ type: 'Comments', id }],
+            invalidatesTags: ['Comments',"Posts"],
         }),
     }),
 });
