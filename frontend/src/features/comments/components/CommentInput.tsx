@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useCreateCommentMutation } from '../services/commentsApi';
 import { useToastContext } from '../../../shared/providers/ToastProvider';
 import { Button } from '../../../shared/components/ui/Button';
+import { Textarea } from '../../../shared/components/ui/TextArea';
 
 interface CommentInputProps {
   postId: number;
@@ -44,8 +45,7 @@ export const CommentInput: React.FC<CommentInputProps> = ({
 
   return (
     <form onSubmit={handleSubmit} className="mt-4">
-      <textarea
-        className="w-full p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+      <Textarea
         rows={parentId ? 2 : 4} // Smaller for replies
         placeholder={parentId ? 'Write a reply...' : 'Write a comment...'}
         value={content}
