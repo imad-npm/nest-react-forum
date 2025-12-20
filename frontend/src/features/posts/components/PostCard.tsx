@@ -2,14 +2,18 @@ import React from 'react';
 import type { Post } from '../types';
 import { Link } from 'react-router-dom';
 import {
-  FaEye,
+  FaEye, FaRegEye,
   FaUser,
   FaUsers,
-  FaCommentAlt, // Comment icon
-  FaShareAlt, // Share icon
-  FaBookmark, // Save icon
+  FaRegCommentAlt, // Comment icon
+  FaRegBookmark,
+  FaShareAlt,
+  FaBookmark,
+  FaCommentAlt, // Save icon
 } from 'react-icons/fa';
+import { FiShare2 } from 'react-icons/fi';
 import { PostReactionButtons } from '../../reactions/components/PostReactionButtons';
+import { Button } from '../../../shared/components/ui/Button';
 
 interface PostCardProps {
   post: Post;
@@ -56,15 +60,15 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
           />
 
           {/* Other Action Buttons */}
-          <button className="flex items-center space-x-1 hover:text-blue-600 transition-colors">
-            <FaCommentAlt /> <span>{post.commentsCount || 0} Comments</span>
-          </button>
-          <button className="flex items-center space-x-1 hover:text-blue-600 transition-colors">
-            <FaShareAlt /> <span>Share</span>
-          </button>
-          <button className="flex items-center space-x-1 hover:text-blue-600 transition-colors">
-            <FaBookmark /> <span>Save</span>
-          </button>
+          <Button variant='secondary' >
+            <FaCommentAlt /> <span className='ms-2'>{post.commentsCount || 0} </span>
+          </Button>
+          <Button variant='secondary' >
+            <FaShareAlt /> <span className='ms-2'>Share</span>
+          </Button>
+          <Button variant='secondary' >
+            <FaBookmark /> <span className='ms-2'>Save</span>
+          </Button>
         </div>
         <div className="flex items-center space-x-1">
           <FaEye /> <span>{post.views}</span>

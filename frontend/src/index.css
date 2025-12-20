@@ -1,31 +1,70 @@
 /* index.css */
 @import "tailwindcss";
+/* index.css */
 
-/* Define your color palette here with @theme */
+/* index.css */
+@import "tailwindcss";
+
 @theme {
-  /* Primary colors */
-  --color-primary-50: #eff6ff;
-  --color-primary-100: #dbeafe;
-  --color-primary-200: #bfdbfe;
-  --color-primary-300: #93c5fd;
-  --color-primary-400: #60a5fa;
-  --color-primary-500: #3b82f6; /* your main primary */
-  --color-primary-600: #2563eb;
-  --color-primary-700: #1d4ed8;
-  --color-primary-800: #1e40af;
-  --color-primary-900: #1e3a8a;
+  /* =========================================================
+     PRIMARY — Crisp Electric Indigo (modern, confident)
+     ========================================================= */
+  --color-primary-50:  #f7f8ff;
+  --color-primary-100: #eef0ff;
+  --color-primary-200: #dde1ff;
+  --color-primary-300: #c2c8ff;
+  --color-primary-400: #9ea8ff;
+  --color-primary-500: #6f7cff; /* main */
+  --color-primary-600: #5a67e8;
+  --color-primary-700: #4b56c5;
+  --color-primary-800: #3f479e;
+  --color-primary-900: #353c7c;
 
-  /* Other semantic colors */
+  /* =========================================================
+     NEUTRAL — Cool Graphite (modern UI backbone)
+     ========================================================= */
+  --color-neutral-0:   #ffffff;
+  --color-neutral-50:  #f9fafb;
+  --color-neutral-100: #f1f3f5;
+  --color-neutral-200: #e6e8eb;
+  --color-neutral-300: #d1d5db;
+  --color-neutral-400: #9aa0a6;
+  --color-neutral-500: #6b7280;
+  --color-neutral-600: #4b5563;
+  --color-neutral-700: #374151;
+  --color-neutral-800: #1f2933;
+  --color-neutral-900: #0b1220;
+
+  /* =========================================================
+     SECONDARY — Neutral-based (not a brand color)
+     ========================================================= */
+  --color-secondary-100: #f1f3f5;
+  --color-secondary-300: #d1d5db;
   --color-secondary-500: #6b7280;
-  --color-destructive-500: #dc2626;
+  --color-secondary-700: #374151;
 
-  /* You can define single shades too */
-  --color-accent: #f59e0b;
-}
+  /* =========================================================
+     ACCENT — Subtle Cyan (used rarely)
+     ========================================================= */
+  --color-accent-100: #e6f7fb;
+  --color-accent-300: #9ddcf0;
+  --color-accent-500: #3bb3d9;
+  --color-accent-700: #1d7fa6;
 
-/* Optional: override the default Tailwind palette entirely */
-/*
-@theme {
-  --disable-default-colors: true;
+  /* =========================================================
+     SEMANTIC — Clean & modern
+     ========================================================= */
+  --color-success-500: #2fbf71;
+  --color-warning-500: #f4b740;
+  --color-destructive-500: #e5484d;
+  --color-info-500: #4fa3ff;
+
+  /* =========================================================
+     SURFACE / LAYOUT
+     ========================================================= */
+  --color-bg: #ffffff;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f9fafb;
+  --color-border: #e6e8eb;
+  --color-divider: #e6e8eb;
 }
-*/
