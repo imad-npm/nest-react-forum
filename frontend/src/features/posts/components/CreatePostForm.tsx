@@ -12,6 +12,7 @@ import { Textarea } from '../../../shared/components/ui/TextArea';
 import { Input } from '../../../shared/components/ui/Input';
 import { Label } from '../../../shared/components/ui/Label';
 import { InputError } from '../../../shared/components/ui/InputError';
+import { Button } from '../../../shared/components/ui/Button';
 
 /* -------------------------------------------------------------------------- */
 /*                                   Schema                                   */
@@ -106,13 +107,12 @@ const CreatePostForm: React.FC = () => {
       </div>
 
       {/* Submit */}
-      <button
+      <Button
         type="submit"
         disabled={isLoading}
-        className="rounded-md bg-indigo-600 px-4 py-2 text-white disabled:opacity-50"
       >
         {isLoading ? 'Creating…' : 'Create Post'}
-      </button>
+      </Button>
     </form>
   );
 };

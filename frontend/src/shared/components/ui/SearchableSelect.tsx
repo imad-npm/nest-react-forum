@@ -47,7 +47,7 @@ const SearchableSelect = <T extends { id: string | number }>({
           setOpen(true);
         }}
         placeholder={placeholder}
-        className="w-full rounded-md border px-3 py-2"
+        className="w-full rounded-md border border-gray-300 px-3 py-2"
       />
 
       {open && (
@@ -69,7 +69,7 @@ const SearchableSelect = <T extends { id: string | number }>({
                   onSearch(getLabel(item));
                   setOpen(false);
                 }}
-                className="cursor-pointer px-3 py-2 hover:bg-indigo-600 hover:text-white"
+                className="cursor-pointer px-3 py-2 hover:bg-primary-600 hover:text-white"
               >
                 {renderOption ? renderOption(item) : getLabel(item)}
               </li>
