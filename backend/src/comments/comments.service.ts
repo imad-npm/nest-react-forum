@@ -2,9 +2,9 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Repository } from 'typeorm';
 import { Comment } from './entities/comment.entity';
-import { User } from 'src/users/entities/user.entity';
-import { Post } from 'src/posts/entities/post.entity';
+
 import { PostsService } from 'src/posts/posts.service';
+import { CommunitiesService } from 'src/communities/communities.service';
 
 @Injectable()
 export class CommentsService {
@@ -12,6 +12,7 @@ export class CommentsService {
     @InjectRepository(Comment)
     private readonly commentRepo: Repository<Comment>,
     private readonly postsService: PostsService, // Inject PostsService
+    private readonly communitiesService: CommunitiesService,
   ) { }
 
   async findAll(options: {
@@ -88,169 +89,79 @@ export class CommentsService {
     return { data: commentsWithLimitedReplies, count };
   }
 
+  async findOne(id: number, currentUserId?: number) {
 
+    const mainCommentQuery = this.commentRepo.createQueryBuilder('comment')
 
-    async findOne(id: number, currentUserId?: number) {
+      .leftJoinAndSelect('comment.author', 'author')
 
+      .leftJoinAndSelect('comment.post', 'post')
 
+      .leftJoinAndSelect('comment.parent', 'parent');
 
-      const mainCommentQuery = this.commentRepo.createQueryBuilder('comment')
+    if (currentUserId) {
 
+      mainCommentQuery.leftJoinAndMapOne(
 
+        'comment.userReaction',
 
-        .leftJoinAndSelect('comment.author', 'author')
+        'comment.reactions',
 
+        'userReaction',
 
+        'userReaction.userId = :currentUserId',
 
-        .leftJoinAndSelect('comment.post', 'post')
+      );
 
+      mainCommentQuery.setParameter('currentUserId', currentUserId);
 
+    }
 
-        .leftJoinAndSelect('comment.parent', 'parent');
+    mainCommentQuery.where('comment.id = :id', { id });
 
+    const comment = await mainCommentQuery.getOne();
 
+    if (comment) {
 
-  
+      const repliesQuery = this.commentRepo
 
+        .createQueryBuilder('reply')
 
+        .leftJoinAndSelect('reply.author', 'author')
+
+        .where('reply.parentId = :commentId', { commentId: comment.id })
+
+        .orderBy('reply.createdAt', 'ASC')
+
+        .take(2); // Limit to 2 replies
 
       if (currentUserId) {
 
+        repliesQuery.leftJoinAndMapOne(
 
+          'reply.userReaction',
 
-        mainCommentQuery.leftJoinAndMapOne(
-
-
-
-          'comment.userReaction',
-
-
-
-          'comment.reactions',
-
-
+          'reply.reactions',
 
           'userReaction',
 
-
-
           'userReaction.userId = :currentUserId',
-
-
 
         );
 
-
-
-        mainCommentQuery.setParameter('currentUserId', currentUserId);
-
-
+        repliesQuery.setParameter('currentUserId', currentUserId);
 
       }
 
+      comment.replies = await repliesQuery.getMany();
 
+    }
 
-  
+    return comment;
 
+  }
 
-
-      mainCommentQuery.where('comment.id = :id', { id });
-
-
-
-  
-
-
-
-      const comment = await mainCommentQuery.getOne();
-
-
-
-  
-
-
-
-      if (comment) {
-
-
-
-        const repliesQuery = this.commentRepo
-
-
-
-          .createQueryBuilder('reply')
-
-
-
-          .leftJoinAndSelect('reply.author', 'author')
-
-
-
-          .where('reply.parentId = :commentId', { commentId: comment.id })
-
-
-
-          .orderBy('reply.createdAt', 'ASC')
-
-
-
-          .take(2); // Limit to 2 replies
-
-
-
-  
-
-
-
-        if (currentUserId) {
-
-
-
-          repliesQuery.leftJoinAndMapOne(
-
-
-
-            'reply.userReaction',
-
-
-
-            'reply.reactions',
-
-
-
-            'userReaction',
-
-
-
-            'userReaction.userId = :currentUserId',
-
-
-
-          );
-
-
-
-          repliesQuery.setParameter('currentUserId', currentUserId);
-
-
-
-        }
-
-
-
-        comment.replies = await repliesQuery.getMany();
-
-
-
-      }
-
-
-
-      return comment;
-
-
-
-    } async createComment(
+  async createComment(
     postId: number,
     content: string,
     userId: number,
@@ -260,6 +171,12 @@ export class CommentsService {
     const post = await this.postsService.findOne(postId);
     if (!post) {
       throw new NotFoundException('Post not found');
+    }
+
+    // Check if user can contribute based on community rules
+    const canContribute = await this.communitiesService.canUserContributeToCommunity(userId, post.communityId);
+    if (!canContribute) {
+      throw new BadRequestException('You are not allowed to contribute to this community');
     }
 
     const comment = this.commentRepo.create({

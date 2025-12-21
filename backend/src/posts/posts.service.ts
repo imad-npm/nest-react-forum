@@ -1,16 +1,20 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Repository } from 'typeorm';
 import { Post } from './entities/post.entity';
 import { User } from 'src/users/entities/user.entity';
 import { PostSort } from './dto/post-query.dto';
 import { CommunitiesService } from 'src/communities/communities.service'; // Import CommunitiesService
+import { CommunityType } from 'src/communities/types';
+import { CommunitySubscription } from 'src/community-subscriptions/entities/community-subscription.entity';
+import { CommunitySubscriptionsService } from 'src/community-subscriptions/community-subscriptions.service';
 
 @Injectable()
 export class PostsService {
   constructor(
     @InjectRepository(Post)
     private postsRepository: Repository<Post>,
+    private subscriptionsService: CommunitySubscriptionsService,
     private readonly communitiesService: CommunitiesService, // Inject CommunitiesService
   ) { }
 
@@ -47,17 +51,17 @@ export class PostsService {
       .leftJoinAndSelect('post.author', 'author')
       .leftJoinAndSelect('post.community', 'community');
 
-      console.log(currentUserId);
-      
-  if (currentUserId) {
-  query.leftJoinAndMapOne(
-    'post.userReaction',
-    'post.reactions',
-    'userReaction',
-    'userReaction.userId = :currentUserId',
-    { currentUserId },
-  );
-}
+    console.log(currentUserId);
+
+    if (currentUserId) {
+      query.leftJoinAndMapOne(
+        'post.userReaction',
+        'post.reactions',
+        'userReaction',
+        'userReaction.userId = :currentUserId',
+        { currentUserId },
+      );
+    }
 
     if (search) {
       query.where(
@@ -100,68 +104,103 @@ export class PostsService {
       query.orderBy('post.createdAt', 'DESC');
     }
 
+    // Community visibility rules
+    if (!currentUserId) {
+      // Not logged in → hide PRIVATE communities
+      query.andWhere('community.communityType != :privateType', {
+        privateType: 'private',
+      });
+    } else {
+      // Logged in → allow:
+      // - public
+      // - restricted
+      // - private ONLY if user is a member
+      query.andWhere(
+        new Brackets((qb) => {
+          qb.where('community.communityType != :privateType', {
+            privateType: 'private',
+          }).orWhere(
+            `EXISTS (
+          SELECT 1
+          FROM community_subscriptions cs
+          WHERE cs.communityId = community.id
+          AND cs.userId = :currentUserId
+          AND cs.status = 'approved'
+        )`,
+          );
+        }),
+      ).setParameter('privateType', 'private')
+        .setParameter('currentUserId', currentUserId);
+    }
+
     const [data, count] = await query
       .take(limit)
       .skip((page - 1) * limit)
       .getManyAndCount();
 
-    /*const postsWithUserReaction = data.map(post => {
-      return {
-        ...post,
-        userReaction: post['userReaction_id'] ? {
-          id: post['userReaction_id'],
-          type: post['userReaction_type'],
-        } : undefined
-      };
-    });
-*/
+
 
     return { data: data, count };
   }
 
 
   async findOne(id: number, currentUserId?: number): Promise<Post | null> {
-  // Start building query
-  const query = this.postsRepository.createQueryBuilder('post')
-    .leftJoinAndSelect('post.author', 'author')
-    .leftJoinAndSelect('post.comments', 'comments')
-    .leftJoinAndSelect('post.community', 'community');
+    // Start building query
+    const query = this.postsRepository.createQueryBuilder('post')
+      .leftJoinAndSelect('post.author', 'author')
+      .leftJoinAndSelect('post.comments', 'comments')
+      .leftJoinAndSelect('post.community', 'community');
 
-  // Optionally join user's reaction if currentUserId is provided
-  if (currentUserId) {
-  query.leftJoinAndMapOne(
-    'post.userReaction',
-    'post.reactions',
-    'userReaction',
-    'userReaction.userId = :currentUserId',
-    { currentUserId },
-  );
-} 
+    // Optionally join user's reaction if currentUserId is provided
+    if (currentUserId) {
+      query.leftJoinAndMapOne(
+        'post.userReaction',
+        'post.reactions',
+        'userReaction',
+        'userReaction.userId = :currentUserId',
+        { currentUserId },
+      );
+    }
 
-  // Filter by post ID
-  query.where('post.id = :id', { id });
+    // Filter by post ID
+    query.where('post.id = :id', { id });
 
-  // Execute query
-  const post = await query.getOne();
+    // Execute query
+    const post = await query.getOne();
 
-  if (!post) return null;
+    if (!post) return null;
 
-  
-  return post ;
-}
+    const { community } = post;
+    // Rule: If Private, check for ACTIVE subscription
+    if (community.communityType === CommunityType.PRIVATE) {
+      if (!currentUserId) {
+        throw new ForbiddenException('This community is private.');
+      }
+      const isMember = await this.subscriptionsService.isActiveMember(currentUserId, community.id);
+      if (!isMember) {
+        throw new ForbiddenException('This community is private.');
+      }
+    }
+    return post;
+  }
 
   async create(
-    { title, content, author, communityId }: { title: string; content: string; author: User; communityId: number },
+    { title, content, authorId, communityId }: { title: string; content: string; authorId: number; communityId: number },
   ): Promise<Post> {
     const community = await this.communitiesService.findOne(communityId);
     if (!community) {
       throw new NotFoundException(`Community with ID ${communityId} not found`);
     }
+    // Check if user can contribute based on community rules
+    const canContribute = await this.communitiesService.canUserContributeToCommunity(authorId, communityId);
+    if (!canContribute) {
+      throw new BadRequestException('You are not allowed to contribute to this community');
+    }
 
     const post = this.postsRepository.create({
       title,
       content,
-      author,
+      authorId,
       community,
     });
     return this.postsRepository.save(post);
@@ -193,6 +232,7 @@ export class PostsService {
     return !!res;
   }
 
+
   async incrementCommentsCount(postId: number): Promise<void> {
     await this.postsRepository.increment({ id: postId }, 'commentsCount', 1);
   }
@@ -220,4 +260,7 @@ export class PostsService {
   async incrementViews(postId: number): Promise<void> {
     await this.postsRepository.increment({ id: postId }, 'views', 1);
   }
+
+
+
 }

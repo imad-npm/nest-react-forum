@@ -17,8 +17,8 @@ export class CommunitiesService {
     @InjectRepository(Community)
     private readonly communitiesRepository: Repository<Community>,
     private readonly subscriptionsService: CommunitySubscriptionsService, // use service instead of repo  ) {}
-  ){
-    
+  ) {
+
   }
   async create(data: {
     userId: number;
@@ -88,10 +88,12 @@ export class CommunitiesService {
     });
     if (!community) {
       throw new NotFoundException(`Community with ID ${id} not found.`);
-    }
+    }    
 
-    // Enforce visibility rules
-    await this.checkCommunityAccess(community, user);
+    const canView = await this.canUserViewCommunity(user?.id, community.id);
+    if (!canView) {
+      throw new ForbiddenException('You do not have permission to view this community.');
+    }
 
     return community;
   }
@@ -145,7 +147,7 @@ export class CommunitiesService {
   /**
    * Checks if the user can contribute (post/comment) to this community.
    */
-   private async checkCommunityAccess(community: Community, user?: User) {
+  private async checkCommunityAccess(community: Community, user?: User) {
     switch (community.communityType) {
       case CommunityType.PUBLIC:
       case CommunityType.RESTRICTED:
@@ -164,5 +166,44 @@ export class CommunitiesService {
     }
   }
 
- 
+  async canUserContributeToCommunity(userId: number, communityId: number): Promise<boolean> {
+    const community = await this.communitiesRepository.findOne({
+      where: { id: communityId },
+      select: ['id', 'communityType'],
+    });
+    if (!community) throw new NotFoundException(`Community with ID ${communityId} not found`);
+
+    switch (community.communityType) {
+      case CommunityType.PUBLIC:
+        return true; // anyone can contribute
+      case CommunityType.RESTRICTED:
+      case CommunityType.PRIVATE:
+        // Use subscription service to check if the user is an approved member
+        return this.subscriptionsService.isActiveMember(userId, communityId);
+      default:
+        return false;
+    }
+  }
+
+
+  async canUserViewCommunity(userId: number | undefined, communityId: number): Promise<boolean> {
+    const community = await this.communitiesRepository.findOne({
+      where: { id: communityId },
+      select: ['id', 'communityType'],
+    });
+    if (!community) throw new NotFoundException('Community not found');
+
+    switch (community.communityType) {
+      case CommunityType.PUBLIC:
+      case CommunityType.RESTRICTED:
+        return true; // anyone can view
+      case CommunityType.PRIVATE:
+        if (!userId) return false; // must be logged in
+        return this.subscriptionsService.isActiveMember(userId, communityId);
+      default:
+        return false;
+    }
+  }
+
+
 }
