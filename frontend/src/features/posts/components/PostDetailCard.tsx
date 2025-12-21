@@ -3,7 +3,7 @@ import type { Post } from '../types';
 import { Link } from 'react-router-dom';
 import { FaUser, FaUsers, FaEye } from 'react-icons/fa';
 import { PostReactionButtons } from '../../reactions/components/PostReactionButtons';
-import PostActionButtons from './PostActionButtons'; // Assuming it's in the same directory
+import PostActionButtons from './PostCardFooter'; // Assuming it's in the same directory
 import { timeAgo } from '../../../shared/utils/date'; // Import timeAgo from shared utils
 
 const PostDetailCard: React.FC<PostDetailCardProps> = ({ post }) => {

@@ -9,20 +9,31 @@ import {
 import { BsThreeDots } from 'react-icons/bs';
 import Dropdown from '../../../shared/components/ui/Dropdown';
 import { Button } from '../../../shared/components/ui/Button';
+import { useAuth } from '../../auth/hooks/useAuth';
+import { useDeletePostMutation } from '../services/postsApi';
 
 interface PostDropdownProps {
   post: Post;
 }
 
 const PostDropdown: React.FC<PostDropdownProps> = ({ post }) => {
+ 
+ const {user}=useAuth()
+const [deletePost, { isLoading }] = useDeletePostMutation();
+
   const handleEditPost = () => {
     console.log('Edit post:', post.id);
     // TODO: Implement edit functionality
   };
 
-  const handleDeletePost = () => {
+  const  handleDeletePost = async () => {
     console.log('Delete post:', post.id);
-    // TODO: Implement delete functionality
+    try {
+    await deletePost(post.id).unwrap();
+    console.log('Post deleted:', post.id);
+  } catch (error) {
+    console.error('Failed to delete post', error);
+  }
   };
 
   const handleToggleSave = () => {
@@ -41,18 +52,26 @@ const PostDropdown: React.FC<PostDropdownProps> = ({ post }) => {
         align="right"
       >
         <div className="py-1">
-          <button
-            onClick={handleEditPost}
-            className="flex items-center w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
-          >
-            <FaEdit className="mr-2" /> Edit
-          </button>
-          <button
-            onClick={handleDeletePost}
-            className="flex items-center w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
-          >
-            <FaTrashAlt className="mr-2" /> Delete
-          </button>
+         {user?.id === post.author.id && (
+  <>
+    <button
+      onClick={handleEditPost}
+      className="flex items-center w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
+    >
+      <FaEdit className="mr-2" />
+      Edit
+    </button>
+
+    <button
+      onClick={handleDeletePost}
+      className="flex items-center w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-600"
+    >
+      <FaTrashAlt className="mr-2" />
+      Delete
+    </button>
+  </>
+)}
+
           <button
             onClick={handleToggleSave}
             className="flex items-center w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"

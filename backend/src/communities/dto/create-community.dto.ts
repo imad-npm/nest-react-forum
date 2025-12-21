@@ -1,10 +1,11 @@
 import {
-  IsBoolean,
+  IsEnum,
   IsOptional,
   IsString,
   Length,
   Matches,
 } from 'class-validator';
+import { CommunityType } from '../community-type.enum';
 
 export class CreateCommunityDto {
   @IsString()
@@ -24,6 +25,6 @@ export class CreateCommunityDto {
   description?: string;
 
   @IsOptional()
-  @IsBoolean()
-  isPublic?: boolean;
+  @IsEnum(CommunityType)
+  communityType?: CommunityType;
 }

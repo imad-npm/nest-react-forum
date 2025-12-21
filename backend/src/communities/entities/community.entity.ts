@@ -9,6 +9,7 @@ import {
 import { User } from '../../users/entities/user.entity';
 import { Post } from '../../posts/entities/post.entity';
 import { CommunitySubscription } from '../../community-subscriptions/entities/community-subscription.entity';
+import { CommunityType } from '../community-type.enum';
 
 @Entity('communities')
 export class Community {
@@ -33,8 +34,8 @@ export class Community {
   @CreateDateColumn()
   createdAt: Date;
 
-  @Column({ type: 'boolean', default: true })
-  isPublic: boolean;
+  @Column({ type: 'enum', enum: CommunityType, default: CommunityType.PUBLIC })
+  communityType: CommunityType;
 
   @Column({ type: 'integer', default: 0 })
   subscribersCount: number;
