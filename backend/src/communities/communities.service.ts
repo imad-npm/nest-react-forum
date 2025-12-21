@@ -6,6 +6,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Not, Repository } from 'typeorm';
 import { Community } from './entities/community.entity';
+import { CommunityType } from './community-type.enum';
 
 @Injectable()
 export class CommunitiesService {
@@ -20,7 +21,7 @@ export class CommunitiesService {
       name: string;
       displayName?: string;
       description?: string;
-      isPublic?: boolean;
+      communityType?: CommunityType;
     },
   ) {
     const existingCommunity = await this.communitiesRepository.findOne({
@@ -43,10 +44,10 @@ findAll(query: {
   page?: number;
   name?: string;
   displayName?: string;
-  isPublic?: boolean;
+  communityType?: CommunityType;
   sort?: string;
 }) {
-  const { limit = 10, page = 1, name, displayName, isPublic, sort } = query;
+  const { limit = 10, page = 1, name, displayName, communityType, sort } = query;
   const queryBuilder = this.communitiesRepository
     .createQueryBuilder('community')
     .leftJoinAndSelect('community.createdBy', 'createdBy')
@@ -65,8 +66,8 @@ findAll(query: {
     });
   }
 
-  if (isPublic !== undefined) {
-    queryBuilder.andWhere('community.isPublic = :isPublic', { isPublic });
+  if (communityType !== undefined) {
+    queryBuilder.andWhere('community.communityType = :communityType', { communityType });
   }
 
   if (sort === 'popular') {
@@ -104,7 +105,7 @@ findAll(query: {
       name?: string;
       displayName?: string;
       description?: string;
-      isPublic?: boolean;
+      communityType?: CommunityType;
       subscribersCount?: number
     },
   ) {

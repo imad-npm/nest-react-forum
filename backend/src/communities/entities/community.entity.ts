@@ -34,7 +34,7 @@ export class Community {
   @CreateDateColumn()
   createdAt: Date;
 
-  @Column({ type: 'enum', enum: CommunityType, default: CommunityType.PUBLIC })
+  @Column({ type: 'simple-enum', enum : CommunityType, default: CommunityType.PUBLIC })
   communityType: CommunityType;
 
   @Column({ type: 'integer', default: 0 })

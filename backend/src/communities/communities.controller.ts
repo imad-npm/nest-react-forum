@@ -37,7 +37,7 @@ export class CommunitiesController {
       name: createCommunityDto.name,
       displayName: createCommunityDto.displayName,
       description: createCommunityDto.description,
-      isPublic: createCommunityDto.isPublic,
+      communityType: createCommunityDto.communityType,
     });
     return new ResponseDto(CommunityResponseDto.fromEntity(community));
   }
@@ -49,7 +49,7 @@ export class CommunitiesController {
       page: query.page,
       name: query.name,
       displayName: query.displayName,
-      isPublic: query.isPublic,
+      communityType: query.communityType,
       sort: query.sort,
     });
 
@@ -80,7 +80,7 @@ export class CommunitiesController {
       name: updateCommunityDto.name,
       displayName: updateCommunityDto.displayName,
       description: updateCommunityDto.description,
-      isPublic: updateCommunityDto.isPublic,
+      communityType: updateCommunityDto.communityType,
     });
     return new ResponseDto(CommunityResponseDto.fromEntity(community));
   }

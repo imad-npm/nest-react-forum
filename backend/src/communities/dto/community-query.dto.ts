@@ -1,6 +1,6 @@
-import { IsBoolean, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsOptional, IsString } from 'class-validator';
 import { PaginationDto } from '../../common/dto/pagination.dto';
-import { Transform } from 'class-transformer';
+import { CommunityType } from '../community-type.enum';
 
 export class CommunityQueryDto extends PaginationDto {
   @IsOptional()
@@ -12,9 +12,8 @@ export class CommunityQueryDto extends PaginationDto {
   displayName?: string;
 
   @IsOptional()
-  @Transform(({ value }) => value === 'true')
-  @IsBoolean()
-  isPublic?: boolean;
+  @IsEnum(CommunityType)
+  communityType?: CommunityType;
 
   @IsOptional()
   @IsString()
