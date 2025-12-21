@@ -9,6 +9,8 @@ import { CommunitySubscription } from './entities/community-subscription.entity'
 import { User } from '../users/entities/user.entity';
 import { CommunitiesService } from '../communities/communities.service';
 import { UsersService } from 'src/users/users.service';
+import { CommunityType } from 'src/communities/types';
+import { CommunitySubscriptionStatus } from './types';
 
 interface SubscriptionQuery {
   userId?: number;
@@ -23,7 +25,7 @@ export class CommunitySubscriptionsService {
     @InjectRepository(CommunitySubscription)
     private readonly subscriptionsRepository: Repository<CommunitySubscription>,
     private readonly communitiesService: CommunitiesService,
-    private readonly usersService: UsersService, // <--- inject here
+    private readonly usersService: UsersService,
   ) { }
 
 
@@ -55,6 +57,12 @@ export class CommunitySubscriptionsService {
     return { data, count };
   }
 
+  async findOne(userId: number, communityId: number): Promise<CommunitySubscription | null> {
+    return this.subscriptionsRepository.findOne({
+      where: { userId, communityId },
+    });
+  }
+
   async subscribe(communityId: number, userId: number) {
 
     // Check community existence
@@ -73,14 +81,27 @@ export class CommunitySubscriptionsService {
     });
 
     if (existingSubscription) {
+      if (existingSubscription.status === CommunitySubscriptionStatus.BLOCKED) {
+        throw new ConflictException(`User ${userId} is blocked from community ${community.id}`);
+      }
       throw new ConflictException(
         `User ${userId} is already subscribed to community ${community.id}`,
       );
     }
 
+    const communityType = community.communityType;
+    let subscriptionStatus: CommunitySubscriptionStatus;
+
+    if (communityType === CommunityType.PUBLIC) {
+      subscriptionStatus = CommunitySubscriptionStatus.ACTIVE;
+    } else {
+      subscriptionStatus = CommunitySubscriptionStatus.PENDING;
+    }
+
     const subscription = this.subscriptionsRepository.create({
       userId: userId,
       communityId: community.id,
+      status: subscriptionStatus,
     });
 
     const savedSubscription = await this.subscriptionsRepository.save(subscription);
@@ -127,5 +148,22 @@ export class CommunitySubscriptionsService {
     return { message: 'Unsubscribed successfully' };
   }
 
+  // --- New methods for subscription status checks ---
+  async getSubscriptionStatus(userId: number, communityId: number): Promise<CommunitySubscriptionStatus | null> {
+    const subscription = await this.subscriptionsRepository.findOne({
+      where: { userId, communityId },
+      select: ['status'],
+    });
+    return subscription ? subscription.status : null;
+  }
 
+  async isActiveMember(userId: number, communityId: number): Promise<boolean> {
+    const status = await this.getSubscriptionStatus(userId, communityId);
+    return status === CommunitySubscriptionStatus.ACTIVE;
+  }
+
+  async isBlocked(userId: number, communityId: number): Promise<boolean> {
+    const status = await this.getSubscriptionStatus(userId, communityId);
+    return status === CommunitySubscriptionStatus.BLOCKED;
+  }
 }
