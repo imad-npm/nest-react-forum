@@ -12,15 +12,19 @@ import { Comment } from '../comments/entities/comment.entity';
 import { PostReaction } from '../reactions/entities/post-reaction.entity';
 import { CommentReaction } from '../reactions/entities/comment-reaction.entity';
 import { Action } from './casl.types';
+import { Community } from 'src/communities/entities/community.entity';
+import { CommunitySubscriptionStatus } from 'src/community-subscriptions/types';
+import { CommunityType } from 'src/communities/types';
 
 export type Subjects =
   | InferSubjects<
-      | typeof Post
-      | typeof Comment
-      | typeof PostReaction
-      | typeof CommentReaction
-      | typeof User
-    >
+    | typeof Post
+    | typeof Comment
+    | typeof PostReaction
+    | typeof CommentReaction
+    | typeof User
+    | typeof Community
+  >
   | 'all';
 
 export type AppAbility = MongoAbility<[Action, Subjects]>;
@@ -55,6 +59,11 @@ export class CaslAbilityFactory {
     can(Action.Create, CommentReaction);
     can(Action.Delete, CommentReaction, { userId: user.id });
     can(Action.Update, CommentReaction, { userId: user.id });
+
+    can(Action.Delete, Community, { ownerId: user.id });
+    can(Action.Update, Community, { ownerId: user.id });
+
+
 
     return build({
       detectSubjectType: (item) =>

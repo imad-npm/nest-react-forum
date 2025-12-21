@@ -1,6 +1,6 @@
 import { faker } from '@faker-js/faker';
 import { Community } from '../../communities/entities/community.entity';
-import { CommunityType } from '../../communities/community-type.enum';
+import { CommunityType } from '../../communities/types';
 
 export function communityFactory(): Community {
   const community = new Community();

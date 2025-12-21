@@ -5,7 +5,7 @@ import {
   Length,
   Matches,
 } from 'class-validator';
-import { CommunityType } from '../community-type.enum';
+import { CommunityType } from '../types';
 
 export class CreateCommunityDto {
   @IsString()

@@ -9,7 +9,7 @@ import {
 import { User } from '../../users/entities/user.entity';
 import { Post } from '../../posts/entities/post.entity';
 import { CommunitySubscription } from '../../community-subscriptions/entities/community-subscription.entity';
-import { CommunityType } from '../community-type.enum';
+import { CommunityType } from '../types';
 
 @Entity('communities')
 export class Community {
@@ -25,11 +25,11 @@ export class Community {
   @Column({ type: 'text', nullable: true })
   description: string;
 
-  @ManyToOne(() => User, (user) => user.createdCommunities)
-  createdBy: User;
+@ManyToOne(() => User, (user) => user.createdCommunities)
+owner: User;
 
-  @Column({ nullable: true })
-  createdById: number;
+@Column({ nullable: true })
+ownerId: number;
 
   @CreateDateColumn()
   createdAt: Date;

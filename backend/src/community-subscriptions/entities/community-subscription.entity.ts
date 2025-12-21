@@ -1,4 +1,5 @@
 import {
+  Column,
   CreateDateColumn,
   Entity,
   ManyToOne,
@@ -6,6 +7,7 @@ import {
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Community } from '../../communities/entities/community.entity';
+import { CommunitySubscriptionStatus } from '../types';
 
 @Entity('community_subscriptions')
 export class CommunitySubscription {
@@ -20,6 +22,9 @@ export class CommunitySubscription {
 
   @ManyToOne(() => Community, (community) => community.subscriptions)
   community: Community;
+
+  @Column({ type: "simple-enum", enum:CommunitySubscriptionStatus, default: CommunitySubscriptionStatus.PENDING })
+  status: CommunitySubscriptionStatus;
 
   @CreateDateColumn()
   createdAt: Date;

@@ -6,7 +6,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Not, Repository } from 'typeorm';
 import { Community } from './entities/community.entity';
-import { CommunityType } from './community-type.enum';
+import { CommunityType } from './types';
 
 @Injectable()
 export class CommunitiesService {
