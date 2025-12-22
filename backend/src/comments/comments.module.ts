@@ -6,13 +6,17 @@ import { CommentsController } from './comments.controller';
 import { PostsModule } from 'src/posts/posts.module';
 import { CaslModule } from 'src/casl/casl.module';
 import { CommunitiesModule } from 'src/communities/communities.module';
+import { CommunitySubscription } from 'src/community-subscriptions/entities/community-subscription.entity';
+import { CommunityAccessModule } from 'src/community-access/community-access.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Comment]),
     PostsModule,
     CaslModule,
-    CommunitiesModule
+    CommunitiesModule,
+    CommunityAccessModule
+    
   ],
   providers: [CommentsService],
   controllers: [CommentsController],

@@ -518,8 +518,8 @@ export async function seedCommunities(users: User[]): Promise<Community[]> {
   const communityRepo = AppDataSource.getRepository(Community);
   const communities: Community[] = Array.from({ length: 8 }).map(() => {
     const community = communityFactory();
-    community.createdBy = users[Math.floor(Math.random() * users.length)];
-    community.createdById = community.createdBy.id;
+    community.owner = users[Math.floor(Math.random() * users.length)];
+    community.ownerId = community.owner.id;
     return community;
   });
 
@@ -2125,7 +2125,7 @@ export class User {
   @OneToMany(() => CommentReaction, (reaction) => reaction.user)
   commentReactions: CommentReaction[];
 
-  @OneToMany(() => Community, (community) => community.createdBy)
+  @OneToMany(() => Community, (community) => community.owner)
   createdCommunities: Community[];
 
   @OneToMany(
@@ -2520,7 +2520,7 @@ import { Expose, Type, plainToInstance } from 'class-transformer';
 import { UserResponseDto } from '../../users/dtos/user-response.dto';
 import { CommunityResponseDto } from '../../communities/dto/community-response.dto';
 import { CommunitySubscription } from '../entities/community-subscription.entity';
-import { CommunitySubscriptionStatus } from '../community-subscription-status.enum';
+import { CommunitySubscriptionStatus } from '../types';
 
 export class CommunitySubscriptionResponseDto {
   @Expose()
@@ -3914,10 +3914,13 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Post } from './entities/post.entity';
 import { CaslModule } from 'src/casl/casl.module';
 import { CommunitiesModule } from 'src/communities/communities.module';
+import { CommunitySubscriptionsModule } from 'src/community-subscriptions/community-subscriptions.module';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Post]),
-   CaslModule, CommunitiesModule],
+   CaslModule, CommunitiesModule, 
+      
+],
   providers: [PostsService],
   controllers: [PostsController],
   exports: [PostsService],
@@ -4371,7 +4374,7 @@ export class PostsController {
     const post = await this.postsService.create({
       title: dto.title,
       content: dto.content,
-      author: user,
+      authorId: user.id,
       communityId: dto.communityId,
     });
     return new ResponseDto(PostResponseDto.fromEntity(post));
@@ -5690,9 +5693,12 @@ import { CommunitiesService } from './communities.service';
 import { CommunitiesController } from './communities.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Community } from './entities/community.entity';
+import { CommunitySubscription } from 'src/community-subscriptions/entities/community-subscription.entity';
+import { CommunitySubscriptionsModule } from 'src/community-subscriptions/community-subscriptions.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Community])],
+  imports: [TypeOrmModule.forFeature([Community]),
+CommunitySubscriptionsModule],
   controllers: [CommunitiesController],
   providers: [CommunitiesService],
   exports: [CommunitiesService],
@@ -6356,8 +6362,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Repository } from 'typeorm';
 import { Comment } from './entities/comment.entity';
-import { User } from 'src/users/entities/user.entity';
-import { Post } from 'src/posts/entities/post.entity';
+
 import { PostsService } from 'src/posts/posts.service';
 import { CommunitiesService } from 'src/communities/communities.service';
 
@@ -6444,147 +6449,75 @@ export class CommentsService {
     return { data: commentsWithLimitedReplies, count };
   }
 
-
-
   async findOne(id: number, currentUserId?: number) {
-
-
 
     const mainCommentQuery = this.commentRepo.createQueryBuilder('comment')
 
-
-
       .leftJoinAndSelect('comment.author', 'author')
-
-
 
       .leftJoinAndSelect('comment.post', 'post')
 
-
-
       .leftJoinAndSelect('comment.parent', 'parent');
-
-
 
     if (currentUserId) {
 
-
-
       mainCommentQuery.leftJoinAndMapOne(
-
-
 
         'comment.userReaction',
 
-
-
         'comment.reactions',
-
-
 
         'userReaction',
 
-
-
         'userReaction.userId = :currentUserId',
-
-
 
       );
 
-
-
       mainCommentQuery.setParameter('currentUserId', currentUserId);
 
-
-
     }
-
-
 
     mainCommentQuery.where('comment.id = :id', { id });
 
-
-
     const comment = await mainCommentQuery.getOne();
-
-
 
     if (comment) {
 
-
-
       const repliesQuery = this.commentRepo
-
-
 
         .createQueryBuilder('reply')
 
-
-
         .leftJoinAndSelect('reply.author', 'author')
-
-
 
         .where('reply.parentId = :commentId', { commentId: comment.id })
 
-
-
         .orderBy('reply.createdAt', 'ASC')
-
-
 
         .take(2); // Limit to 2 replies
 
-
-
       if (currentUserId) {
-
-
 
         repliesQuery.leftJoinAndMapOne(
 
-
-
           'reply.userReaction',
-
-
 
           'reply.reactions',
 
-
-
           'userReaction',
-
-
 
           'userReaction.userId = :currentUserId',
 
-
-
         );
-
-
 
         repliesQuery.setParameter('currentUserId', currentUserId);
 
-
-
       }
-
-
 
       comment.replies = await repliesQuery.getMany();
 
-
-
     }
 
-
-
     return comment;
-
-
 
   }
 
@@ -6942,13 +6875,15 @@ import { CommentsController } from './comments.controller';
 import { PostsModule } from 'src/posts/posts.module';
 import { CaslModule } from 'src/casl/casl.module';
 import { CommunitiesModule } from 'src/communities/communities.module';
+import { CommunitySubscription } from 'src/community-subscriptions/entities/community-subscription.entity';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Comment]),
     PostsModule,
     CaslModule,
-    CommunitiesModule
+    CommunitiesModule,
+    
   ],
   providers: [CommentsService],
   controllers: [CommentsController],

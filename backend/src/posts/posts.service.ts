@@ -2,19 +2,17 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Repository } from 'typeorm';
 import { Post } from './entities/post.entity';
-import { User } from 'src/users/entities/user.entity';
 import { PostSort } from './dto/post-query.dto';
 import { CommunitiesService } from 'src/communities/communities.service'; // Import CommunitiesService
-import { CommunityType } from 'src/communities/types';
-import { CommunitySubscription } from 'src/community-subscriptions/entities/community-subscription.entity';
-import { CommunitySubscriptionsService } from 'src/community-subscriptions/community-subscriptions.service';
+import { CommunityAccessService } from 'src/community-access/community-access.service';
 
 @Injectable()
 export class PostsService {
   constructor(
     @InjectRepository(Post)
     private postsRepository: Repository<Post>,
-    private subscriptionsService: CommunitySubscriptionsService,
+    private readonly accessService: CommunityAccessService,
+
     private readonly communitiesService: CommunitiesService, // Inject CommunitiesService
   ) { }
 
@@ -51,7 +49,6 @@ export class PostsService {
       .leftJoinAndSelect('post.author', 'author')
       .leftJoinAndSelect('post.community', 'community');
 
-    console.log(currentUserId);
 
     if (currentUserId) {
       query.leftJoinAndMapOne(
@@ -171,16 +168,7 @@ export class PostsService {
     if (!post) return null;
 
     const { community } = post;
-    // Rule: If Private, check for ACTIVE subscription
-    if (community.communityType === CommunityType.PRIVATE) {
-      if (!currentUserId) {
-        throw new ForbiddenException('This community is private.');
-      }
-      const isMember = await this.subscriptionsService.isActiveMember(currentUserId, community.id);
-      if (!isMember) {
-        throw new ForbiddenException('This community is private.');
-      }
-    }
+    await this.accessService.assertUserCanViewCommunity(currentUserId, community.id)
     return post;
   }
 
@@ -192,10 +180,8 @@ export class PostsService {
       throw new NotFoundException(`Community with ID ${communityId} not found`);
     }
     // Check if user can contribute based on community rules
-    const canContribute = await this.communitiesService.canUserContributeToCommunity(authorId, communityId);
-    if (!canContribute) {
-      throw new BadRequestException('You are not allowed to contribute to this community');
-    }
+    await this.accessService.assertUserCanContribute(authorId, communityId);
+
 
     const post = this.postsRepository.create({
       title,

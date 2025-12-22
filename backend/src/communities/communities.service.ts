@@ -1,7 +1,6 @@
 import {
   ConflictException,
   Injectable,
-  ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -9,17 +8,16 @@ import { Not, Repository } from 'typeorm';
 import { Community } from './entities/community.entity';
 import { CommunityType } from './types';
 import { User } from '../users/entities/user.entity';
-import { CommunitySubscriptionsService } from 'src/community-subscriptions/community-subscriptions.service';
+import { CommunityAccessService } from '../community-access/community-access.service';
 
 @Injectable()
 export class CommunitiesService {
   constructor(
     @InjectRepository(Community)
     private readonly communitiesRepository: Repository<Community>,
-    private readonly subscriptionsService: CommunitySubscriptionsService, // use service instead of repo  ) {}
-  ) {
+    private readonly accessService: CommunityAccessService, // new service for permissions
+  ) {}
 
-  }
   async create(data: {
     userId: number;
     name: string;
@@ -58,25 +56,10 @@ export class CommunitiesService {
       .take(limit)
       .skip((page - 1) * limit);
 
-    if (name) {
-      queryBuilder.andWhere('community.name LIKE :name', {
-        name: `%${name}%`,
-      });
-    }
-
-    if (displayName) {
-      queryBuilder.andWhere('community.displayName LIKE :displayName', {
-        displayName: `%${displayName}%`,
-      });
-    }
-
-    if (communityType !== undefined) {
-      queryBuilder.andWhere('community.communityType = :communityType', { communityType });
-    }
-
-    if (sort === 'popular') {
-      queryBuilder.orderBy('community.subscribersCount', 'DESC');
-    }
+    if (name) queryBuilder.andWhere('community.name LIKE :name', { name: `%${name}%` });
+    if (displayName) queryBuilder.andWhere('community.displayName LIKE :displayName', { displayName: `%${displayName}%` });
+    if (communityType !== undefined) queryBuilder.andWhere('community.communityType = :communityType', { communityType });
+    if (sort === 'popular') queryBuilder.orderBy('community.subscribersCount', 'DESC');
 
     return queryBuilder.getManyAndCount();
   }
@@ -86,14 +69,11 @@ export class CommunitiesService {
       where: { id },
       relations: ['owner'],
     });
-    if (!community) {
-      throw new NotFoundException(`Community with ID ${id} not found.`);
-    }    
 
-    const canView = await this.canUserViewCommunity(user?.id, community.id);
-    if (!canView) {
-      throw new ForbiddenException('You do not have permission to view this community.');
-    }
+    if (!community) throw new NotFoundException(`Community with ID ${id} not found.`);
+
+    // use CommunityAccessService for permissions
+    await this.accessService.assertUserCanViewCommunity(user?.id, community.id);
 
     return community;
   }
@@ -103,11 +83,10 @@ export class CommunitiesService {
       where: { name },
       relations: ['owner'],
     });
-    if (!community) {
-      throw new NotFoundException(`Community with name "${name}" not found.`);
-    }
 
-    await this.checkCommunityAccess(community, user);
+    if (!community) throw new NotFoundException(`Community with name "${name}" not found.`);
+
+    await this.accessService.assertUserCanViewCommunity(user?.id, community.id);
 
     return community;
   }
@@ -126,15 +105,11 @@ export class CommunitiesService {
       const existing = await this.communitiesRepository.findOne({
         where: { name, id: Not(id) },
       });
-      if (existing) {
-        throw new ConflictException('Community name already exists.');
-      }
+      if (existing) throw new ConflictException('Community name already exists.');
     }
 
     const community = await this.communitiesRepository.preload(data);
-    if (!community) {
-      throw new NotFoundException(`Community with ID ${id} not found.`);
-    }
+    if (!community) throw new NotFoundException(`Community with ID ${id} not found.`);
 
     return this.communitiesRepository.save(community);
   }
@@ -142,67 +117,6 @@ export class CommunitiesService {
   async remove(id: number) {
     const community = await this.findOne(id);
     await this.communitiesRepository.remove(community);
-  }
-
-  /**
-   * Checks if the user can contribute (post/comment) to this community.
-   */
-  private async checkCommunityAccess(community: Community, user?: User) {
-    switch (community.communityType) {
-      case CommunityType.PUBLIC:
-      case CommunityType.RESTRICTED:
-        return; // anyone can view
-      case CommunityType.PRIVATE:
-        if (!user) {
-          throw new ForbiddenException('You must be a member to view this community.');
-        }
-        const isMember = await this.subscriptionsService.isActiveMember(user.id, community.id);
-        if (!isMember) {
-          throw new ForbiddenException('You must be an approved member to view this community.');
-        }
-        return;
-      default:
-        throw new ForbiddenException('Invalid community type.');
-    }
-  }
-
-  async canUserContributeToCommunity(userId: number, communityId: number): Promise<boolean> {
-    const community = await this.communitiesRepository.findOne({
-      where: { id: communityId },
-      select: ['id', 'communityType'],
-    });
-    if (!community) throw new NotFoundException(`Community with ID ${communityId} not found`);
-
-    switch (community.communityType) {
-      case CommunityType.PUBLIC:
-        return true; // anyone can contribute
-      case CommunityType.RESTRICTED:
-      case CommunityType.PRIVATE:
-        // Use subscription service to check if the user is an approved member
-        return this.subscriptionsService.isActiveMember(userId, communityId);
-      default:
-        return false;
-    }
-  }
-
-
-  async canUserViewCommunity(userId: number | undefined, communityId: number): Promise<boolean> {
-    const community = await this.communitiesRepository.findOne({
-      where: { id: communityId },
-      select: ['id', 'communityType'],
-    });
-    if (!community) throw new NotFoundException('Community not found');
-
-    switch (community.communityType) {
-      case CommunityType.PUBLIC:
-      case CommunityType.RESTRICTED:
-        return true; // anyone can view
-      case CommunityType.PRIVATE:
-        if (!userId) return false; // must be logged in
-        return this.subscriptionsService.isActiveMember(userId, communityId);
-      default:
-        return false;
-    }
   }
 
 

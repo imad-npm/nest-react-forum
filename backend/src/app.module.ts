@@ -27,6 +27,7 @@ import { Profile } from './profile/entities/profile.entity';
 import { ProfileModule } from './profile/profile.module';
 import { Community } from './communities/entities/community.entity';
 import { CommunitySubscription } from './community-subscriptions/entities/community-subscription.entity';
+import { CommunityAccessModule } from './community-access/community-access.module';
 
 @Module({
   imports: [
@@ -64,7 +65,8 @@ import { CommunitySubscription } from './community-subscriptions/entities/commun
     ResetPasswordModule,
     ProfileModule,
     CommunitiesModule,
-    CommunitySubscriptionsModule
+    CommunitySubscriptionsModule,
+    CommunityAccessModule
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -91,7 +91,7 @@ export class PostsController {
     const post = await this.postsService.create({
       title: dto.title,
       content: dto.content,
-      author: user,
+      authorId: user.id,
       communityId: dto.communityId,
     });
     return new ResponseDto(PostResponseDto.fromEntity(post));

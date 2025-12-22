@@ -7,8 +7,8 @@ export async function seedCommunities(users: User[]): Promise<Community[]> {
   const communityRepo = AppDataSource.getRepository(Community);
   const communities: Community[] = Array.from({ length: 8 }).map(() => {
     const community = communityFactory();
-    community.createdBy = users[Math.floor(Math.random() * users.length)];
-    community.createdById = community.createdBy.id;
+    community.owner = users[Math.floor(Math.random() * users.length)];
+    community.ownerId = community.owner.id;
     return community;
   });
 

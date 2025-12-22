@@ -4,7 +4,7 @@ import { Brackets, Repository } from 'typeorm';
 import { Comment } from './entities/comment.entity';
 
 import { PostsService } from 'src/posts/posts.service';
-import { CommunitiesService } from 'src/communities/communities.service';
+import { CommunityAccessService } from 'src/community-access/community-access.service';
 
 @Injectable()
 export class CommentsService {
@@ -12,7 +12,7 @@ export class CommentsService {
     @InjectRepository(Comment)
     private readonly commentRepo: Repository<Comment>,
     private readonly postsService: PostsService, // Inject PostsService
-    private readonly communitiesService: CommunitiesService,
+    private readonly accessService: CommunityAccessService,
   ) { }
 
   async findAll(options: {
@@ -174,10 +174,7 @@ export class CommentsService {
     }
 
     // Check if user can contribute based on community rules
-    const canContribute = await this.communitiesService.canUserContributeToCommunity(userId, post.communityId);
-    if (!canContribute) {
-      throw new BadRequestException('You are not allowed to contribute to this community');
-    }
+    await this.accessService.assertUserCanContribute(userId,post.communityId)
 
     const comment = this.commentRepo.create({
       content,

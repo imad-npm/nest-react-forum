@@ -60,7 +60,7 @@ export class User {
   @OneToMany(() => CommentReaction, (reaction) => reaction.user)
   commentReactions: CommentReaction[];
 
-  @OneToMany(() => Community, (community) => community.createdBy)
+  @OneToMany(() => Community, (community) => community.owner)
   createdCommunities: Community[];
 
   @OneToMany(
