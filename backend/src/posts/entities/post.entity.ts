@@ -65,7 +65,7 @@ export class Post {
   isApproved: boolean;
 
   @Column({ nullable: true })
-  approvedAt?: Date;
+  approvedAt?: Date | null;
 
   userReaction?: { id: number; type: ReactionType };
 

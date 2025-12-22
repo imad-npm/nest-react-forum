@@ -10,6 +10,7 @@ import { PasswordResetToken } from './reset-password/entities/password-reset-tok
 import { Profile } from './profile/entities/profile.entity';
 import { Community } from './communities/entities/community.entity'; // Import Community
 import { CommunitySubscription } from './community-subscriptions/entities/community-subscription.entity'; // Import CommunitySubscription
+import { CommunityModerator } from './community-moderators/entities/community-moderator.entity'; // Import CommunityModerator
 
 config(); // load .env manually
 
@@ -32,6 +33,7 @@ export const AppDataSource = new DataSource({
     Profile,
     Community, // Add Community
     CommunitySubscription, // Add CommunitySubscription
+    CommunityModerator, // Add Moderator
   ],
   synchronize: false,
   migrations: ['src/database/migrations/*.ts'],

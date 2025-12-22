@@ -1,5 +1,6 @@
 import { Exclude, Expose, plainToInstance } from 'class-transformer';
 import { Community } from '../entities/community.entity';
+import { CommunityType } from '../types'; // Import CommunityType
 
 @Exclude()
 export class CommunityResponseDto {
@@ -12,8 +13,10 @@ export class CommunityResponseDto {
   @Expose() readonly createdAt: Date;
 
   static fromEntity(entity: Community): CommunityResponseDto {
-    return plainToInstance(CommunityResponseDto, entity, {
+    const dto = plainToInstance(CommunityResponseDto, entity, {
       excludeExtraneousValues: true,
     });
+    dto.isPublic = entity.communityType === CommunityType.PUBLIC;
+    return dto;
   }
 }

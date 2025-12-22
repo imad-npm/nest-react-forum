@@ -28,6 +28,7 @@ import { ProfileModule } from './profile/profile.module';
 import { Community } from './communities/entities/community.entity';
 import { CommunitySubscription } from './community-subscriptions/entities/community-subscription.entity';
 import { CommunityAccessModule } from './community-access/community-access.module';
+import { CommunityModeratorsModule } from './community-moderators/community-moderators.module';
 
 @Module({
   imports: [
@@ -66,7 +67,8 @@ import { CommunityAccessModule } from './community-access/community-access.modul
     ProfileModule,
     CommunitiesModule,
     CommunitySubscriptionsModule,
-    CommunityAccessModule
+    CommunityAccessModule,
+    CommunityModeratorsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

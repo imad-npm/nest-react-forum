@@ -109,12 +109,6 @@ export class PostsService {
       });
       query.andWhere('post.isApproved = :isApproved', { isApproved: true });
     } else {
-      // Logged in → allow:
-      // - public
-      // - restricted
-      // - private ONLY if user is a member
-      // For logged in users, we are not filtering by isApproved here yet,
-      // assuming an admin check will happen later for unapproved posts.
       query.andWhere(
         new Brackets((qb) => {
           qb.where('community.communityType != :privateType', {

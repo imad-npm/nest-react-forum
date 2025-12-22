@@ -14,6 +14,7 @@ import { CommentReaction } from '../../reactions/entities/comment-reaction.entit
 import { Profile } from '../../profile/entities/profile.entity'; // Import Profile
 import { Community } from '../../communities/entities/community.entity';
 import { CommunitySubscription } from '../../community-subscriptions/entities/community-subscription.entity';
+import { CommunityModerator } from '../../community-moderators/entities/community-moderator.entity'; // Import CommunityModerator
 
 @Entity('users')
 export class User {
@@ -68,4 +69,7 @@ export class User {
     (communitySubscription) => communitySubscription.user,
   )
   communitySubscriptions: CommunitySubscription[];
+
+  @OneToMany(() => CommunityModerator, (communityModerator) => communityModerator.moderator)
+  moderatedCommunities: CommunityModerator[];
 }
