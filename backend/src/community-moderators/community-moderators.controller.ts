@@ -9,6 +9,7 @@ import {
   HttpCode,
   HttpStatus,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { CommunityModeratorsService } from './community-moderators.service';
 import { CommunityModeratorResponseDto } from './dto/community-moderator-response.dto';
@@ -16,17 +17,26 @@ import { CommunityModeratorQueryDto } from './dto/community-moderator-query.dto'
 import { ResponseDto } from 'src/common/dto/response.dto';
 import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
 import { PaginationMetaDto } from 'src/common/dto/pagination-meta.dto';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { GetUser } from 'src/decorators/user.decorator';
+import { User } from 'src/users/entities/user.entity';
 
 @Controller('communities/:communityId/moderators')
 export class CommunityModeratorsController {
   constructor(private readonly service: CommunityModeratorsService) {}
 
   @Post()
+  @UseGuards(JwtAuthGuard)
   async create(
     @Param('communityId', ParseIntPipe) communityId: number,
     @Body('userId', ParseIntPipe) userId: number,
+    @GetUser() currentUser: User,
   ): Promise<ResponseDto<CommunityModeratorResponseDto>> {
-    const communityModerator = await this.service.create({ userId, communityId });
+    const communityModerator = await this.service.create({
+      userId,
+      communityId,
+      currentUser,
+    });
     return new ResponseDto(
       CommunityModeratorResponseDto.fromEntity(communityModerator),
     );
@@ -72,10 +82,12 @@ export class CommunityModeratorsController {
 
   @Delete(':moderatorId')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(JwtAuthGuard)
   async remove(
     @Param('communityId', ParseIntPipe) communityId: number,
     @Param('moderatorId', ParseIntPipe) moderatorId: number,
+    @GetUser() currentUser: User,
   ): Promise<void> {
-    await this.service.remove({ moderatorId, communityId });
+    await this.service.remove({ moderatorId, communityId, currentUser });
   }
 }

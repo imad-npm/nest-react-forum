@@ -1,10 +1,18 @@
-
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CommunityModerator } from './entities/community-moderator.entity';
 import { UsersService } from '../users/users.service';
 import { CommunitiesService } from '../communities/communities.service';
+import { CommunitySubscriptionsService } from '../community-subscriptions/community-subscriptions.service';
+import { User } from 'src/users/entities/user.entity';
+import { CommunitySubscriptionStatus } from 'src/community-subscriptions/types';
 
 @Injectable()
 export class CommunityModeratorsService {
@@ -13,21 +21,65 @@ export class CommunityModeratorsService {
     private readonly communityModeratorRepository: Repository<CommunityModerator>,
     private readonly usersService: UsersService,
     private readonly communitiesService: CommunitiesService,
+    private readonly subscriptionsService: CommunitySubscriptionsService,
   ) {}
 
   async create(options: {
     userId: number;
     communityId: number;
+    currentUser: User;
   }): Promise<CommunityModerator> {
-    const { userId, communityId } = options;
+    const { userId, communityId, currentUser } = options;
+
+    const community = await this.communitiesService.findOne(communityId);
+    if (!community) {
+      throw new NotFoundException(`Community with ID ${communityId} not found`);
+    }
+
+    if (community.ownerId !== currentUser.id) {
+      throw new ForbiddenException('You are not the owner of this community');
+    }
+
     const user = await this.usersService.findOneById(userId);
     if (!user) {
       throw new NotFoundException(`User with ID ${userId} not found`);
     }
 
-    const community = await this.communitiesService.findOne(communityId);
-    if (!community) {
-      throw new NotFoundException(`Community with ID ${communityId} not found`);
+    if (!user.emailVerifiedAt) {
+      throw new BadRequestException('User is not active');
+    }
+
+    const isModerator = await this.communityModeratorRepository.exist({
+      where: { moderatorId: userId, communityId },
+    });
+
+    if (isModerator) {
+      throw new ConflictException('User is already a moderator');
+    }
+
+    const subscription = await this.subscriptionsService.findOne(
+      userId,
+      communityId,
+    );
+
+    if (subscription) {
+      if (subscription.status === CommunitySubscriptionStatus.BLOCKED) {
+        throw new BadRequestException(
+          'Blocked users cannot be made moderators.',
+        );
+      }
+      if (subscription.status === CommunitySubscriptionStatus.PENDING) {
+        await this.subscriptionsService.activateSubscription(
+          userId,
+          communityId,
+        );
+      }
+    } else {
+      await this.subscriptionsService.subscribe({
+        userId,
+        communityId,
+        activate: true,
+      });
     }
 
     const moderatorEntity = this.communityModeratorRepository.create({
@@ -74,8 +126,27 @@ export class CommunityModeratorsService {
   async remove(options: {
     moderatorId: number;
     communityId: number;
+    currentUser: User;
   }): Promise<void> {
-    const { moderatorId, communityId } = options;
+    const { moderatorId, communityId, currentUser } = options;
+
+    const community = await this.communitiesService.findOne(communityId);
+    if (!community) {
+      throw new NotFoundException(`Community with ID ${communityId} not found`);
+    }
+
+    if (community.ownerId !== currentUser.id) {
+      throw new ForbiddenException('You are not the owner of this community');
+    }
+
+    const moderator = await this.communityModeratorRepository.findOne({
+      where: { moderatorId, communityId },
+    });
+
+    if (!moderator) {
+      throw new NotFoundException('Moderator not found');
+    }
+
     await this.communityModeratorRepository.delete({ moderatorId, communityId });
   }
 }

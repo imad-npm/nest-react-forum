@@ -2323,15 +2323,24 @@ export class CommunitySubscriptionsService {
     });
   }
 
-  async subscribe(communityId: number, userId: number) {
+  async subscribe(input: {
+    userId: number;
+    communityId: number;
+    activate?: boolean;
+  }) {
+    const { userId, communityId, activate } = input;
 
     // Check community existence
     const community = await this.communitiesService.findOne(communityId);
-    if (!community) throw new NotFoundException(`Community ${communityId} not found`);
+    if (!community) {
+      throw new NotFoundException(`Community ${communityId} not found`);
+    }
 
     // Check user existence via UsersService
     const user = await this.usersService.findOneById(userId);
-    if (!user) throw new NotFoundException(`User ${userId} not found`);
+    if (!user) {
+      throw new NotFoundException(`User ${userId} not found`);
+    }
 
     const existingSubscription = await this.subscriptionsRepository.findOne({
       where: {
@@ -2342,7 +2351,9 @@ export class CommunitySubscriptionsService {
 
     if (existingSubscription) {
       if (existingSubscription.status === CommunitySubscriptionStatus.BLOCKED) {
-        throw new ConflictException(`User ${userId} is blocked from community ${community.id}`);
+        throw new ConflictException(
+          `User ${userId} is blocked from community ${community.id}`,
+        );
       }
       throw new ConflictException(
         `User ${userId} is already subscribed to community ${community.id}`,
@@ -2352,7 +2363,9 @@ export class CommunitySubscriptionsService {
     const communityType = community.communityType;
     let subscriptionStatus: CommunitySubscriptionStatus;
 
-    if (communityType === CommunityType.PUBLIC) {
+    if (activate) {
+      subscriptionStatus = CommunitySubscriptionStatus.ACTIVE;
+    } else if (communityType === CommunityType.PUBLIC) {
       subscriptionStatus = CommunitySubscriptionStatus.ACTIVE;
     } else {
       subscriptionStatus = CommunitySubscriptionStatus.PENDING;
@@ -2364,7 +2377,9 @@ export class CommunitySubscriptionsService {
       status: subscriptionStatus,
     });
 
-    const savedSubscription = await this.subscriptionsRepository.save(subscription);
+    const savedSubscription = await this.subscriptionsRepository.save(
+      subscription,
+    );
 
     await this.communitiesService.update({
       id: community.id,
@@ -2425,6 +2440,24 @@ export class CommunitySubscriptionsService {
   async isBlocked(userId: number, communityId: number): Promise<boolean> {
     const status = await this.getSubscriptionStatus(userId, communityId);
     return status === CommunitySubscriptionStatus.BLOCKED;
+  }
+
+  async activateSubscription(
+    userId: number,
+    communityId: number,
+  ): Promise<CommunitySubscription> {
+    const subscription = await this.findOne(userId, communityId);
+    if (!subscription) {
+      throw new NotFoundException('Subscription not found.');
+    }
+    if (subscription.status === CommunitySubscriptionStatus.BLOCKED) {
+      throw new ConflictException('User is blocked from this community');
+    }
+    if (subscription.status === CommunitySubscriptionStatus.ACTIVE) {
+      return subscription;
+    }
+    subscription.status = CommunitySubscriptionStatus.ACTIVE;
+    return this.subscriptionsRepository.save(subscription);
   }
 }
 
@@ -6402,6 +6435,7 @@ import {
   HttpCode,
   HttpStatus,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { CommunityModeratorsService } from './community-moderators.service';
 import { CommunityModeratorResponseDto } from './dto/community-moderator-response.dto';
@@ -6409,17 +6443,26 @@ import { CommunityModeratorQueryDto } from './dto/community-moderator-query.dto'
 import { ResponseDto } from 'src/common/dto/response.dto';
 import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
 import { PaginationMetaDto } from 'src/common/dto/pagination-meta.dto';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { GetUser } from 'src/decorators/user.decorator';
+import { User } from 'src/users/entities/user.entity';
 
 @Controller('communities/:communityId/moderators')
 export class CommunityModeratorsController {
   constructor(private readonly service: CommunityModeratorsService) {}
 
   @Post()
+  @UseGuards(JwtAuthGuard)
   async create(
     @Param('communityId', ParseIntPipe) communityId: number,
     @Body('userId', ParseIntPipe) userId: number,
+    @GetUser() currentUser: User,
   ): Promise<ResponseDto<CommunityModeratorResponseDto>> {
-    const communityModerator = await this.service.create({ userId, communityId });
+    const communityModerator = await this.service.create({
+      userId,
+      communityId,
+      currentUser,
+    });
     return new ResponseDto(
       CommunityModeratorResponseDto.fromEntity(communityModerator),
     );
@@ -6465,11 +6508,13 @@ export class CommunityModeratorsController {
 
   @Delete(':moderatorId')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(JwtAuthGuard)
   async remove(
     @Param('communityId', ParseIntPipe) communityId: number,
     @Param('moderatorId', ParseIntPipe) moderatorId: number,
+    @GetUser() currentUser: User,
   ): Promise<void> {
-    await this.service.remove({ moderatorId, communityId });
+    await this.service.remove({ moderatorId, communityId, currentUser });
   }
 }
 
@@ -6477,13 +6522,21 @@ export class CommunityModeratorsController {
 
 
 ### FILE: src/community-moderators/community-moderators.service.ts ###
-
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CommunityModerator } from './entities/community-moderator.entity';
 import { UsersService } from '../users/users.service';
 import { CommunitiesService } from '../communities/communities.service';
+import { CommunitySubscriptionsService } from '../community-subscriptions/community-subscriptions.service';
+import { User } from 'src/users/entities/user.entity';
+import { CommunitySubscriptionStatus } from 'src/community-subscriptions/types';
 
 @Injectable()
 export class CommunityModeratorsService {
@@ -6492,21 +6545,65 @@ export class CommunityModeratorsService {
     private readonly communityModeratorRepository: Repository<CommunityModerator>,
     private readonly usersService: UsersService,
     private readonly communitiesService: CommunitiesService,
+    private readonly subscriptionsService: CommunitySubscriptionsService,
   ) {}
 
   async create(options: {
     userId: number;
     communityId: number;
+    currentUser: User;
   }): Promise<CommunityModerator> {
-    const { userId, communityId } = options;
+    const { userId, communityId, currentUser } = options;
+
+    const community = await this.communitiesService.findOne(communityId);
+    if (!community) {
+      throw new NotFoundException(`Community with ID ${communityId} not found`);
+    }
+
+    if (community.ownerId !== currentUser.id) {
+      throw new ForbiddenException('You are not the owner of this community');
+    }
+
     const user = await this.usersService.findOneById(userId);
     if (!user) {
       throw new NotFoundException(`User with ID ${userId} not found`);
     }
 
-    const community = await this.communitiesService.findOne(communityId);
-    if (!community) {
-      throw new NotFoundException(`Community with ID ${communityId} not found`);
+    if (!user.emailVerifiedAt) {
+      throw new BadRequestException('User is not active');
+    }
+
+    const isModerator = await this.communityModeratorRepository.exist({
+      where: { moderatorId: userId, communityId },
+    });
+
+    if (isModerator) {
+      throw new ConflictException('User is already a moderator');
+    }
+
+    const subscription = await this.subscriptionsService.findOne(
+      userId,
+      communityId,
+    );
+
+    if (subscription) {
+      if (subscription.status === CommunitySubscriptionStatus.BLOCKED) {
+        throw new BadRequestException(
+          'Blocked users cannot be made moderators.',
+        );
+      }
+      if (subscription.status === CommunitySubscriptionStatus.PENDING) {
+        await this.subscriptionsService.activateSubscription(
+          userId,
+          communityId,
+        );
+      }
+    } else {
+      await this.subscriptionsService.subscribe({
+        userId,
+        communityId,
+        activate: true,
+      });
     }
 
     const moderatorEntity = this.communityModeratorRepository.create({
@@ -6553,8 +6650,27 @@ export class CommunityModeratorsService {
   async remove(options: {
     moderatorId: number;
     communityId: number;
+    currentUser: User;
   }): Promise<void> {
-    const { moderatorId, communityId } = options;
+    const { moderatorId, communityId, currentUser } = options;
+
+    const community = await this.communitiesService.findOne(communityId);
+    if (!community) {
+      throw new NotFoundException(`Community with ID ${communityId} not found`);
+    }
+
+    if (community.ownerId !== currentUser.id) {
+      throw new ForbiddenException('You are not the owner of this community');
+    }
+
+    const moderator = await this.communityModeratorRepository.findOne({
+      where: { moderatorId, communityId },
+    });
+
+    if (!moderator) {
+      throw new NotFoundException('Moderator not found');
+    }
+
     await this.communityModeratorRepository.delete({ moderatorId, communityId });
   }
 }

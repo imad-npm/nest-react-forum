@@ -63,15 +63,24 @@ export class CommunitySubscriptionsService {
     });
   }
 
-  async subscribe(communityId: number, userId: number) {
+  async subscribe(input: {
+    userId: number;
+    communityId: number;
+    activate?: boolean;
+  }) {
+    const { userId, communityId, activate } = input;
 
     // Check community existence
     const community = await this.communitiesService.findOne(communityId);
-    if (!community) throw new NotFoundException(`Community ${communityId} not found`);
+    if (!community) {
+      throw new NotFoundException(`Community ${communityId} not found`);
+    }
 
     // Check user existence via UsersService
     const user = await this.usersService.findOneById(userId);
-    if (!user) throw new NotFoundException(`User ${userId} not found`);
+    if (!user) {
+      throw new NotFoundException(`User ${userId} not found`);
+    }
 
     const existingSubscription = await this.subscriptionsRepository.findOne({
       where: {
@@ -82,7 +91,9 @@ export class CommunitySubscriptionsService {
 
     if (existingSubscription) {
       if (existingSubscription.status === CommunitySubscriptionStatus.BLOCKED) {
-        throw new ConflictException(`User ${userId} is blocked from community ${community.id}`);
+        throw new ConflictException(
+          `User ${userId} is blocked from community ${community.id}`,
+        );
       }
       throw new ConflictException(
         `User ${userId} is already subscribed to community ${community.id}`,
@@ -92,7 +103,9 @@ export class CommunitySubscriptionsService {
     const communityType = community.communityType;
     let subscriptionStatus: CommunitySubscriptionStatus;
 
-    if (communityType === CommunityType.PUBLIC) {
+    if (activate) {
+      subscriptionStatus = CommunitySubscriptionStatus.ACTIVE;
+    } else if (communityType === CommunityType.PUBLIC) {
       subscriptionStatus = CommunitySubscriptionStatus.ACTIVE;
     } else {
       subscriptionStatus = CommunitySubscriptionStatus.PENDING;
@@ -104,7 +117,9 @@ export class CommunitySubscriptionsService {
       status: subscriptionStatus,
     });
 
-    const savedSubscription = await this.subscriptionsRepository.save(subscription);
+    const savedSubscription = await this.subscriptionsRepository.save(
+      subscription,
+    );
 
     await this.communitiesService.update({
       id: community.id,
@@ -165,5 +180,23 @@ export class CommunitySubscriptionsService {
   async isBlocked(userId: number, communityId: number): Promise<boolean> {
     const status = await this.getSubscriptionStatus(userId, communityId);
     return status === CommunitySubscriptionStatus.BLOCKED;
+  }
+
+  async activateSubscription(
+    userId: number,
+    communityId: number,
+  ): Promise<CommunitySubscription> {
+    const subscription = await this.findOne(userId, communityId);
+    if (!subscription) {
+      throw new NotFoundException('Subscription not found.');
+    }
+    if (subscription.status === CommunitySubscriptionStatus.BLOCKED) {
+      throw new ConflictException('User is blocked from this community');
+    }
+    if (subscription.status === CommunitySubscriptionStatus.ACTIVE) {
+      return subscription;
+    }
+    subscription.status = CommunitySubscriptionStatus.ACTIVE;
+    return this.subscriptionsRepository.save(subscription);
   }
 }
