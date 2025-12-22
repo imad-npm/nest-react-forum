@@ -15,6 +15,7 @@ import { PostsService } from './posts.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { UpdatePostApprovalDto } from './dto/update-post-approval.dto'; // Import the new DTO
+import { UpdateCommentsLockedDto } from './dto/update-comments-locked.dto';
 import { Post as PostEntity } from './entities/post.entity';
 import { GetUser } from 'src/decorators/user.decorator';
 import { User } from 'src/users/entities/user.entity';
@@ -133,6 +134,19 @@ export class PostsController {
     // Implement admin role check using caslService.enforce here
     // For now, let's assume `user` is an admin or has the right permissions
     const updatedPost = await this.postsService.updatePostApprovalStatus(post.id, dto.isApproved);
+    return new ResponseDto(PostResponseDto.fromEntity(updatedPost));
+  }
+
+  @Patch(':id/comments-locked')
+  @UseGuards(JwtAuthGuard)
+  // TODO: Add proper authorization using caslService.enforce
+  async updateCommentsLockedStatus(
+    @Param('id', PostPipe) post: PostEntity,
+    @Body() dto: UpdateCommentsLockedDto,
+    @GetUser() user: User, // For authorization check
+  ): Promise<ResponseDto<PostResponseDto>> {
+    this.caslService.enforce(user, Action.Update, post, 'commentsLocked'); // Enforce update on commentsLocked field
+    const updatedPost = await this.postsService.updateCommentsLockedStatus(post.id, dto.commentsLocked);
     return new ResponseDto(PostResponseDto.fromEntity(updatedPost));
   }
 }

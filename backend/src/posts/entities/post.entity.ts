@@ -13,6 +13,7 @@ import { User } from '../../users/entities/user.entity';
 import { PostReaction } from '../../reactions/entities/post-reaction.entity';
 import { Community } from '../../communities/entities/community.entity';
 import { ReactionType } from 'src/reactions/reactions.types';
+import { PostReport } from '../../reports/entities/post-report.entity';
 
 @Entity('posts')
 export class Post {
@@ -62,13 +63,18 @@ export class Post {
   dislikesCount: number;
 
   @Column({ default: false })
+  commentsLocked: boolean;
+
+  @Column({ default: false })
   isApproved: boolean;
 
-  @Column({ nullable: true })
-  approvedAt?: Date | null;
-
-  userReaction?: { id: number; type: ReactionType };
-
+   @Column({ type: 'datetime', nullable: true })
+   approvedAt: Date | null;
+ 
+   @OneToMany(() => PostReport, (postReport) => postReport.post)
+   reports: PostReport[];
+ 
+   userReaction?: { id: number; type: ReactionType };
   @CreateDateColumn()
   createdAt: Date;
 

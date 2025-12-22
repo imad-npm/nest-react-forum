@@ -15,6 +15,9 @@ import { Profile } from '../../profile/entities/profile.entity'; // Import Profi
 import { Community } from '../../communities/entities/community.entity';
 import { CommunitySubscription } from '../../community-subscriptions/entities/community-subscription.entity';
 import { CommunityModerator } from '../../community-moderators/entities/community-moderator.entity'; // Import CommunityModerator
+import { PostReport } from '../../reports/entities/post-report.entity';
+import { CommentReport } from '../../reports/entities/comment-report.entity'; // NEW IMPORT
+import { UserReport } from '../../reports/entities/user-report.entity'; // NEW IMPORT
 
 @Entity('users')
 export class User {
@@ -72,4 +75,16 @@ export class User {
 
   @OneToMany(() => CommunityModerator, (communityModerator) => communityModerator.moderator)
   moderatedCommunities: CommunityModerator[];
+
+  @OneToMany(() => PostReport, (postReport) => postReport.reporter)
+  postReports: PostReport[];
+
+  @OneToMany(() => CommentReport, (commentReport) => commentReport.reporter) // NEW RELATION
+  commentReports: CommentReport[];
+
+  @OneToMany(() => UserReport, (userReport) => userReport.reporter)
+  reportedUserReports: UserReport[];
+
+  @OneToMany(() => UserReport, (userReport) => userReport.reportedUser)
+  userReports: UserReport[];
 }

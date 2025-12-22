@@ -173,6 +173,10 @@ export class CommentsService {
       throw new NotFoundException('Post not found');
     }
 
+    if (post.commentsLocked) {
+      throw new BadRequestException('Comments are locked for this post.');
+    }
+
     // Check if user can contribute based on community rules
     await this.accessService.assertUserCanContribute(userId,post.communityId)
 

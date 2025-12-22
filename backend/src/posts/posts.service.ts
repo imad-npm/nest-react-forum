@@ -233,6 +233,15 @@ export class PostsService {
     return this.postsRepository.save(post);
   }
 
+  async updateCommentsLockedStatus(postId: number, commentsLocked: boolean): Promise<Post> {
+    const post = await this.postsRepository.findOneBy({ id: postId });
+    if (!post) {
+      throw new NotFoundException('Post not found');
+    }
+    post.commentsLocked = commentsLocked;
+    return this.postsRepository.save(post);
+  }
+
   async incrementCommentsCount(postId: number): Promise<void> {
     await this.postsRepository.increment({ id: postId }, 'commentsCount', 1);
   }
