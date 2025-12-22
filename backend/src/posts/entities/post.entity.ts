@@ -61,6 +61,12 @@ export class Post {
   @Column({ default: 0 })
   dislikesCount: number;
 
+  @Column({ default: false })
+  isApproved: boolean;
+
+  @Column({ nullable: true })
+  approvedAt?: Date;
+
   userReaction?: { id: number; type: ReactionType };
 
   @CreateDateColumn()

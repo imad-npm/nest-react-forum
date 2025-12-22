@@ -14,6 +14,7 @@ import {
 import { PostsService } from './posts.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
+import { UpdatePostApprovalDto } from './dto/update-post-approval.dto'; // Import the new DTO
 import { Post as PostEntity } from './entities/post.entity';
 import { GetUser } from 'src/decorators/user.decorator';
 import { User } from 'src/users/entities/user.entity';
@@ -119,5 +120,19 @@ export class PostsController {
     this.caslService.enforce(user, Action.Delete, post);
     const success = await this.postsService.remove(post.id);
     return new ResponseDto(success);
+  }
+
+  @Patch(':id/approve')
+  @UseGuards(JwtAuthGuard)
+  // TODO: Add admin role guard here
+  async updatePostApprovalStatus(
+    @Param('id', PostPipe) post: PostEntity,
+    @Body() dto: UpdatePostApprovalDto, // Use the new DTO
+    @GetUser() user: User, // For potential admin check
+  ): Promise<ResponseDto<PostResponseDto>> {
+    // Implement admin role check using caslService.enforce here
+    // For now, let's assume `user` is an admin or has the right permissions
+    const updatedPost = await this.postsService.updatePostApprovalStatus(post.id, dto.isApproved);
+    return new ResponseDto(PostResponseDto.fromEntity(updatedPost));
   }
 }

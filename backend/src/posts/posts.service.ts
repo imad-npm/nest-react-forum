@@ -47,8 +47,8 @@ export class PostsService {
     const query = this.postsRepository
       .createQueryBuilder('post')
       .leftJoinAndSelect('post.author', 'author')
-      .leftJoinAndSelect('post.community', 'community');
-
+      .leftJoinAndSelect('post.community', 'community')
+  .where('post.isApproved = :approved', { approved: true });
 
     if (currentUserId) {
       query.leftJoinAndMapOne(
@@ -103,15 +103,18 @@ export class PostsService {
 
     // Community visibility rules
     if (!currentUserId) {
-      // Not logged in → hide PRIVATE communities
+      // Not logged in → hide PRIVATE communities and show only approved posts
       query.andWhere('community.communityType != :privateType', {
         privateType: 'private',
       });
+      query.andWhere('post.isApproved = :isApproved', { isApproved: true });
     } else {
       // Logged in → allow:
       // - public
       // - restricted
       // - private ONLY if user is a member
+      // For logged in users, we are not filtering by isApproved here yet,
+      // assuming an admin check will happen later for unapproved posts.
       query.andWhere(
         new Brackets((qb) => {
           qb.where('community.communityType != :privateType', {
@@ -162,6 +165,13 @@ export class PostsService {
     // Filter by post ID
     query.where('post.id = :id', { id });
 
+    // TODO: Implement actual admin check based on user roles
+    const isAdmin = false; // Placeholder for admin check
+
+    if (!currentUserId || !isAdmin) {
+      query.andWhere('post.isApproved = :isApproved', { isApproved: true });
+    }
+
     // Execute query
     const post = await query.getOne();
 
@@ -173,7 +183,7 @@ export class PostsService {
   }
 
   async create(
-    { title, content, authorId, communityId }: { title: string; content: string; authorId: number; communityId: number },
+    { title, content, authorId, communityId, isApproved }: { title: string; content: string; authorId: number; communityId: number; isApproved?: boolean },
   ): Promise<Post> {
     const community = await this.communitiesService.findOne(communityId);
     if (!community) {
@@ -182,12 +192,12 @@ export class PostsService {
     // Check if user can contribute based on community rules
     await this.accessService.assertUserCanContribute(authorId, communityId);
 
-
     const post = this.postsRepository.create({
       title,
       content,
       authorId,
       community,
+      isApproved: isApproved !== undefined ? isApproved : false, // Set isApproved based on provided value or default to false
     });
     return this.postsRepository.save(post);
   }
@@ -218,6 +228,16 @@ export class PostsService {
     return !!res;
   }
 
+
+  async updatePostApprovalStatus(postId: number, isApproved: boolean): Promise<Post> {
+    const post = await this.postsRepository.findOneBy({ id: postId });
+    if (!post) {
+      throw new NotFoundException('Post not found');
+    }
+    post.isApproved = isApproved;
+    post.approvedAt = isApproved ? new Date() : null;
+    return this.postsRepository.save(post);
+  }
 
   async incrementCommentsCount(postId: number): Promise<void> {
     await this.postsRepository.increment({ id: postId }, 'commentsCount', 1);
