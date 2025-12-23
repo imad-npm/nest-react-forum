@@ -3,8 +3,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Repository } from 'typeorm';
 import { Post } from './entities/post.entity';
 import { PostSort } from './dto/post-query.dto';
-import { CommunitiesService } from 'src/communities/communities.service'; // Import CommunitiesService
-import { CommunityAccessService } from 'src/community-access/community-access.service';
 import { CommunityType } from 'src/communities/types';
 import { Community } from 'src/communities/entities/community.entity';
 import { CommunitySubscription } from 'src/community-subscriptions/entities/community-subscription.entity';

@@ -25,7 +25,8 @@ export class CommunitySubscriptionsService {
     @InjectRepository(CommunitySubscription)
     private readonly subscriptionsRepository: Repository<CommunitySubscription>,
     private readonly communitiesService: CommunitiesService,
-    private readonly usersService: UsersService,
+    @InjectRepository(User)
+    private readonly usersRepository: Repository<User>,
   ) { }
 
 
@@ -76,11 +77,13 @@ export class CommunitySubscriptionsService {
       throw new NotFoundException(`Community ${communityId} not found`);
     }
 
-    // Check user existence via UsersService
-    const user = await this.usersService.findOneById(userId);
-    if (!user) {
+    const userExists = await this.usersRepository.exist({
+      where: { id: userId },
+    });
+    if (!userExists) {
       throw new NotFoundException(`User ${userId} not found`);
     }
+
 
     const existingSubscription = await this.subscriptionsRepository.findOne({
       where: {
@@ -136,8 +139,12 @@ export class CommunitySubscriptionsService {
     if (!community) throw new NotFoundException(`Community ${communityId} not found`);
 
     // Check user existence via UsersService
-    const user = await this.usersService.findOneById(userId);
-    if (!user) throw new NotFoundException(`User ${userId} not found`);
+    const userExists = await this.usersRepository.exist({
+      where: { id: userId },
+    });
+    if (!userExists) {
+      throw new NotFoundException(`User ${userId} not found`);
+    }
 
 
     const existingSubscription = await this.subscriptionsRepository.findOne({
@@ -165,7 +172,12 @@ export class CommunitySubscriptionsService {
 
   // --- New methods for subscription status checks ---
   async getSubscriptionStatus(userId: number, communityId: number): Promise<CommunitySubscriptionStatus | null> {
-   }
+    const subscription = await this.subscriptionsRepository.findOne({
+      where: { userId, communityId },
+      select: ['status'],
+    });
+    return subscription ? subscription.status : null;
+  }
 
   async isActiveMember(userId: number, communityId: number): Promise<boolean> {
     const status = await this.getSubscriptionStatus(userId, communityId);

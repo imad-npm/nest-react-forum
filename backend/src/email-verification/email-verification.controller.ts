@@ -31,7 +31,6 @@ export class EmailVerificationController {
     return new ResponseDto(null, 'If the email exists and is not verified, a new verification link has been sent.');
   }
 
-  @Get('verify')
 @Get('verify')
 async verify(
   @Query('token') token: string,

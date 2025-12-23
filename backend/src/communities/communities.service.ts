@@ -9,7 +9,6 @@ import { Not, Repository } from 'typeorm';
 import { Community } from './entities/community.entity';
 import { CommunityType } from './types';
 import { User } from '../users/entities/user.entity';
-import { CommunityAccessService } from '../community-access/community-access.service';
 import { CommunitySubscription } from 'src/community-subscriptions/entities/community-subscription.entity';
 import { CommunitySubscriptionStatus } from 'src/community-subscriptions/types';
 

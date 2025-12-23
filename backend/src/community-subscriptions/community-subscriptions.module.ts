@@ -5,10 +5,11 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { CommunitySubscription } from './entities/community-subscription.entity';
 import { CommunitiesModule } from '../communities/communities.module';
 import { UsersModule } from 'src/users/users.module';
+import { User } from 'src/users/entities/user.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([CommunitySubscription]), 
-  CommunitiesModule,UsersModule],
+  imports: [TypeOrmModule.forFeature([CommunitySubscription,User]), 
+  CommunitiesModule],
   controllers: [CommunitySubscriptionsController],
   providers: [CommunitySubscriptionsService],
   exports: [CommunitySubscriptionsService],

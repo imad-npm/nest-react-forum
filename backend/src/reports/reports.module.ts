@@ -9,14 +9,16 @@ import { CommentReport } from './entities/comment-report.entity';
 import { CaslModule } from 'src/casl/casl.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Module } from '@nestjs/common';
+import { User } from 'src/users/entities/user.entity';
+import { Comment } from 'src/comments/entities/comment.entity';
+import { Post } from 'src/posts/entities/post.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([CommentReport, PostReport, UserReport]),
+    TypeOrmModule.forFeature([CommentReport, PostReport, UserReport,
+      Post,User,Comment
+    ]),
     CaslModule,
-    UsersModule,
-    PostsModule,
-    CommentsModule,
   ],
   controllers: [ReportsController],
   providers: [ReportsService],

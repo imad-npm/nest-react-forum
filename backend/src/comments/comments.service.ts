@@ -4,7 +4,6 @@ import { Brackets, Repository } from 'typeorm';
 import { Comment } from './entities/comment.entity';
 
 import { PostsService } from 'src/posts/posts.service';
-import { CommunityAccessService } from 'src/community-access/community-access.service';
 
 @Injectable()
 export class CommentsService {
@@ -12,7 +11,6 @@ export class CommentsService {
     @InjectRepository(Comment)
     private readonly commentRepo: Repository<Comment>,
     private readonly postsService: PostsService, // Inject PostsService
-    private readonly accessService: CommunityAccessService,
   ) { }
 
   async findAll(options: {

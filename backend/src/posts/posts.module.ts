@@ -4,17 +4,17 @@ import { PostsController } from './posts.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Post } from './entities/post.entity';
 import { CaslModule } from 'src/casl/casl.module';
-import { CommunitiesModule } from 'src/communities/communities.module';
-import { CommunitySubscriptionsModule } from 'src/community-subscriptions/community-subscriptions.module';
-import { CommunityAccessModule } from 'src/community-access/community-access.module';
+import { Community } from 'src/communities/entities/community.entity';
+import { CommunitySubscription } from 'src/community-subscriptions/entities/community-subscription.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Post]),
-   CaslModule, CommunitiesModule, CommunityAccessModule
-      
-],
+  imports: [TypeOrmModule.forFeature(
+    [Post, Community, CommunitySubscription]),
+    CaslModule,
+
+  ],
   providers: [PostsService],
   controllers: [PostsController],
   exports: [PostsService],
 })
-export class PostsModule {}
+export class PostsModule { }

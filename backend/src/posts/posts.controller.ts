@@ -148,7 +148,7 @@ export class PostsController {
     @Body() dto: UpdateCommentsLockedDto,
     @GetUser() user: User, // For authorization check
   ): Promise<ResponseDto<PostResponseDto>> {
-    this.caslService.enforce(user, Action.Update, post, 'commentsLocked'); // Enforce update on commentsLocked field
+    this.caslService.enforce(user, Action.Update, post); // Enforce update on commentsLocked field
     const updatedPost = await this.postsService.updateCommentsLockedStatus(post.id, dto.commentsLocked);
     return new ResponseDto(PostResponseDto.fromEntity(updatedPost));
   }
