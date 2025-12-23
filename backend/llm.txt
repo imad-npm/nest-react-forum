@@ -804,6 +804,65 @@ export class AddPictureFieldToUser1765627185088 implements MigrationInterface {
 ---
 
 
+### FILE: src/database/migrations/1766443444048-AddCommentsLockedToPost.ts ###
+import { MigrationInterface, QueryRunner } from "typeorm";
+
+export class AddCommentsLockedToPost1766443444048 implements MigrationInterface {
+    name = 'AddCommentsLockedToPost1766443444048'
+
+    public async up(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`CREATE TABLE "temporary_communities" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(50) NOT NULL, "displayName" varchar(100), "description" text, "createdById" integer, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "communityType" varchar CHECK( "communityType" IN ('public','restricted','private') ) NOT NULL DEFAULT ('public'), "subscribersCount" integer NOT NULL DEFAULT (0), CONSTRAINT "UQ_501bb6c8f7c8e8a7d614d9435f6" UNIQUE ("name"))`);
+        await queryRunner.query(`INSERT INTO "temporary_communities"("id", "name", "displayName", "description", "createdById", "createdAt", "communityType", "subscribersCount") SELECT "id", "name", "displayName", "description", "createdById", "createdAt", "communityType", "subscribersCount" FROM "communities"`);
+        await queryRunner.query(`DROP TABLE "communities"`);
+        await queryRunner.query(`ALTER TABLE "temporary_communities" RENAME TO "communities"`);
+        await queryRunner.query(`CREATE TABLE "temporary_communities" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(50) NOT NULL, "displayName" varchar(100), "description" text, "ownerId" integer, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "communityType" varchar CHECK( "communityType" IN ('public','restricted','private') ) NOT NULL DEFAULT ('public'), "subscribersCount" integer NOT NULL DEFAULT (0), CONSTRAINT "UQ_501bb6c8f7c8e8a7d614d9435f6" UNIQUE ("name"))`);
+        await queryRunner.query(`INSERT INTO "temporary_communities"("id", "name", "displayName", "description", "ownerId", "createdAt", "communityType", "subscribersCount") SELECT "id", "name", "displayName", "description", "createdById", "createdAt", "communityType", "subscribersCount" FROM "communities"`);
+        await queryRunner.query(`DROP TABLE "communities"`);
+        await queryRunner.query(`ALTER TABLE "temporary_communities" RENAME TO "communities"`);
+        await queryRunner.query(`CREATE TABLE "community_moderators" ("moderatorId" integer NOT NULL, "communityId" integer NOT NULL, PRIMARY KEY ("moderatorId", "communityId"))`);
+        await queryRunner.query(`CREATE TABLE "temporary_posts" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "title" varchar NOT NULL, "content" varchar NOT NULL, "authorId" integer NOT NULL, "communityId" integer NOT NULL, "commentsCount" integer NOT NULL DEFAULT (0), "views" integer NOT NULL DEFAULT (0), "likesCount" integer NOT NULL DEFAULT (0), "dislikesCount" integer NOT NULL DEFAULT (0), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, "commentsLocked" boolean NOT NULL DEFAULT (0), "isApproved" boolean NOT NULL DEFAULT (0), "approvedAt" datetime, CONSTRAINT "FK_e5f99a0b3edb7e1867f44b2cf4c" FOREIGN KEY ("communityId") REFERENCES "communities" ("id") ON DELETE RESTRICT ON UPDATE NO ACTION, CONSTRAINT "FK_c5a322ad12a7bf95460c958e80e" FOREIGN KEY ("authorId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`);
+        await queryRunner.query(`INSERT INTO "temporary_posts"("id", "title", "content", "authorId", "communityId", "commentsCount", "views", "likesCount", "dislikesCount", "createdAt", "updatedAt", "deletedAt") SELECT "id", "title", "content", "authorId", "communityId", "commentsCount", "views", "likesCount", "dislikesCount", "createdAt", "updatedAt", "deletedAt" FROM "posts"`);
+        await queryRunner.query(`DROP TABLE "posts"`);
+        await queryRunner.query(`ALTER TABLE "temporary_posts" RENAME TO "posts"`);
+        await queryRunner.query(`CREATE TABLE "temporary_community_moderators" ("moderatorId" integer NOT NULL, "communityId" integer NOT NULL, CONSTRAINT "FK_d6947c03c05fca0fa035b19e73d" FOREIGN KEY ("moderatorId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_4927687e8f8ed1b2e4c849ddc82" FOREIGN KEY ("communityId") REFERENCES "communities" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, PRIMARY KEY ("moderatorId", "communityId"))`);
+        await queryRunner.query(`INSERT INTO "temporary_community_moderators"("moderatorId", "communityId") SELECT "moderatorId", "communityId" FROM "community_moderators"`);
+        await queryRunner.query(`DROP TABLE "community_moderators"`);
+        await queryRunner.query(`ALTER TABLE "temporary_community_moderators" RENAME TO "community_moderators"`);
+        await queryRunner.query(`CREATE TABLE "temporary_communities" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(50) NOT NULL, "displayName" varchar(100), "description" text, "ownerId" integer, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "communityType" varchar CHECK( "communityType" IN ('public','restricted','private') ) NOT NULL DEFAULT ('public'), "subscribersCount" integer NOT NULL DEFAULT (0), CONSTRAINT "UQ_501bb6c8f7c8e8a7d614d9435f6" UNIQUE ("name"), CONSTRAINT "FK_2d9086cef1ffd5148f90a9fab5d" FOREIGN KEY ("ownerId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION)`);
+        await queryRunner.query(`INSERT INTO "temporary_communities"("id", "name", "displayName", "description", "ownerId", "createdAt", "communityType", "subscribersCount") SELECT "id", "name", "displayName", "description", "ownerId", "createdAt", "communityType", "subscribersCount" FROM "communities"`);
+        await queryRunner.query(`DROP TABLE "communities"`);
+        await queryRunner.query(`ALTER TABLE "temporary_communities" RENAME TO "communities"`);
+    }
+
+    public async down(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`ALTER TABLE "communities" RENAME TO "temporary_communities"`);
+        await queryRunner.query(`CREATE TABLE "communities" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(50) NOT NULL, "displayName" varchar(100), "description" text, "ownerId" integer, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "communityType" varchar CHECK( "communityType" IN ('public','restricted','private') ) NOT NULL DEFAULT ('public'), "subscribersCount" integer NOT NULL DEFAULT (0), CONSTRAINT "UQ_501bb6c8f7c8e8a7d614d9435f6" UNIQUE ("name"))`);
+        await queryRunner.query(`INSERT INTO "communities"("id", "name", "displayName", "description", "ownerId", "createdAt", "communityType", "subscribersCount") SELECT "id", "name", "displayName", "description", "ownerId", "createdAt", "communityType", "subscribersCount" FROM "temporary_communities"`);
+        await queryRunner.query(`DROP TABLE "temporary_communities"`);
+        await queryRunner.query(`ALTER TABLE "community_moderators" RENAME TO "temporary_community_moderators"`);
+        await queryRunner.query(`CREATE TABLE "community_moderators" ("moderatorId" integer NOT NULL, "communityId" integer NOT NULL, PRIMARY KEY ("moderatorId", "communityId"))`);
+        await queryRunner.query(`INSERT INTO "community_moderators"("moderatorId", "communityId") SELECT "moderatorId", "communityId" FROM "temporary_community_moderators"`);
+        await queryRunner.query(`DROP TABLE "temporary_community_moderators"`);
+        await queryRunner.query(`ALTER TABLE "posts" RENAME TO "temporary_posts"`);
+        await queryRunner.query(`CREATE TABLE "posts" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "title" varchar NOT NULL, "content" varchar NOT NULL, "authorId" integer NOT NULL, "communityId" integer NOT NULL, "commentsCount" integer NOT NULL DEFAULT (0), "views" integer NOT NULL DEFAULT (0), "likesCount" integer NOT NULL DEFAULT (0), "dislikesCount" integer NOT NULL DEFAULT (0), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, CONSTRAINT "FK_e5f99a0b3edb7e1867f44b2cf4c" FOREIGN KEY ("communityId") REFERENCES "communities" ("id") ON DELETE RESTRICT ON UPDATE NO ACTION, CONSTRAINT "FK_c5a322ad12a7bf95460c958e80e" FOREIGN KEY ("authorId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`);
+        await queryRunner.query(`INSERT INTO "posts"("id", "title", "content", "authorId", "communityId", "commentsCount", "views", "likesCount", "dislikesCount", "createdAt", "updatedAt", "deletedAt") SELECT "id", "title", "content", "authorId", "communityId", "commentsCount", "views", "likesCount", "dislikesCount", "createdAt", "updatedAt", "deletedAt" FROM "temporary_posts"`);
+        await queryRunner.query(`DROP TABLE "temporary_posts"`);
+        await queryRunner.query(`DROP TABLE "community_moderators"`);
+        await queryRunner.query(`ALTER TABLE "communities" RENAME TO "temporary_communities"`);
+        await queryRunner.query(`CREATE TABLE "communities" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(50) NOT NULL, "displayName" varchar(100), "description" text, "createdById" integer, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "communityType" varchar CHECK( "communityType" IN ('public','restricted','private') ) NOT NULL DEFAULT ('public'), "subscribersCount" integer NOT NULL DEFAULT (0), CONSTRAINT "UQ_501bb6c8f7c8e8a7d614d9435f6" UNIQUE ("name"))`);
+        await queryRunner.query(`INSERT INTO "communities"("id", "name", "displayName", "description", "createdById", "createdAt", "communityType", "subscribersCount") SELECT "id", "name", "displayName", "description", "ownerId", "createdAt", "communityType", "subscribersCount" FROM "temporary_communities"`);
+        await queryRunner.query(`DROP TABLE "temporary_communities"`);
+        await queryRunner.query(`ALTER TABLE "communities" RENAME TO "temporary_communities"`);
+        await queryRunner.query(`CREATE TABLE "communities" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(50) NOT NULL, "displayName" varchar(100), "description" text, "createdById" integer, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "communityType" varchar CHECK( "communityType" IN ('public','restricted','private') ) NOT NULL DEFAULT ('public'), "subscribersCount" integer NOT NULL DEFAULT (0), CONSTRAINT "UQ_501bb6c8f7c8e8a7d614d9435f6" UNIQUE ("name"), CONSTRAINT "FK_d035f75868bd42e56593ffa4aa7" FOREIGN KEY ("createdById") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION)`);
+        await queryRunner.query(`INSERT INTO "communities"("id", "name", "displayName", "description", "createdById", "createdAt", "communityType", "subscribersCount") SELECT "id", "name", "displayName", "description", "createdById", "createdAt", "communityType", "subscribersCount" FROM "temporary_communities"`);
+        await queryRunner.query(`DROP TABLE "temporary_communities"`);
+    }
+
+}
+
+---
+
+
 ### FILE: src/database/migrations/1765490375370-refactor-reactions.ts ###
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
@@ -1773,6 +1832,95 @@ export class RenameTablesToPlural1765929661449 implements MigrationInterface {
 ---
 
 
+### FILE: src/database/migrations/1766448730463-AddReportEntities.ts ###
+import { MigrationInterface, QueryRunner } from "typeorm";
+
+export class AddReportEntities1766448730463 implements MigrationInterface {
+    name = 'AddReportEntities1766448730463'
+
+    public async up(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`CREATE TABLE "temporary_communities" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(50) NOT NULL, "displayName" varchar(100), "description" text, "createdById" integer, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "communityType" varchar CHECK( "communityType" IN ('public','restricted','private') ) NOT NULL DEFAULT ('public'), "subscribersCount" integer NOT NULL DEFAULT (0), CONSTRAINT "UQ_501bb6c8f7c8e8a7d614d9435f6" UNIQUE ("name"))`);
+        await queryRunner.query(`INSERT INTO "temporary_communities"("id", "name", "displayName", "description", "createdById", "createdAt", "communityType", "subscribersCount") SELECT "id", "name", "displayName", "description", "createdById", "createdAt", "communityType", "subscribersCount" FROM "communities"`);
+        await queryRunner.query(`DROP TABLE "communities"`);
+        await queryRunner.query(`ALTER TABLE "temporary_communities" RENAME TO "communities"`);
+        await queryRunner.query(`CREATE TABLE "temporary_communities" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(50) NOT NULL, "displayName" varchar(100), "description" text, "ownerId" integer, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "communityType" varchar CHECK( "communityType" IN ('public','restricted','private') ) NOT NULL DEFAULT ('public'), "subscribersCount" integer NOT NULL DEFAULT (0), CONSTRAINT "UQ_501bb6c8f7c8e8a7d614d9435f6" UNIQUE ("name"))`);
+        await queryRunner.query(`INSERT INTO "temporary_communities"("id", "name", "displayName", "description", "ownerId", "createdAt", "communityType", "subscribersCount") SELECT "id", "name", "displayName", "description", "createdById", "createdAt", "communityType", "subscribersCount" FROM "communities"`);
+        await queryRunner.query(`DROP TABLE "communities"`);
+        await queryRunner.query(`ALTER TABLE "temporary_communities" RENAME TO "communities"`);
+        await queryRunner.query(`CREATE TABLE "community_moderators" ("moderatorId" integer NOT NULL, "communityId" integer NOT NULL, PRIMARY KEY ("moderatorId", "communityId"))`);
+        await queryRunner.query(`CREATE TABLE "post_reports" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "reporterId" integer NOT NULL, "reason" varchar NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer NOT NULL)`);
+        await queryRunner.query(`CREATE TABLE "comment_reports" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "reporterId" integer NOT NULL, "reason" varchar NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "commentId" integer NOT NULL)`);
+        await queryRunner.query(`CREATE TABLE "user_reports" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "reporterId" integer NOT NULL, "reason" varchar NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "reportedUserId" integer NOT NULL)`);
+        await queryRunner.query(`CREATE TABLE "temporary_posts" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "title" varchar NOT NULL, "content" varchar NOT NULL, "authorId" integer NOT NULL, "communityId" integer NOT NULL, "commentsCount" integer NOT NULL DEFAULT (0), "views" integer NOT NULL DEFAULT (0), "likesCount" integer NOT NULL DEFAULT (0), "dislikesCount" integer NOT NULL DEFAULT (0), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, "commentsLocked" boolean NOT NULL DEFAULT (0), "isApproved" boolean NOT NULL DEFAULT (0), "approvedAt" datetime, CONSTRAINT "FK_e5f99a0b3edb7e1867f44b2cf4c" FOREIGN KEY ("communityId") REFERENCES "communities" ("id") ON DELETE RESTRICT ON UPDATE NO ACTION, CONSTRAINT "FK_c5a322ad12a7bf95460c958e80e" FOREIGN KEY ("authorId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`);
+        await queryRunner.query(`INSERT INTO "temporary_posts"("id", "title", "content", "authorId", "communityId", "commentsCount", "views", "likesCount", "dislikesCount", "createdAt", "updatedAt", "deletedAt") SELECT "id", "title", "content", "authorId", "communityId", "commentsCount", "views", "likesCount", "dislikesCount", "createdAt", "updatedAt", "deletedAt" FROM "posts"`);
+        await queryRunner.query(`DROP TABLE "posts"`);
+        await queryRunner.query(`ALTER TABLE "temporary_posts" RENAME TO "posts"`);
+        await queryRunner.query(`CREATE TABLE "temporary_community_moderators" ("moderatorId" integer NOT NULL, "communityId" integer NOT NULL, CONSTRAINT "FK_d6947c03c05fca0fa035b19e73d" FOREIGN KEY ("moderatorId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_4927687e8f8ed1b2e4c849ddc82" FOREIGN KEY ("communityId") REFERENCES "communities" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, PRIMARY KEY ("moderatorId", "communityId"))`);
+        await queryRunner.query(`INSERT INTO "temporary_community_moderators"("moderatorId", "communityId") SELECT "moderatorId", "communityId" FROM "community_moderators"`);
+        await queryRunner.query(`DROP TABLE "community_moderators"`);
+        await queryRunner.query(`ALTER TABLE "temporary_community_moderators" RENAME TO "community_moderators"`);
+        await queryRunner.query(`CREATE TABLE "temporary_communities" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(50) NOT NULL, "displayName" varchar(100), "description" text, "ownerId" integer, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "communityType" varchar CHECK( "communityType" IN ('public','restricted','private') ) NOT NULL DEFAULT ('public'), "subscribersCount" integer NOT NULL DEFAULT (0), CONSTRAINT "UQ_501bb6c8f7c8e8a7d614d9435f6" UNIQUE ("name"), CONSTRAINT "FK_2d9086cef1ffd5148f90a9fab5d" FOREIGN KEY ("ownerId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION)`);
+        await queryRunner.query(`INSERT INTO "temporary_communities"("id", "name", "displayName", "description", "ownerId", "createdAt", "communityType", "subscribersCount") SELECT "id", "name", "displayName", "description", "ownerId", "createdAt", "communityType", "subscribersCount" FROM "communities"`);
+        await queryRunner.query(`DROP TABLE "communities"`);
+        await queryRunner.query(`ALTER TABLE "temporary_communities" RENAME TO "communities"`);
+        await queryRunner.query(`CREATE TABLE "temporary_post_reports" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "reporterId" integer NOT NULL, "reason" varchar NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer NOT NULL, CONSTRAINT "FK_4f4c3c25aa849390b9cb7fd6fa1" FOREIGN KEY ("reporterId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_b9b9977c4da06492b2491cea20a" FOREIGN KEY ("postId") REFERENCES "posts" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`);
+        await queryRunner.query(`INSERT INTO "temporary_post_reports"("id", "reporterId", "reason", "createdAt", "updatedAt", "postId") SELECT "id", "reporterId", "reason", "createdAt", "updatedAt", "postId" FROM "post_reports"`);
+        await queryRunner.query(`DROP TABLE "post_reports"`);
+        await queryRunner.query(`ALTER TABLE "temporary_post_reports" RENAME TO "post_reports"`);
+        await queryRunner.query(`CREATE TABLE "temporary_comment_reports" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "reporterId" integer NOT NULL, "reason" varchar NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "commentId" integer NOT NULL, CONSTRAINT "FK_36ab772754faebab9c812565988" FOREIGN KEY ("reporterId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_14ce729bcc2ec2f7c16b11b2d9e" FOREIGN KEY ("commentId") REFERENCES "comments" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`);
+        await queryRunner.query(`INSERT INTO "temporary_comment_reports"("id", "reporterId", "reason", "createdAt", "updatedAt", "commentId") SELECT "id", "reporterId", "reason", "createdAt", "updatedAt", "commentId" FROM "comment_reports"`);
+        await queryRunner.query(`DROP TABLE "comment_reports"`);
+        await queryRunner.query(`ALTER TABLE "temporary_comment_reports" RENAME TO "comment_reports"`);
+        await queryRunner.query(`CREATE TABLE "temporary_user_reports" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "reporterId" integer NOT NULL, "reason" varchar NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "reportedUserId" integer NOT NULL, CONSTRAINT "FK_4c8ff913a6d53469649f6941ece" FOREIGN KEY ("reporterId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_85aa921a0dfd2b7d58cd4cd9450" FOREIGN KEY ("reportedUserId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`);
+        await queryRunner.query(`INSERT INTO "temporary_user_reports"("id", "reporterId", "reason", "createdAt", "updatedAt", "reportedUserId") SELECT "id", "reporterId", "reason", "createdAt", "updatedAt", "reportedUserId" FROM "user_reports"`);
+        await queryRunner.query(`DROP TABLE "user_reports"`);
+        await queryRunner.query(`ALTER TABLE "temporary_user_reports" RENAME TO "user_reports"`);
+    }
+
+    public async down(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`ALTER TABLE "user_reports" RENAME TO "temporary_user_reports"`);
+        await queryRunner.query(`CREATE TABLE "user_reports" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "reporterId" integer NOT NULL, "reason" varchar NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "reportedUserId" integer NOT NULL)`);
+        await queryRunner.query(`INSERT INTO "user_reports"("id", "reporterId", "reason", "createdAt", "updatedAt", "reportedUserId") SELECT "id", "reporterId", "reason", "createdAt", "updatedAt", "reportedUserId" FROM "temporary_user_reports"`);
+        await queryRunner.query(`DROP TABLE "temporary_user_reports"`);
+        await queryRunner.query(`ALTER TABLE "comment_reports" RENAME TO "temporary_comment_reports"`);
+        await queryRunner.query(`CREATE TABLE "comment_reports" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "reporterId" integer NOT NULL, "reason" varchar NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "commentId" integer NOT NULL)`);
+        await queryRunner.query(`INSERT INTO "comment_reports"("id", "reporterId", "reason", "createdAt", "updatedAt", "commentId") SELECT "id", "reporterId", "reason", "createdAt", "updatedAt", "commentId" FROM "temporary_comment_reports"`);
+        await queryRunner.query(`DROP TABLE "temporary_comment_reports"`);
+        await queryRunner.query(`ALTER TABLE "post_reports" RENAME TO "temporary_post_reports"`);
+        await queryRunner.query(`CREATE TABLE "post_reports" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "reporterId" integer NOT NULL, "reason" varchar NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer NOT NULL)`);
+        await queryRunner.query(`INSERT INTO "post_reports"("id", "reporterId", "reason", "createdAt", "updatedAt", "postId") SELECT "id", "reporterId", "reason", "createdAt", "updatedAt", "postId" FROM "temporary_post_reports"`);
+        await queryRunner.query(`DROP TABLE "temporary_post_reports"`);
+        await queryRunner.query(`ALTER TABLE "communities" RENAME TO "temporary_communities"`);
+        await queryRunner.query(`CREATE TABLE "communities" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(50) NOT NULL, "displayName" varchar(100), "description" text, "ownerId" integer, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "communityType" varchar CHECK( "communityType" IN ('public','restricted','private') ) NOT NULL DEFAULT ('public'), "subscribersCount" integer NOT NULL DEFAULT (0), CONSTRAINT "UQ_501bb6c8f7c8e8a7d614d9435f6" UNIQUE ("name"))`);
+        await queryRunner.query(`INSERT INTO "communities"("id", "name", "displayName", "description", "ownerId", "createdAt", "communityType", "subscribersCount") SELECT "id", "name", "displayName", "description", "ownerId", "createdAt", "communityType", "subscribersCount" FROM "temporary_communities"`);
+        await queryRunner.query(`DROP TABLE "temporary_communities"`);
+        await queryRunner.query(`ALTER TABLE "community_moderators" RENAME TO "temporary_community_moderators"`);
+        await queryRunner.query(`CREATE TABLE "community_moderators" ("moderatorId" integer NOT NULL, "communityId" integer NOT NULL, PRIMARY KEY ("moderatorId", "communityId"))`);
+        await queryRunner.query(`INSERT INTO "community_moderators"("moderatorId", "communityId") SELECT "moderatorId", "communityId" FROM "temporary_community_moderators"`);
+        await queryRunner.query(`DROP TABLE "temporary_community_moderators"`);
+        await queryRunner.query(`ALTER TABLE "posts" RENAME TO "temporary_posts"`);
+        await queryRunner.query(`CREATE TABLE "posts" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "title" varchar NOT NULL, "content" varchar NOT NULL, "authorId" integer NOT NULL, "communityId" integer NOT NULL, "commentsCount" integer NOT NULL DEFAULT (0), "views" integer NOT NULL DEFAULT (0), "likesCount" integer NOT NULL DEFAULT (0), "dislikesCount" integer NOT NULL DEFAULT (0), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, CONSTRAINT "FK_e5f99a0b3edb7e1867f44b2cf4c" FOREIGN KEY ("communityId") REFERENCES "communities" ("id") ON DELETE RESTRICT ON UPDATE NO ACTION, CONSTRAINT "FK_c5a322ad12a7bf95460c958e80e" FOREIGN KEY ("authorId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`);
+        await queryRunner.query(`INSERT INTO "posts"("id", "title", "content", "authorId", "communityId", "commentsCount", "views", "likesCount", "dislikesCount", "createdAt", "updatedAt", "deletedAt") SELECT "id", "title", "content", "authorId", "communityId", "commentsCount", "views", "likesCount", "dislikesCount", "createdAt", "updatedAt", "deletedAt" FROM "temporary_posts"`);
+        await queryRunner.query(`DROP TABLE "temporary_posts"`);
+        await queryRunner.query(`DROP TABLE "user_reports"`);
+        await queryRunner.query(`DROP TABLE "comment_reports"`);
+        await queryRunner.query(`DROP TABLE "post_reports"`);
+        await queryRunner.query(`DROP TABLE "community_moderators"`);
+        await queryRunner.query(`ALTER TABLE "communities" RENAME TO "temporary_communities"`);
+        await queryRunner.query(`CREATE TABLE "communities" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(50) NOT NULL, "displayName" varchar(100), "description" text, "createdById" integer, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "communityType" varchar CHECK( "communityType" IN ('public','restricted','private') ) NOT NULL DEFAULT ('public'), "subscribersCount" integer NOT NULL DEFAULT (0), CONSTRAINT "UQ_501bb6c8f7c8e8a7d614d9435f6" UNIQUE ("name"))`);
+        await queryRunner.query(`INSERT INTO "communities"("id", "name", "displayName", "description", "createdById", "createdAt", "communityType", "subscribersCount") SELECT "id", "name", "displayName", "description", "ownerId", "createdAt", "communityType", "subscribersCount" FROM "temporary_communities"`);
+        await queryRunner.query(`DROP TABLE "temporary_communities"`);
+        await queryRunner.query(`ALTER TABLE "communities" RENAME TO "temporary_communities"`);
+        await queryRunner.query(`CREATE TABLE "communities" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(50) NOT NULL, "displayName" varchar(100), "description" text, "createdById" integer, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "communityType" varchar CHECK( "communityType" IN ('public','restricted','private') ) NOT NULL DEFAULT ('public'), "subscribersCount" integer NOT NULL DEFAULT (0), CONSTRAINT "UQ_501bb6c8f7c8e8a7d614d9435f6" UNIQUE ("name"), CONSTRAINT "FK_d035f75868bd42e56593ffa4aa7" FOREIGN KEY ("createdById") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION)`);
+        await queryRunner.query(`INSERT INTO "communities"("id", "name", "displayName", "description", "createdById", "createdAt", "communityType", "subscribersCount") SELECT "id", "name", "displayName", "description", "createdById", "createdAt", "communityType", "subscribersCount" FROM "temporary_communities"`);
+        await queryRunner.query(`DROP TABLE "temporary_communities"`);
+    }
+
+}
+
+---
+
+
 ### FILE: src/database/migrations/1765628229160-CreateUserProfileAndLinkToUser.ts ###
 import { MigrationInterface, QueryRunner } from "typeorm";
 
@@ -2129,6 +2277,9 @@ import { Profile } from '../../profile/entities/profile.entity'; // Import Profi
 import { Community } from '../../communities/entities/community.entity';
 import { CommunitySubscription } from '../../community-subscriptions/entities/community-subscription.entity';
 import { CommunityModerator } from '../../community-moderators/entities/community-moderator.entity'; // Import CommunityModerator
+import { PostReport } from '../../reports/entities/post-report.entity';
+import { CommentReport } from '../../reports/entities/comment-report.entity'; // NEW IMPORT
+import { UserReport } from '../../reports/entities/user-report.entity'; // NEW IMPORT
 
 @Entity('users')
 export class User {
@@ -2186,8 +2337,19 @@ export class User {
 
   @OneToMany(() => CommunityModerator, (communityModerator) => communityModerator.moderator)
   moderatedCommunities: CommunityModerator[];
-}
 
+  @OneToMany(() => PostReport, (postReport) => postReport.reporter)
+  postReports: PostReport[];
+
+  @OneToMany(() => CommentReport, (commentReport) => commentReport.reporter) // NEW RELATION
+  commentReports: CommentReport[];
+
+  @OneToMany(() => UserReport, (userReport) => userReport.reporter)
+  reportedUserReports: UserReport[];
+
+  @OneToMany(() => UserReport, (userReport) => userReport.reportedUser)
+  userReports: UserReport[];
+}
 ---
 
 
@@ -3467,6 +3629,541 @@ export class PaginatedResponseDto<T> extends ResponseDto<T[]> {
 ---
 
 
+### FILE: src/reports/reports.module.ts ###
+import { PostsModule } from 'src/posts/posts.module';
+import { CommentsModule } from 'src/comments/comments.module';
+import { UsersModule } from 'src/users/users.module';
+import { ReportsService } from './reports.service';
+import { ReportsController } from './reports.controller';
+import { UserReport } from './entities/user-report.entity';
+import { PostReport } from './entities/post-report.entity';
+import { CommentReport } from './entities/comment-report.entity';
+import { CaslModule } from 'src/casl/casl.module';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { Module } from '@nestjs/common';
+
+@Module({
+  imports: [
+    TypeOrmModule.forFeature([CommentReport, PostReport, UserReport]),
+    CaslModule,
+    UsersModule,
+    PostsModule,
+    CommentsModule,
+  ],
+  controllers: [ReportsController],
+  providers: [ReportsService],
+})
+export class ReportsModule {}
+
+
+---
+
+
+### FILE: src/reports/reports.controller.ts ###
+import { Controller, Post, Body, UseGuards, Patch, Param, Get, Query } from '@nestjs/common';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { GetUser } from 'src/decorators/user.decorator';
+import { User } from 'src/users/entities/user.entity';
+import { CreateReportDto } from './dto/create-report.dto';
+import { UpdateReportDto } from './dto/update-report.dto';
+import { ReportsService } from './reports.service';
+import { ReportQueryDto } from './dto/report-query.dto';
+import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
+import { ReportResponseDto } from './dto/report-response.dto';
+import { PaginationMetaDto } from 'src/common/dto/pagination-meta.dto';
+import { ResponseDto } from 'src/common/dto/response.dto';
+
+@Controller('reports')
+@UseGuards(JwtAuthGuard)
+export class ReportsController {
+  constructor(private readonly reportsService: ReportsService) {}
+
+  @Post()
+  async createReport(
+    @Body() createReportDto: CreateReportDto,
+    @GetUser() user: User,
+  ) {
+    return this.reportsService.create(
+      {
+        entityType: createReportDto.entityType,
+        entityId: createReportDto.entityId,
+        reason: createReportDto.reason,
+        description: createReportDto.description,
+      },
+      user,
+    );
+  }
+
+  @Get()
+  async findAll(@Query() query: ReportQueryDto): Promise<PaginatedResponseDto<ReportResponseDto>> {
+    const { data, count } = await this.reportsService.findAll(query);
+    const paginationMeta = new PaginationMetaDto(query.page, query.limit, count, data.length); // Use defaulted values
+    return new PaginatedResponseDto(data.map(ReportResponseDto.fromEntity), paginationMeta);
+  }
+
+  @Get(':id')
+  async findOne(@Param('id') id: number, @Query('entityType') entityType: 'comment' | 'post' | 'user'): Promise<ResponseDto<ReportResponseDto>> {
+    const report = await this.reportsService.findOne(id, entityType);
+    return new ResponseDto(ReportResponseDto.fromEntity(report));
+  }
+
+  @Patch(':id')
+  async updateReportStatus(
+    @Param('id') id: number,
+    @Body() updateReportDto: UpdateReportDto,
+  ) {
+    // TODO: Add authorization check for moderators
+    return this.reportsService.updateStatus(id, updateReportDto.status, updateReportDto.entityType);
+  }
+}
+
+---
+
+
+### FILE: src/reports/entities/comment-report.entity.ts ###
+import {
+  Entity,
+  Column,
+  ManyToOne,
+} from 'typeorm';
+import { Comment } from '../../comments/entities/comment.entity';
+import { BaseReport } from './base-report.entity';
+import { User } from '../../users/entities/user.entity';
+
+@Entity('comment_reports')
+export class CommentReport extends BaseReport {
+  @ManyToOne(() => User, (user) => user.commentReports, { onDelete: 'CASCADE' })
+  reporter: User;
+
+  @Column()
+  commentId: number;
+
+  @ManyToOne(() => Comment, (comment) => comment.reports, { onDelete: 'CASCADE' })
+  comment: Comment;
+}
+---
+
+
+### FILE: src/reports/entities/post-report.entity.ts ###
+import {
+  Entity,
+  Column,
+  ManyToOne,
+} from 'typeorm';
+import { Post } from '../../posts/entities/post.entity';
+import { BaseReport } from './base-report.entity';
+import { User } from '../../users/entities/user.entity'; // User import not needed here as reporter is inherited
+
+@Entity('post_reports')
+export class PostReport extends BaseReport {
+
+ @ManyToOne(() => User, (user) => user.postReports, { onDelete: 'CASCADE' })
+  reporter: User;
+
+  @Column()
+  postId: number;
+
+  @ManyToOne(() => Post, (post) => post.reports, { onDelete: 'CASCADE' })
+  post: Post;
+}
+---
+
+
+### FILE: src/reports/entities/user-report.entity.ts ###
+import {
+  Entity,
+  Column,
+  ManyToOne,
+} from 'typeorm';
+import { User } from '../../users/entities/user.entity';
+import { BaseReport } from './base-report.entity';
+
+@Entity('user_reports')
+export class UserReport extends BaseReport {
+  @ManyToOne(() => User, (user) => user.reportedUserReports, { onDelete: 'CASCADE' })
+  reporter: User;
+
+  @Column()
+  reportedUserId: number;
+
+  @ManyToOne(() => User, (user) => user.userReports, { onDelete: 'CASCADE' })
+  reportedUser: User;
+}
+---
+
+
+### FILE: src/reports/entities/base-report.entity.ts ###
+import {
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  CreateDateColumn,
+  UpdateDateColumn,
+} from 'typeorm';
+import { User } from '../../users/entities/user.entity';
+
+export enum ReportStatus {
+  PENDING = 'pending',
+  RESOLVED = 'resolved',
+  DISMISSED = 'dismissed',
+}
+
+export abstract class BaseReport {
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column()
+  reporterId: number;
+/*
+  @ManyToOne(() => User, { onDelete: 'CASCADE' })
+  reporter: User;
+*/
+  @Column()
+  reason: string;
+
+  @Column({ type: 'text', nullable: true })
+  description: string;
+
+  @Column({
+    type: 'enum',
+    enum: ReportStatus,
+    default: ReportStatus.PENDING,
+  })
+  status: ReportStatus;
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
+}
+
+---
+
+
+### FILE: src/reports/reports.service.ts ###
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { User } from 'src/users/entities/user.entity';
+import { CommentReport } from './entities/comment-report.entity';
+import { PostReport } from './entities/post-report.entity';
+import { UserReport } from './entities/user-report.entity';
+import { ReportStatus } from './entities/base-report.entity';
+import { CommentsService } from 'src/comments/comments.service';
+import { PostsService } from 'src/posts/posts.service';
+import { UsersService } from 'src/users/users.service';
+import { ReportQueryDto } from './dto/report-query.dto';
+
+interface CreateReportData {
+  entityType: 'comment' | 'post' | 'user';
+  entityId: number;
+  reason: string;
+  description?: string;
+}
+
+@Injectable()
+export class ReportsService {
+  constructor(
+    @InjectRepository(CommentReport)
+    private readonly commentReportRepository: Repository<CommentReport>,
+    @InjectRepository(PostReport)
+    private readonly postReportRepository: Repository<PostReport>,
+    @InjectRepository(UserReport)
+    private readonly userReportRepository: Repository<UserReport>,
+    private readonly commentsService: CommentsService,
+    private readonly postsService: PostsService,
+    private readonly usersService: UsersService,
+  ) {}
+
+  async create(data: CreateReportData, reporter: User) {
+    const { entityType, entityId, reason, description } = data;
+
+    if (entityType === 'comment') {
+      await this.commentsService.findOne(entityId);
+      const report = this.commentReportRepository.create({
+        reporterId: reporter.id,
+        commentId: entityId,
+        reason,
+        description,
+      });
+      return this.commentReportRepository.save(report);
+    } else if (entityType === 'post') {
+      await this.postsService.findOne(entityId);
+      const report = this.postReportRepository.create({
+        reporterId: reporter.id,
+        postId: entityId,
+        reason,
+        description,
+      });
+      return this.postReportRepository.save(report);
+    } else if (entityType === 'user') {
+      await this.usersService.findOneById(entityId);
+      const report = this.userReportRepository.create({
+        reporterId: reporter.id,
+        reportedUserId: entityId,
+        reason,
+        description,
+      });
+      return this.userReportRepository.save(report);
+    }
+  }
+
+  async findAll(query: ReportQueryDto): Promise<{ data: (CommentReport | PostReport | UserReport)[]; count: number }> {
+    const { page = 1, limit = 10, status, entityType, reporterId } = query;
+    const offset = (page - 1) * limit;
+
+    const parameters: any[] = [];
+    let paramIndex = 1;
+
+    const buildSelectQuery = (tableName: string, type: string, specificIdColumn: string) => {
+      let whereClauses: string[] = [];
+
+      if (status) {
+        whereClauses.push(`status = $${paramIndex++}`);
+        parameters.push(status);
+      }
+      if (reporterId) {
+        whereClauses.push(`"reporterId" = $${paramIndex++}`);
+        parameters.push(reporterId);
+      }
+      if (entityType && entityType !== type) {
+        return null; // Exclude this type if a specific entityType is requested
+      }
+
+      const where = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+      return `
+        SELECT
+          id,
+          "reporterId",
+          reason,
+          description,
+          status,
+          "createdAt",
+          "updatedAt",
+          ${specificIdColumn} AS "entitySpecificId",
+          '${type}' AS "entityType"
+        FROM ${tableName}
+        ${where}
+      `;
+    };
+
+    const commentSelect = buildSelectQuery('comment_reports', 'comment', 'commentId');
+    const postSelect = buildSelectQuery('post_reports', 'post', 'postId');
+    const userSelect = buildSelectQuery('user_reports', 'user', 'reportedUserId');
+
+    const unionQueries = [commentSelect, postSelect, userSelect].filter(q => q !== null);
+
+    if (unionQueries.length === 0) {
+      return { data: [], count: 0 }; // No queries to run
+    }
+
+    const unionAllQuery = unionQueries.join(' UNION ALL ');
+
+    // Total count query
+    const countQuery = `SELECT COUNT(*) FROM (${unionAllQuery}) AS union_counts`;
+    const totalCountResult = await this.commentReportRepository.query(countQuery, parameters); // Using any repository for query
+    const totalCount = parseInt(totalCountResult[0].count, 10);
+
+    // Data query with pagination and ordering
+    const dataQuery = `
+      ${unionAllQuery}
+      ORDER BY "createdAt" DESC
+      LIMIT $${paramIndex++} OFFSET $${paramIndex++}
+    `;
+    parameters.push(limit);
+    parameters.push(offset);
+
+    const rawData = await this.commentReportRepository.query(dataQuery, parameters);
+
+    // Map raw data to a consistent structure (similar to ReportResponseDto)
+    const data = rawData.map(item => ({
+      id: item.id,
+      reporterId: item.reporterId,
+      reason: item.reason,
+      description: item.description,
+      status: item.status,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
+      entityType: item.entityType,
+      commentId: item.entityType === 'comment' ? item.entitySpecificId : undefined,
+      postId: item.entityType === 'post' ? item.entitySpecificId : undefined,
+      reportedUserId: item.entityType === 'user' ? item.entitySpecificId : undefined,
+    }));
+
+    return { data, count: totalCount };
+  }
+
+  async findOne(id: number, entityType?: 'comment' | 'post' | 'user'): Promise<CommentReport | PostReport | UserReport> {
+    let report: CommentReport | PostReport | UserReport | null;
+    let repository: Repository<CommentReport | PostReport | UserReport>;
+
+    if (!entityType) {
+      throw new NotFoundException('entityType is required to find a specific report.');
+    }
+
+    switch (entityType) {
+      case 'comment':
+        repository = this.commentReportRepository;
+        break;
+      case 'post':
+        repository = this.postReportRepository;
+        break;
+      case 'user':
+        repository = this.userReportRepository;
+        break;
+      default:
+        throw new NotFoundException(`Invalid entityType: ${entityType}`);
+    }
+    report = await repository.findOne({ where: { id } });
+
+    if (!report) {
+      throw new NotFoundException(`Report with ID ${id} and type ${entityType} not found.`);
+    }
+
+    return report;
+  }
+
+  async updateStatus(id: number, status: ReportStatus, entityType: 'comment' | 'post' | 'user') {
+    let report: CommentReport | PostReport | UserReport|null;
+    let repository: Repository<CommentReport | PostReport | UserReport>;
+
+    switch (entityType) {
+      case 'comment':
+        repository = this.commentReportRepository;
+        break;
+      case 'post':
+        repository = this.postReportRepository;
+        break;
+      case 'user':
+        repository = this.userReportRepository;
+        break;
+    }
+
+    report = await repository.findOne({ where: { id } });
+
+    if (!report) {
+      throw new NotFoundException(`Report with ID ${id} and type ${entityType} not found.`);
+    }
+
+    report.status = status;
+    return repository.save(report);
+  }
+}
+
+---
+
+
+### FILE: src/reports/dto/create-report.dto.ts ###
+import { IsString, IsIn, IsNumber, IsOptional } from 'class-validator';
+
+export class CreateReportDto {
+  @IsString()
+  reason: string;
+
+  @IsIn(['comment', 'post', 'user'])
+  entityType: 'comment' | 'post' | 'user';
+
+  @IsNumber()
+  entityId: number;
+
+  @IsString()
+  @IsOptional()
+  description?: string;
+}
+
+---
+
+
+### FILE: src/reports/dto/report-response.dto.ts ###
+import { ReportStatus } from '../entities/base-report.entity';
+import { CommentReport } from '../entities/comment-report.entity';
+import { PostReport } from '../entities/post-report.entity';
+import { UserReport } from '../entities/user-report.entity';
+
+export class ReportResponseDto {
+  id: number;
+  reason: string;
+  description: string | null;
+  status: ReportStatus;
+  reporterId: number;
+  createdAt: Date;
+  updatedAt: Date;
+  entityType: 'comment' | 'post' | 'user';
+  commentId?: number;
+  postId?: number;
+  reportedUserId?: number;
+
+  static fromEntity(
+    report: CommentReport | PostReport | UserReport,
+  ): ReportResponseDto {
+    const dto = new ReportResponseDto();
+    dto.id = report.id;
+    dto.reason = report.reason;
+    dto.description = report.description;
+    dto.status = report.status;
+    dto.reporterId = report.reporterId;
+    dto.createdAt = report.createdAt;
+    dto.updatedAt = report.updatedAt;
+
+    if (report instanceof CommentReport) {
+      dto.entityType = 'comment';
+      dto.commentId = report.commentId;
+    } else if (report instanceof PostReport) {
+      dto.entityType = 'post';
+      dto.postId = report.postId;
+    } else if (report instanceof UserReport) {
+      dto.entityType = 'user';
+      dto.reportedUserId = report.reportedUserId;
+    }
+
+    return dto;
+  }
+}
+
+---
+
+
+### FILE: src/reports/dto/report-query.dto.ts ###
+import { IsOptional, IsIn, IsNumber, IsEnum } from 'class-validator';
+import { ReportStatus } from '../entities/base-report.entity';
+import { Transform } from 'class-transformer';
+import { PaginationDto } from 'src/common/dto/pagination.dto';
+
+export class ReportQueryDto extends PaginationDto {
+
+  @IsOptional()
+  @IsEnum(ReportStatus)
+  status?: ReportStatus;
+
+  @IsOptional()
+  @IsIn(['comment', 'post', 'user'])
+  entityType?: 'comment' | 'post' | 'user';
+
+  @IsOptional()
+  @Transform(({ value }) => parseInt(value, 10))
+  @IsNumber()
+  reporterId?: number;
+}
+
+---
+
+
+### FILE: src/reports/dto/update-report.dto.ts ###
+import { IsEnum, IsIn } from 'class-validator';
+import { ReportStatus } from '../entities/base-report.entity';
+
+export class UpdateReportDto {
+  @IsEnum(ReportStatus)
+  status: ReportStatus;
+
+  @IsIn(['comment', 'post', 'user'])
+  entityType: 'comment' | 'post' | 'user';
+}
+
+---
+
+
 ### FILE: src/decorators/user.decorator.ts ###
 // src/decorators/current-user.decorator.ts
 import {
@@ -4253,6 +4950,15 @@ export class PostsService {
     return this.postsRepository.save(post);
   }
 
+  async updateCommentsLockedStatus(postId: number, commentsLocked: boolean): Promise<Post> {
+    const post = await this.postsRepository.findOneBy({ id: postId });
+    if (!post) {
+      throw new NotFoundException('Post not found');
+    }
+    post.commentsLocked = commentsLocked;
+    return this.postsRepository.save(post);
+  }
+
   async incrementCommentsCount(postId: number): Promise<void> {
     await this.postsRepository.increment({ id: postId }, 'commentsCount', 1);
   }
@@ -4304,6 +5010,7 @@ import { User } from '../../users/entities/user.entity';
 import { PostReaction } from '../../reactions/entities/post-reaction.entity';
 import { Community } from '../../communities/entities/community.entity';
 import { ReactionType } from 'src/reactions/reactions.types';
+import { PostReport } from '../../reports/entities/post-report.entity';
 
 @Entity('posts')
 export class Post {
@@ -4353,13 +5060,18 @@ export class Post {
   dislikesCount: number;
 
   @Column({ default: false })
+  commentsLocked: boolean;
+
+  @Column({ default: false })
   isApproved: boolean;
 
-  @Column({ nullable: true })
-  approvedAt?: Date | null;
+  @Column({ type: 'datetime', nullable: true })
+  approvedAt: Date | null;
+
+  @OneToMany(() => PostReport, (postReport) => postReport.post)
+  reports: PostReport[];
 
   userReaction?: { id: number; type: ReactionType };
-
   @CreateDateColumn()
   createdAt: Date;
 
@@ -4391,6 +5103,7 @@ import { PostsService } from './posts.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { UpdatePostApprovalDto } from './dto/update-post-approval.dto'; // Import the new DTO
+import { UpdateCommentsLockedDto } from './dto/update-comments-locked.dto';
 import { Post as PostEntity } from './entities/post.entity';
 import { GetUser } from 'src/decorators/user.decorator';
 import { User } from 'src/users/entities/user.entity';
@@ -4511,6 +5224,19 @@ export class PostsController {
     const updatedPost = await this.postsService.updatePostApprovalStatus(post.id, dto.isApproved);
     return new ResponseDto(PostResponseDto.fromEntity(updatedPost));
   }
+
+  @Patch(':id/comments-locked')
+  @UseGuards(JwtAuthGuard)
+  // TODO: Add proper authorization using caslService.enforce
+  async updateCommentsLockedStatus(
+    @Param('id', PostPipe) post: PostEntity,
+    @Body() dto: UpdateCommentsLockedDto,
+    @GetUser() user: User, // For authorization check
+  ): Promise<ResponseDto<PostResponseDto>> {
+    this.caslService.enforce(user, Action.Update, post, 'commentsLocked'); // Enforce update on commentsLocked field
+    const updatedPost = await this.postsService.updateCommentsLockedStatus(post.id, dto.commentsLocked);
+    return new ResponseDto(PostResponseDto.fromEntity(updatedPost));
+  }
 }
 
 ---
@@ -4526,6 +5252,17 @@ import { CreatePostDto } from './create-post.dto'; // <-- 2. Make sure you impor
 export class UpdatePostDto extends PartialType(CreatePostDto) {
   // If you need to add custom validation or properties, they go here.
   // Otherwise, leave the body empty.
+}
+
+---
+
+
+### FILE: src/posts/dto/update-comments-locked.dto.ts ###
+import { IsBoolean } from 'class-validator';
+
+export class UpdateCommentsLockedDto {
+  @IsBoolean()
+  commentsLocked: boolean;
 }
 
 ---
@@ -6374,6 +7111,10 @@ import { Community } from './communities/entities/community.entity';
 import { CommunitySubscription } from './community-subscriptions/entities/community-subscription.entity';
 import { CommunityAccessModule } from './community-access/community-access.module';
 import { CommunityModeratorsModule } from './community-moderators/community-moderators.module';
+import { ReportsModule } from './reports/reports.module';
+import { CommentReport } from './reports/entities/comment-report.entity';
+import { PostReport } from './reports/entities/post-report.entity';
+import { UserReport } from './reports/entities/user-report.entity';
 
 @Module({
   imports: [
@@ -6395,7 +7136,10 @@ import { CommunityModeratorsModule } from './community-moderators/community-mode
           PasswordResetToken,
           Profile,
           Community,
-          CommunitySubscription
+          CommunitySubscription,
+          CommentReport,
+          PostReport,
+          UserReport,
         ],
         migrations: ['./src/migrations/*.ts'],
         synchronize: false,
@@ -6414,6 +7158,7 @@ import { CommunityModeratorsModule } from './community-moderators/community-mode
     CommunitySubscriptionsModule,
     CommunityAccessModule,
     CommunityModeratorsModule,
+    ReportsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
@@ -6822,6 +7567,9 @@ import { Profile } from './profile/entities/profile.entity';
 import { Community } from './communities/entities/community.entity'; // Import Community
 import { CommunitySubscription } from './community-subscriptions/entities/community-subscription.entity'; // Import CommunitySubscription
 import { CommunityModerator } from './community-moderators/entities/community-moderator.entity'; // Import CommunityModerator
+import { PostReport } from './reports/entities/post-report.entity';
+import { CommentReport } from './reports/entities/comment-report.entity';
+import { UserReport } from './reports/entities/user-report.entity';
 
 config(); // load .env manually
 
@@ -6845,6 +7593,9 @@ export const AppDataSource = new DataSource({
     Community, // Add Community
     CommunitySubscription, // Add CommunitySubscription
     CommunityModerator, // Add Moderator
+    PostReport,
+    CommentReport,
+    UserReport,
   ],
   synchronize: false,
   migrations: ['src/database/migrations/*.ts'],
@@ -7051,6 +7802,10 @@ export class CommentsService {
     const post = await this.postsService.findOne(postId);
     if (!post) {
       throw new NotFoundException('Post not found');
+    }
+
+    if (post.commentsLocked) {
+      throw new BadRequestException('Comments are locked for this post.');
     }
 
     // Check if user can contribute based on community rules
@@ -7323,6 +8078,7 @@ import { Post } from '../../posts/entities/post.entity';
 import { User } from '../../users/entities/user.entity';
 import { CommentReaction } from '../../reactions/entities/comment-reaction.entity';
 import { ReactionType } from 'src/reactions/reactions.types';
+import { CommentReport } from '../../reports/entities/comment-report.entity';
 
 @Entity('comments')
 export class Comment {
@@ -7367,6 +8123,9 @@ export class Comment {
 
   @Column({ default: 0 })
   repliesCount: number;
+
+  @OneToMany(() => CommentReport, (commentReport) => commentReport.comment)
+  reports: CommentReport[];
 
   userReaction?: { id: number; type: ReactionType };
 
