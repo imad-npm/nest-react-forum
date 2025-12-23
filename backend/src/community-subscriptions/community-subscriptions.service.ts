@@ -165,12 +165,7 @@ export class CommunitySubscriptionsService {
 
   // --- New methods for subscription status checks ---
   async getSubscriptionStatus(userId: number, communityId: number): Promise<CommunitySubscriptionStatus | null> {
-    const subscription = await this.subscriptionsRepository.findOne({
-      where: { userId, communityId },
-      select: ['status'],
-    });
-    return subscription ? subscription.status : null;
-  }
+   }
 
   async isActiveMember(userId: number, communityId: number): Promise<boolean> {
     const status = await this.getSubscriptionStatus(userId, communityId);

@@ -5,16 +5,21 @@ import { Post } from './entities/post.entity';
 import { PostSort } from './dto/post-query.dto';
 import { CommunitiesService } from 'src/communities/communities.service'; // Import CommunitiesService
 import { CommunityAccessService } from 'src/community-access/community-access.service';
+import { CommunityType } from 'src/communities/types';
+import { Community } from 'src/communities/entities/community.entity';
+import { CommunitySubscription } from 'src/community-subscriptions/entities/community-subscription.entity';
+import { CommunitySubscriptionStatus } from 'src/community-subscriptions/types';
 
 @Injectable()
 export class PostsService {
   constructor(
     @InjectRepository(Post)
     private postsRepository: Repository<Post>,
-    private readonly accessService: CommunityAccessService,
+ @InjectRepository(Community)
+    private readonly communityRepository: Repository<Community>,
 
-    private readonly communitiesService: CommunitiesService, // Inject CommunitiesService
-  ) { }
+    @InjectRepository(CommunitySubscription)
+    private readonly subscriptionRepository: Repository<CommunitySubscription>,) { }
 
   async findAll(
     options: {
@@ -168,23 +173,18 @@ export class PostsService {
 
     // Execute query
     const post = await query.getOne();
-
-    if (!post) return null;
-
-    const { community } = post;
-    await this.accessService.assertUserCanViewCommunity(currentUserId, community.id)
-    return post;
+ return post;
   }
 
   async create(
     { title, content, authorId, communityId, isApproved }: { title: string; content: string; authorId: number; communityId: number; isApproved?: boolean },
   ): Promise<Post> {
-    const community = await this.communitiesService.findOne(communityId);
+    const community = await this.communityRepository.findOneBy({id:communityId});
     if (!community) {
       throw new NotFoundException(`Community with ID ${communityId} not found`);
     }
     // Check if user can contribute based on community rules
-    await this.accessService.assertUserCanContribute(authorId, communityId);
+    await this.canUserPostToCommunity(authorId, communityId);
 
     const post = this.postsRepository.create({
       title,
@@ -242,6 +242,27 @@ export class PostsService {
     return this.postsRepository.save(post);
   }
 
+  async canUserPostToCommunity(userId: number, communityId: number): Promise<boolean> {
+    const community = await this.communityRepository.findOneBy({ id: communityId });;
+    if (!community) throw new NotFoundException('Community not found');
+
+
+    switch (community.communityType) {
+      case CommunityType.PUBLIC:
+        return true;
+      case CommunityType.RESTRICTED:
+      case CommunityType.PRIVATE:
+        return this.subscriptionRepository.exist({
+          where: {
+            userId,
+            communityId,
+            status: CommunitySubscriptionStatus.ACTIVE,
+          },})
+
+          default:
+          return false;
+        }
+    }
   async incrementCommentsCount(postId: number): Promise<void> {
     await this.postsRepository.increment({ id: postId }, 'commentsCount', 1);
   }

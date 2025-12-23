@@ -30,18 +30,21 @@ import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
 import { PaginationMetaDto } from 'src/common/dto/pagination-meta.dto';
 import { OptionalJwtAuthGuard } from 'src/auth/guards/optional-jwt-auth.guard';
 import type { Request } from 'express';
+import { CommunityType } from 'src/communities/types';
+import { Subscription } from 'rxjs';
+import { CommunitySubscriptionStatus } from 'src/community-subscriptions/types';
 
 @Controller('posts')
 export class PostsController {
   constructor(
     private readonly postsService: PostsService,
     private readonly caslService: CaslService,
-  ) {}
+  ) { }
 
   @Get()
   @UseGuards(JwtAuthGuard)
   async findAll(@Query() query: PostQueryDto,
-    @Req() req : any
+    @Req() req: any
   ): Promise<PaginatedResponseDto<PostResponseDto>> {
 
     const { data, count } = await this.postsService.findAll({
@@ -52,7 +55,7 @@ export class PostsController {
       sort: query.sort,
       startDate: query.startDate,
       endDate: query.endDate,
-      currentUserId : req.user?.id ??undefined,
+      currentUserId: req.user?.id ?? undefined,
       communityId: query.communityId,
     });
 
@@ -75,9 +78,9 @@ export class PostsController {
     const postId = +id;
     const post = await this.postsService.findOne(postId, user?.id); // Pass currentUserId
 
-     if (!post) {
-    throw new NotFoundException(`Post not found`);
-  }
+    if (!post) {
+      throw new NotFoundException(`Post not found`);
+    }
 
     this.postsService.incrementViews(postId);
     return new ResponseDto(PostResponseDto.fromEntity(post));
@@ -108,7 +111,7 @@ export class PostsController {
   ): Promise<ResponseDto<PostResponseDto>> {
     this.caslService.enforce(user, Action.Update, post);
     const updatedPost = await this.postsService.update({
-      id:post.id,
+      id: post.id,
       title: dto.title,
       content: dto.content,
     });
@@ -149,4 +152,6 @@ export class PostsController {
     const updatedPost = await this.postsService.updateCommentsLockedStatus(post.id, dto.commentsLocked);
     return new ResponseDto(PostResponseDto.fromEntity(updatedPost));
   }
-}
+
+
+  }

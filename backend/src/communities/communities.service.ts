@@ -9,14 +9,20 @@ import { Community } from './entities/community.entity';
 import { CommunityType } from './types';
 import { User } from '../users/entities/user.entity';
 import { CommunityAccessService } from '../community-access/community-access.service';
+import { CommunitySubscription } from 'src/community-subscriptions/entities/community-subscription.entity';
+import { CommunitySubscriptionStatus } from 'src/community-subscriptions/types';
 
 @Injectable()
 export class CommunitiesService {
   constructor(
     @InjectRepository(Community)
     private readonly communitiesRepository: Repository<Community>,
-    private readonly accessService: CommunityAccessService, // new service for permissions
-  ) {}
+    @InjectRepository(Community)
+    private readonly communityRepository: Repository<Community>,
+    @InjectRepository(CommunitySubscription)
+    private readonly subscriptionRepository: Repository<CommunitySubscription>
+  )
+   {}
 
   async create(data: {
     userId: number;
@@ -73,7 +79,7 @@ export class CommunitiesService {
     if (!community) throw new NotFoundException(`Community with ID ${id} not found.`);
 
     // use CommunityAccessService for permissions
-    await this.accessService.assertUserCanViewCommunity(user?.id, community.id);
+    await this.canUserViewCommunity(user?.id, community);
 
     return community;
   }
@@ -86,7 +92,7 @@ export class CommunitiesService {
 
     if (!community) throw new NotFoundException(`Community with name "${name}" not found.`);
 
-    await this.accessService.assertUserCanViewCommunity(user?.id, community.id);
+    await this.canUserViewCommunity(user?.id, community);
 
     return community;
   }
@@ -119,5 +125,31 @@ export class CommunitiesService {
     await this.communitiesRepository.remove(community);
   }
 
+async canUserViewCommunity(
+  userId: number | undefined,
+  community: Community,
+): Promise<boolean> {
+ 
+
+  switch (community.communityType) {
+    case CommunityType.PUBLIC:
+    case CommunityType.RESTRICTED:
+      return true;
+
+    case CommunityType.PRIVATE:
+      if (!userId) return false;
+
+      return this.subscriptionRepository.exist({
+        where: {
+          userId,
+          communityId:community.id,
+          status: CommunitySubscriptionStatus.ACTIVE,
+        },
+      });
+
+    default:
+      return false;
+  }
+}
 
 }
