@@ -15,7 +15,7 @@ export class PostsService {
   constructor(
     @InjectRepository(Post)
     private postsRepository: Repository<Post>,
- @InjectRepository(Community)
+    @InjectRepository(Community)
     private readonly communityRepository: Repository<Community>,
 
     @InjectRepository(CommunitySubscription)
@@ -53,7 +53,7 @@ export class PostsService {
       .createQueryBuilder('post')
       .leftJoinAndSelect('post.author', 'author')
       .leftJoinAndSelect('post.community', 'community')
-  .where('post.isApproved = :approved', { approved: true });
+      .where('post.isApproved = :approved', { approved: true });
 
     if (currentUserId) {
       query.leftJoinAndMapOne(
@@ -173,18 +173,18 @@ export class PostsService {
 
     // Execute query
     const post = await query.getOne();
- return post;
+    return post;
   }
 
   async create(
     { title, content, authorId, communityId, isApproved }: { title: string; content: string; authorId: number; communityId: number; isApproved?: boolean },
   ): Promise<Post> {
-    const community = await this.communityRepository.findOneBy({id:communityId});
+    const community = await this.communityRepository.findOneBy({ id: communityId });
     if (!community) {
       throw new NotFoundException(`Community with ID ${communityId} not found`);
     }
     // Check if user can contribute based on community rules
-    await this.canUserPostToCommunity(authorId, communityId);
+    await this.assertUserCanPostToCommunity(authorId, community);
 
     const post = this.postsRepository.create({
       title,
@@ -242,27 +242,7 @@ export class PostsService {
     return this.postsRepository.save(post);
   }
 
-  async canUserPostToCommunity(userId: number, communityId: number): Promise<boolean> {
-    const community = await this.communityRepository.findOneBy({ id: communityId });;
-    if (!community) throw new NotFoundException('Community not found');
 
-
-    switch (community.communityType) {
-      case CommunityType.PUBLIC:
-        return true;
-      case CommunityType.RESTRICTED:
-      case CommunityType.PRIVATE:
-        return this.subscriptionRepository.exist({
-          where: {
-            userId,
-            communityId,
-            status: CommunitySubscriptionStatus.ACTIVE,
-          },})
-
-          default:
-          return false;
-        }
-    }
   async incrementCommentsCount(postId: number): Promise<void> {
     await this.postsRepository.increment({ id: postId }, 'commentsCount', 1);
   }
@@ -291,6 +271,33 @@ export class PostsService {
     await this.postsRepository.increment({ id: postId }, 'views', 1);
   }
 
+  async assertUserCanPostToCommunity(
+    userId: number,
+    community: Community,
+  ): Promise<void> {
+    switch (community.communityType) {
+      case CommunityType.PUBLIC:
+        return;
+
+      case CommunityType.RESTRICTED:
+      case CommunityType.PRIVATE:
+        const isActive = await this.subscriptionRepository.exist({
+          where: {
+            userId,
+            communityId: community.id,
+            status: CommunitySubscriptionStatus.ACTIVE,
+          },
+        });
+
+        if (!isActive) {
+          throw new ForbiddenException('You cannot post in this community');
+        }
+        return;
+
+      default:
+        throw new ForbiddenException('Posting not allowed');
+    }
+  }
 
 
 }

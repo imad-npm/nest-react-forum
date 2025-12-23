@@ -11,10 +11,6 @@ export class CommunityAccessService {
     private readonly communitiesService: CommunitiesService,
   ) {}
 
- 
-
-
-
   async assertUserCanViewCommunity(userId: number | undefined, communityId: number) {
     const canView = await this.canUserViewCommunity(userId, communityId);
     if (!canView) {

@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -21,8 +22,7 @@ export class CommunitiesService {
     private readonly communityRepository: Repository<Community>,
     @InjectRepository(CommunitySubscription)
     private readonly subscriptionRepository: Repository<CommunitySubscription>
-  )
-   {}
+  ) { }
 
   async create(data: {
     userId: number;
@@ -78,10 +78,10 @@ export class CommunitiesService {
 
     if (!community) throw new NotFoundException(`Community with ID ${id} not found.`);
 
-    // use CommunityAccessService for permissions
-    await this.canUserViewCommunity(user?.id, community);
-
+    await this.assertUserCanViewCommunity(user?.id, community);
     return community;
+
+
   }
 
   async findByName(name: string, user?: User) {
@@ -92,9 +92,9 @@ export class CommunitiesService {
 
     if (!community) throw new NotFoundException(`Community with name "${name}" not found.`);
 
-    await this.canUserViewCommunity(user?.id, community);
-
+    await this.assertUserCanViewCommunity(user?.id, community);
     return community;
+
   }
 
   async update(data: {
@@ -124,32 +124,36 @@ export class CommunitiesService {
     const community = await this.findOne(id);
     await this.communitiesRepository.remove(community);
   }
+  async assertUserCanViewCommunity(
+    userId: number | undefined,
+    community: Community,
+  ): Promise<void> {
+    switch (community.communityType) {
+      case CommunityType.PUBLIC:
+      case CommunityType.RESTRICTED:
+        return;
 
-async canUserViewCommunity(
-  userId: number | undefined,
-  community: Community,
-): Promise<boolean> {
- 
+      case CommunityType.PRIVATE:
+        if (!userId) {
+          throw new ForbiddenException('Login required to view this community');
+        }
 
-  switch (community.communityType) {
-    case CommunityType.PUBLIC:
-    case CommunityType.RESTRICTED:
-      return true;
+        const isMember = await this.subscriptionRepository.exist({
+          where: {
+            userId,
+            communityId: community.id,
+            status: CommunitySubscriptionStatus.ACTIVE,
+          },
+        });
 
-    case CommunityType.PRIVATE:
-      if (!userId) return false;
+        if (!isMember) {
+          throw new ForbiddenException('You are not a member of this community');
+        }
+        return;
 
-      return this.subscriptionRepository.exist({
-        where: {
-          userId,
-          communityId:community.id,
-          status: CommunitySubscriptionStatus.ACTIVE,
-        },
-      });
-
-    default:
-      return false;
+      default:
+        throw new ForbiddenException('Community is not accessible');
+    }
   }
-}
 
 }
