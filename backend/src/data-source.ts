@@ -11,6 +11,9 @@ import { Profile } from './profile/entities/profile.entity';
 import { Community } from './communities/entities/community.entity'; // Import Community
 import { CommunitySubscription } from './community-subscriptions/entities/community-subscription.entity'; // Import CommunitySubscription
 import { CommunityModerator } from './community-moderators/entities/community-moderator.entity'; // Import CommunityModerator
+import { PostReport } from './reports/entities/post-report.entity';
+import { CommentReport } from './reports/entities/comment-report.entity';
+import { UserReport } from './reports/entities/user-report.entity';
 
 config(); // load .env manually
 
@@ -34,6 +37,9 @@ export const AppDataSource = new DataSource({
     Community, // Add Community
     CommunitySubscription, // Add CommunitySubscription
     CommunityModerator, // Add Moderator
+    PostReport,
+    CommentReport,
+    UserReport,
   ],
   synchronize: false,
   migrations: ['src/database/migrations/*.ts'],

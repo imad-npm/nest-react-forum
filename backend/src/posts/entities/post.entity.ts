@@ -68,13 +68,13 @@ export class Post {
   @Column({ default: false })
   isApproved: boolean;
 
-   @Column({ type: 'datetime', nullable: true })
-   approvedAt: Date | null;
- 
-   @OneToMany(() => PostReport, (postReport) => postReport.post)
-   reports: PostReport[];
- 
-   userReaction?: { id: number; type: ReactionType };
+  @Column({ type: 'datetime', nullable: true })
+  approvedAt: Date | null;
+
+  @OneToMany(() => PostReport, (postReport) => postReport.post)
+  reports: PostReport[];
+
+  userReaction?: { id: number; type: ReactionType };
   @CreateDateColumn()
   createdAt: Date;
 

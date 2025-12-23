@@ -29,6 +29,10 @@ import { Community } from './communities/entities/community.entity';
 import { CommunitySubscription } from './community-subscriptions/entities/community-subscription.entity';
 import { CommunityAccessModule } from './community-access/community-access.module';
 import { CommunityModeratorsModule } from './community-moderators/community-moderators.module';
+import { ReportsModule } from './reports/reports.module';
+import { CommentReport } from './reports/entities/comment-report.entity';
+import { PostReport } from './reports/entities/post-report.entity';
+import { UserReport } from './reports/entities/user-report.entity';
 
 @Module({
   imports: [
@@ -50,7 +54,10 @@ import { CommunityModeratorsModule } from './community-moderators/community-mode
           PasswordResetToken,
           Profile,
           Community,
-          CommunitySubscription
+          CommunitySubscription,
+          CommentReport,
+          PostReport,
+          UserReport,
         ],
         migrations: ['./src/migrations/*.ts'],
         synchronize: false,
@@ -69,6 +76,7 @@ import { CommunityModeratorsModule } from './community-moderators/community-mode
     CommunitySubscriptionsModule,
     CommunityAccessModule,
     CommunityModeratorsModule,
+    ReportsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
