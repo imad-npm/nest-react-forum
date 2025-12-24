@@ -1,7 +1,7 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
-export class AddCommunitiesAndSubscriptions1765671180328 implements MigrationInterface {
-    name = 'AddCommunitiesAndSubscriptions1765671180328'
+export class AddCommunitiesAndMemberships1765671180328 implements MigrationInterface {
+    name = 'AddCommunitiesAndMemberships1765671180328'
 
     public async up(queryRunner: QueryRunner): Promise<void> {
         await queryRunner.query(`CREATE TABLE "community_memberships" ("userId" integer NOT NULL, "communityId" integer NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), PRIMARY KEY ("userId", "communityId"))`);

@@ -2,9 +2,9 @@ import { Expose, Type, plainToInstance } from 'class-transformer';
 import { UserResponseDto } from '../../users/dtos/user-response.dto';
 import { CommunityResponseDto } from '../../communities/dto/community-response.dto';
 import { CommunityMembership } from '../entities/community-membership.entity';
-import { CommunitySubscriptionStatus } from '../types';
+import { CommunityMembershipStatus } from '../types';
 
-export class CommunitySubscriptionResponseDto {
+export class CommunityMembershipResponseDto {
   @Expose()
   userId: number;
 
@@ -20,14 +20,14 @@ export class CommunitySubscriptionResponseDto {
   community: CommunityResponseDto;
 
   @Expose()
-  status: CommunitySubscriptionStatus;
+  status: CommunityMembershipStatus;
 
   @Expose()
   createdAt: Date;
 
   static fromEntity(
     entity: CommunityMembership,
-  ): CommunitySubscriptionResponseDto {
-    return plainToInstance(CommunitySubscriptionResponseDto, entity);
+  ): CommunityMembershipResponseDto {
+    return plainToInstance(CommunityMembershipResponseDto, entity);
   }
 }

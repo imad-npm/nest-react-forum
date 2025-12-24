@@ -2,10 +2,10 @@ import React from 'react';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../../../shared/stores/store';
 import {
-  useGetCommunitySubscriptionsQuery,
+  useGetCommunityMembershipsQuery,
   useSubscribeToCommunityMutation,
   useUnsubscribeFromCommunityMutation,
-} from '../services/communitySubscriptionsApi';
+} from '../services/communityMembershipsApi';
 import { Button } from '../../../shared/components/ui/Button';
 
 interface SubscribeUnsubscribeButtonProps {
@@ -16,10 +16,10 @@ export const SubscribeUnsubscribeButton: React.FC<SubscribeUnsubscribeButtonProp
   const currentUserId = useSelector((state: RootState) => state.auth.user?.id);
 
   const {
-    data: subscriptionsData,
-    isLoading: subscriptionsLoading,
-    error: subscriptionsError,
-  } = useGetCommunitySubscriptionsQuery(
+    data: membershipsData,
+    isLoading: membershipsLoading,
+    error: membershipsError,
+  } = useGetCommunityMembershipsQuery(
     { communityId, userId: currentUserId },
     { skip: !currentUserId }
   );
@@ -27,7 +27,7 @@ export const SubscribeUnsubscribeButton: React.FC<SubscribeUnsubscribeButtonProp
   const [subscribe] = useSubscribeToCommunityMutation();
   const [unsubscribe] = useUnsubscribeFromCommunityMutation();
 
-  const isSubscribed = subscriptionsData?.data && subscriptionsData.data.length > 0;
+  const isSubscribed = membershipsData?.data && membershipsData.data.length > 0;
 
   const handleSubscribe = () => {
     if (currentUserId) {
@@ -47,12 +47,12 @@ export const SubscribeUnsubscribeButton: React.FC<SubscribeUnsubscribeButtonProp
     }
   };
 
-  if (subscriptionsLoading) {
+  if (membershipsLoading) {
     return <Button size="sm" disabled>Loading...</Button>;
   }
 
-  if (subscriptionsError) {
-    console.error('Error loading subscription status:', subscriptionsError);
+  if (membershipsError) {
+    console.error('Error loading membership status:', membershipsError);
     return null; // Or some error indicator
   }
 

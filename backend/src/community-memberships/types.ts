@@ -1,6 +1,5 @@
-
-export enum CommunitySubscriptionStatus {
-  ACTIVE = 'active',
-  PENDING = 'pending',
-  BLOCKED = 'blocked',
+export enum CommunityMembershipRole {
+  ADMIN = 'admin',
+  MODERATOR = 'moderator',
+  MEMBER = 'member',
 }

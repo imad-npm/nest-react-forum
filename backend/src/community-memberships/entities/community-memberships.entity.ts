@@ -7,7 +7,7 @@ import {
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Community } from '../../communities/entities/community.entity';
-import { CommunitySubscriptionStatus } from '../types';
+import { CommunityMembershipRole } from '../types';
 
 @Entity('community_memberships')
 export class CommunityMembership {
@@ -17,14 +17,18 @@ export class CommunityMembership {
   @PrimaryColumn()
   communityId: number;
 
-  @ManyToOne(() => User, (user) => user.communitySubscriptions)
+  @ManyToOne(() => User, (user) => user.communityMemberships)
   user: User;
 
-  @ManyToOne(() => Community, (community) => community.subscriptions)
+  @ManyToOne(() => Community, (community) => community.memberships)
   community: Community;
 
-  @Column({ type: "simple-enum", enum:CommunitySubscriptionStatus, default: CommunitySubscriptionStatus.PENDING })
-  status: CommunitySubscriptionStatus;
+  @Column({
+    type: 'simple-enum',
+    enum: CommunityMembershipRole,
+    default: CommunityMembershipRole.MEMBER,
+  })
+  role: CommunityMembershipRole;
 
   @CreateDateColumn()
   createdAt: Date;

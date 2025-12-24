@@ -171,34 +171,34 @@ export class AppController {
 
 ### FILE: src/database/seeds/community-membership.seed.ts ###
 import { AppDataSource } from '../../data-source';
-import { communitySubscriptionFactory } from '../factories/community-membership.factory';
+import { communityMembershipFactory } from '../factories/community-membership.factory';
 import { CommunityMembership } from '../../community-memberships/entities/community-membership.entity';
 import { User } from '../../users/entities/user.entity';
 import { Community } from '../../communities/entities/community.entity';
 
-export async function seedCommunitySubscriptions(
+export async function seedCommunityMemberships(
   users: User[],
   communities: Community[],
 ): Promise<CommunityMembership[]> {
-  const subscriptionRepo = AppDataSource.getRepository(CommunityMembership);
+  const membershipRepo = AppDataSource.getRepository(CommunityMembership);
   const communityRepo = AppDataSource.getRepository(Community);
 
-  const subscriptions: CommunityMembership[] = [];
+  const memberships: CommunityMembership[] = [];
 
   for (const user of users) {
-    const numSubscriptions = Math.floor(Math.random() * 3) + 1;
+    const numMemberships = Math.floor(Math.random() * 3) + 1;
     const shuffled = [...communities].sort(() => 0.5 - Math.random());
-    const toSubscribe = shuffled.slice(0, numSubscriptions);
+    const toSubscribe = shuffled.slice(0, numMemberships);
 
     for (const community of toSubscribe) {
-      const subscription = communitySubscriptionFactory();
-      subscription.userId = user.id;
-      subscription.communityId = community.id;
-      subscriptions.push(subscription);
+      const membership = communityMembershipFactory();
+      membership.userId = user.id;
+      membership.communityId = community.id;
+      memberships.push(membership);
     }
   }
 
-  await subscriptionRepo.save(subscriptions);
+  await membershipRepo.save(memberships);
 
   // ─────────────────────────────────────────────
   // UPDATE subscribers_count (CORRECT WAY)
@@ -217,10 +217,10 @@ export async function seedCommunitySubscriptions(
     })
     .execute();
 
-  console.log(`Seeded ${subscriptions.length} community subscriptions ✅`);
+  console.log(`Seeded ${memberships.length} community memberships ✅`);
   console.log(`Updated communities.subscribers_count ✅`);
 
-  return subscriptions;
+  return memberships;
 }
 
 if (require.main === module) {
@@ -229,7 +229,7 @@ if (require.main === module) {
     const communityRepo = AppDataSource.getRepository(Community);
     const users = await userRepo.find();
     const communities = await communityRepo.find();
-    await seedCommunitySubscriptions(users, communities);
+    await seedCommunityMemberships(users, communities);
   }).catch(error => console.error('Seeding failed ❌', error));
 }
 
@@ -545,7 +545,7 @@ import { seedPosts } from './post.seed';
 import { seedComments } from './comment.seed';
 import { seedReactions } from './reaction.seed';
 import { seedCommunities } from './community.seed';
-import { seedCommunitySubscriptions } from './community-membership.seed';
+import { seedCommunityMemberships } from './community-membership.seed';
 import { AppDataSource } from '../../data-source';
 
 async function main() {
@@ -566,8 +566,8 @@ async function main() {
     // Seed reactions (optional)
     await seedReactions(posts, comments, users);
 
-    // Seed community subscriptions
-    await seedCommunitySubscriptions(users, communities);
+    // Seed community memberships
+    await seedCommunityMemberships(users, communities);
 
     console.log('Database seeding complete ✅');
   } catch (error) {
@@ -587,11 +587,11 @@ main();
 import { faker } from '@faker-js/faker';
 import { CommunityMembership } from '../../community-memberships/entities/community-membership.entity';
 
-export function communitySubscriptionFactory(): CommunityMembership {
-  const subscription = new CommunityMembership();
+export function communityMembershipFactory(): CommunityMembership {
+  const membership = new CommunityMembership();
   // userId and communityId will be set when seeding, as they are foreign keys
-  // For now, we can just return the basic subscription object.
-  return subscription;
+  // For now, we can just return the basic membership object.
+  return membership;
 }
 
 ---
@@ -1075,11 +1075,11 @@ export class Inital1764720178421 implements MigrationInterface {
 ---
 
 
-### FILE: src/database/migrations/1766320141300-AddStatusToCommunitySubscription.ts ###
+### FILE: src/database/migrations/1766320141300-AddStatusToCommunityMembership.ts ###
 import { MigrationInterface, QueryRunner } from "typeorm";
 
-export class AddStatusToCommunitySubscription1766320141300 implements MigrationInterface {
-    name = 'AddStatusToCommunitySubscription1766320141300'
+export class AddStatusToCommunityMembership1766320141300 implements MigrationInterface {
+    name = 'AddStatusToCommunityMembership1766320141300'
 
     public async up(queryRunner: QueryRunner): Promise<void> {
         await queryRunner.query(`CREATE TABLE "temporary_community_memberships" ("userId" integer NOT NULL, "communityId" integer NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "status" varchar CHECK( "status" IN ('active','pending','blocked') ) NOT NULL DEFAULT ('pending'), CONSTRAINT "FK_bcf2842e0032d27fb9d1c830e09" FOREIGN KEY ("communityId") REFERENCES "communities" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_a0761971a3fcd032c682d45f8a6" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, PRIMARY KEY ("userId", "communityId"))`);
@@ -1149,11 +1149,11 @@ export class AddApprovedAtToPosts1766412136598 implements MigrationInterface {
 ---
 
 
-### FILE: src/database/migrations/1765671180328-AddCommunitiesAndSubscriptions.ts ###
+### FILE: src/database/migrations/1765671180328-AddCommunitiesAndMemberships.ts ###
 import { MigrationInterface, QueryRunner } from "typeorm";
 
-export class AddCommunitiesAndSubscriptions1765671180328 implements MigrationInterface {
-    name = 'AddCommunitiesAndSubscriptions1765671180328'
+export class AddCommunitiesAndMemberships1765671180328 implements MigrationInterface {
+    name = 'AddCommunitiesAndMemberships1765671180328'
 
     public async up(queryRunner: QueryRunner): Promise<void> {
         await queryRunner.query(`CREATE TABLE "community_memberships" ("userId" integer NOT NULL, "communityId" integer NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), PRIMARY KEY ("userId", "communityId"))`);
@@ -2345,9 +2345,9 @@ export class User {
 
   @OneToMany(
     () => CommunityMembership,
-    (communitySubscription) => communitySubscription.user,
+    (communityMembership) => communityMembership.user,
   )
-  communitySubscriptions: CommunityMembership[];
+  communityMemberships: CommunityMembership[];
 
   @OneToMany(() => CommunityModerator, (communityModerator) => communityModerator.moderator)
   moderatedCommunities: CommunityModerator[];
@@ -2404,7 +2404,7 @@ export class UsersController {
 
 ### FILE: src/community-memberships/types.ts ###
 
-export enum CommunitySubscriptionStatus {
+export enum CommunityMembershipStatus {
   ACTIVE = 'active',
   PENDING = 'pending',
   BLOCKED = 'blocked',
@@ -2414,8 +2414,8 @@ export enum CommunitySubscriptionStatus {
 
 ### FILE: src/community-memberships/community-memberships.module.ts ###
 import { Module } from '@nestjs/common';
-import { CommunitySubscriptionsService } from './community-memberships.service';
-import { CommunitySubscriptionsController } from './community-memberships.controller';
+import { CommunityMembershipsService } from './community-memberships.service';
+import { CommunityMembershipsController } from './community-memberships.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CommunityMembership } from './entities/community-membership.entity';
 import { CommunitiesModule } from '../communities/communities.module';
@@ -2425,11 +2425,11 @@ import { User } from 'src/users/entities/user.entity';
 @Module({
   imports: [TypeOrmModule.forFeature([CommunityMembership,User]), 
   CommunitiesModule],
-  controllers: [CommunitySubscriptionsController],
-  providers: [CommunitySubscriptionsService],
-  exports: [CommunitySubscriptionsService],
+  controllers: [CommunityMembershipsController],
+  providers: [CommunityMembershipsService],
+  exports: [CommunityMembershipsService],
 })
-export class CommunitySubscriptionsModule {}
+export class CommunityMembershipsModule {}
 
 ---
 
@@ -2447,9 +2447,9 @@ import { User } from '../users/entities/user.entity';
 import { CommunitiesService } from '../communities/communities.service';
 import { UsersService } from 'src/users/users.service';
 import { CommunityType } from 'src/communities/types';
-import { CommunitySubscriptionStatus } from './types';
+import { CommunityMembershipStatus } from './types';
 
-interface SubscriptionQuery {
+interface MembershipQuery {
   userId?: number;
   communityId?: number;
   page?: number;
@@ -2457,17 +2457,17 @@ interface SubscriptionQuery {
 }
 
 @Injectable()
-export class CommunitySubscriptionsService {
+export class CommunityMembershipsService {
   constructor(
     @InjectRepository(CommunityMembership)
-    private readonly subscriptionsRepository: Repository<CommunityMembership>,
+    private readonly membershipsRepository: Repository<CommunityMembership>,
     private readonly communitiesService: CommunitiesService,
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
   ) { }
 
 
-  async findSubscriptions(query: SubscriptionQuery): Promise<{ data: CommunityMembership[]; count: number }> {
+  async findMemberships(query: MembershipQuery): Promise<{ data: CommunityMembership[]; count: number }> {
     const where: any = {};
     const relations: string[] = [];
 
@@ -2491,12 +2491,12 @@ export class CommunitySubscriptionsService {
       options.take = limit;
     }
 
-    const [data, count] = await this.subscriptionsRepository.findAndCount(options);
+    const [data, count] = await this.membershipsRepository.findAndCount(options);
     return { data, count };
   }
 
   async findOne(userId: number, communityId: number): Promise<CommunityMembership | null> {
-    return this.subscriptionsRepository.findOne({
+    return this.membershipsRepository.findOne({
       where: { userId, communityId },
     });
   }
@@ -2522,15 +2522,15 @@ export class CommunitySubscriptionsService {
     }
 
 
-    const existingSubscription = await this.subscriptionsRepository.findOne({
+    const existingMembership = await this.membershipsRepository.findOne({
       where: {
         userId: userId,
         communityId: community.id,
       },
     });
 
-    if (existingSubscription) {
-      if (existingSubscription.status === CommunitySubscriptionStatus.BLOCKED) {
+    if (existingMembership) {
+      if (existingMembership.status === CommunityMembershipStatus.BLOCKED) {
         throw new ConflictException(
           `User ${userId} is blocked from community ${community.id}`,
         );
@@ -2541,24 +2541,24 @@ export class CommunitySubscriptionsService {
     }
 
     const communityType = community.communityType;
-    let subscriptionStatus: CommunitySubscriptionStatus;
+    let membershipStatus: CommunityMembershipStatus;
 
     if (activate) {
-      subscriptionStatus = CommunitySubscriptionStatus.ACTIVE;
+      membershipStatus = CommunityMembershipStatus.ACTIVE;
     } else if (communityType === CommunityType.PUBLIC) {
-      subscriptionStatus = CommunitySubscriptionStatus.ACTIVE;
+      membershipStatus = CommunityMembershipStatus.ACTIVE;
     } else {
-      subscriptionStatus = CommunitySubscriptionStatus.PENDING;
+      membershipStatus = CommunityMembershipStatus.PENDING;
     }
 
-    const subscription = this.subscriptionsRepository.create({
+    const membership = this.membershipsRepository.create({
       userId: userId,
       communityId: community.id,
-      status: subscriptionStatus,
+      status: membershipStatus,
     });
 
-    const savedSubscription = await this.subscriptionsRepository.save(
-      subscription,
+    const savedMembership = await this.membershipsRepository.save(
+      membership,
     );
 
     await this.communitiesService.update({
@@ -2566,7 +2566,7 @@ export class CommunitySubscriptionsService {
       subscribersCount: community.subscribersCount + 1,
     });
 
-    return savedSubscription;
+    return savedMembership;
   }
 
   async unsubscribe(communityId: number, userId: number) {
@@ -2584,20 +2584,20 @@ export class CommunitySubscriptionsService {
     }
 
 
-    const existingSubscription = await this.subscriptionsRepository.findOne({
+    const existingMembership = await this.membershipsRepository.findOne({
       where: {
         userId: userId,
         communityId: community.id,
       },
     });
 
-    if (!existingSubscription) {
+    if (!existingMembership) {
       throw new NotFoundException(
         `User ${userId} is not subscribed to community ${community.id}`,
       );
     }
 
-    await this.subscriptionsRepository.remove(existingSubscription);
+    await this.membershipsRepository.remove(existingMembership);
 
     await this.communitiesService.update({
       id: community.id,
@@ -2607,41 +2607,41 @@ export class CommunitySubscriptionsService {
     return { message: 'Unsubscribed successfully' };
   }
 
-  // --- New methods for subscription status checks ---
-  async getSubscriptionStatus(userId: number, communityId: number): Promise<CommunitySubscriptionStatus | null> {
-    const subscription = await this.subscriptionsRepository.findOne({
+  // --- New methods for membership status checks ---
+  async getMembershipStatus(userId: number, communityId: number): Promise<CommunityMembershipStatus | null> {
+    const membership = await this.membershipsRepository.findOne({
       where: { userId, communityId },
       select: ['status'],
     });
-    return subscription ? subscription.status : null;
+    return membership ? membership.status : null;
   }
 
   async isActiveMember(userId: number, communityId: number): Promise<boolean> {
-    const status = await this.getSubscriptionStatus(userId, communityId);
-    return status === CommunitySubscriptionStatus.ACTIVE;
+    const status = await this.getMembershipStatus(userId, communityId);
+    return status === CommunityMembershipStatus.ACTIVE;
   }
 
   async isBlocked(userId: number, communityId: number): Promise<boolean> {
-    const status = await this.getSubscriptionStatus(userId, communityId);
-    return status === CommunitySubscriptionStatus.BLOCKED;
+    const status = await this.getMembershipStatus(userId, communityId);
+    return status === CommunityMembershipStatus.BLOCKED;
   }
 
-  async activateSubscription(
+  async activateMembership(
     userId: number,
     communityId: number,
   ): Promise<CommunityMembership> {
-    const subscription = await this.findOne(userId, communityId);
-    if (!subscription) {
-      throw new NotFoundException('Subscription not found.');
+    const membership = await this.findOne(userId, communityId);
+    if (!membership) {
+      throw new NotFoundException('Membership not found.');
     }
-    if (subscription.status === CommunitySubscriptionStatus.BLOCKED) {
+    if (membership.status === CommunityMembershipStatus.BLOCKED) {
       throw new ConflictException('User is blocked from this community');
     }
-    if (subscription.status === CommunitySubscriptionStatus.ACTIVE) {
-      return subscription;
+    if (membership.status === CommunityMembershipStatus.ACTIVE) {
+      return membership;
     }
-    subscription.status = CommunitySubscriptionStatus.ACTIVE;
-    return this.subscriptionsRepository.save(subscription);
+    membership.status = CommunityMembershipStatus.ACTIVE;
+    return this.membershipsRepository.save(membership);
   }
 }
 
@@ -2658,7 +2658,7 @@ import {
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Community } from '../../communities/entities/community.entity';
-import { CommunitySubscriptionStatus } from '../types';
+import { CommunityMembershipStatus } from '../types';
 
 @Entity('community_memberships')
 export class CommunityMembership {
@@ -2668,14 +2668,14 @@ export class CommunityMembership {
   @PrimaryColumn()
   communityId: number;
 
-  @ManyToOne(() => User, (user) => user.communitySubscriptions)
+  @ManyToOne(() => User, (user) => user.communityMemberships)
   user: User;
 
-  @ManyToOne(() => Community, (community) => community.subscriptions)
+  @ManyToOne(() => Community, (community) => community.memberships)
   community: Community;
 
-  @Column({ type: "simple-enum", enum:CommunitySubscriptionStatus, default: CommunitySubscriptionStatus.PENDING })
-  status: CommunitySubscriptionStatus;
+  @Column({ type: "simple-enum", enum:CommunityMembershipStatus, default: CommunityMembershipStatus.PENDING })
+  status: CommunityMembershipStatus;
 
   @CreateDateColumn()
   createdAt: Date;
@@ -2695,32 +2695,32 @@ import {
   Get,
   Query,
 } from '@nestjs/common';
-import { CommunitySubscriptionsService } from './community-memberships.service';
+import { CommunityMembershipsService } from './community-memberships.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { User } from '../users/entities/user.entity';
-import { CommunitySubscriptionResponseDto } from './dto/community-membership-response.dto';
+import { CommunityMembershipResponseDto } from './dto/community-membership-response.dto';
 import { GetUser } from 'src/decorators/user.decorator';
 import { CommunityMembership } from './entities/community-membership.entity';
-import { CommunitySubscriptionQueryDto } from './dto/community-membership-query.dto';
+import { CommunityMembershipQueryDto } from './dto/community-membership-query.dto';
 import { ResponseDto } from 'src/common/dto/response.dto';
 import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
 import { PaginationMetaDto } from 'src/common/dto/pagination-meta.dto';
 
 @Controller()
-export class CommunitySubscriptionsController {
+export class CommunityMembershipsController {
   constructor(
-    private readonly communitySubscriptionsService: CommunitySubscriptionsService,
+    private readonly communityMembershipsService: CommunityMembershipsService,
   ) { }
 
 
   // Unified GET endpoint
   @Get('community-memberships')
-  async findSubscriptions(
-   @Query() query: CommunitySubscriptionQueryDto,
-  ): Promise<PaginatedResponseDto<CommunitySubscriptionResponseDto>> {
+  async findMemberships(
+   @Query() query: CommunityMembershipQueryDto,
+  ): Promise<PaginatedResponseDto<CommunityMembershipResponseDto>> {
     
 
-    const { data, count } = await this.communitySubscriptionsService.findSubscriptions({
+    const { data, count } = await this.communityMembershipsService.findMemberships({
       userId:query.userId,
       communityId:query.communityId ,
       page:query.page ,
@@ -2734,29 +2734,29 @@ export class CommunitySubscriptionsController {
       data.length,
     );
 
-    return new PaginatedResponseDto(data.map(CommunitySubscriptionResponseDto.fromEntity), paginationMeta);
+    return new PaginatedResponseDto(data.map(CommunityMembershipResponseDto.fromEntity), paginationMeta);
   }
 
 @UseGuards(JwtAuthGuard)
-  @Post('communities/:communityId/subscriptions')
+  @Post('communities/:communityId/memberships')
   async subscribe(
     @Param('communityId', ParseIntPipe) communityId: number,
     @GetUser() user: User,
-  ): Promise<ResponseDto<CommunitySubscriptionResponseDto>> {
-    const subscription = await this.communitySubscriptionsService.subscribe(
+  ): Promise<ResponseDto<CommunityMembershipResponseDto>> {
+    const membership = await this.communityMembershipsService.subscribe(
       communityId,
       user.id,
     );
-    return new ResponseDto(CommunitySubscriptionResponseDto.fromEntity(subscription));
+    return new ResponseDto(CommunityMembershipResponseDto.fromEntity(membership));
   }
   
 @UseGuards(JwtAuthGuard)
-  @Delete('users/me/communities/:communityId/subscriptions')
+  @Delete('users/me/communities/:communityId/memberships')
   async unsubscribe(
     @Param('communityId', ParseIntPipe) communityId: number,
     @GetUser() user: User,
   ): Promise<ResponseDto<boolean>> {
-    await this.communitySubscriptionsService.unsubscribe(communityId, user.id);
+    await this.communityMembershipsService.unsubscribe(communityId, user.id);
     return new ResponseDto(true);
   }
 }
@@ -2770,7 +2770,7 @@ import { IsBoolean, IsNumber, IsOptional, IsString } from 'class-validator';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { Transform } from 'class-transformer';
 
-export class CommunitySubscriptionQueryDto extends PaginationDto {
+export class CommunityMembershipQueryDto extends PaginationDto {
   @IsOptional()
   @IsNumber()
   userId?: number;
@@ -2790,9 +2790,9 @@ import { Expose, Type, plainToInstance } from 'class-transformer';
 import { UserResponseDto } from '../../users/dtos/user-response.dto';
 import { CommunityResponseDto } from '../../communities/dto/community-response.dto';
 import { CommunityMembership } from '../entities/community-membership.entity';
-import { CommunitySubscriptionStatus } from '../types';
+import { CommunityMembershipStatus } from '../types';
 
-export class CommunitySubscriptionResponseDto {
+export class CommunityMembershipResponseDto {
   @Expose()
   userId: number;
 
@@ -2808,15 +2808,15 @@ export class CommunitySubscriptionResponseDto {
   community: CommunityResponseDto;
 
   @Expose()
-  status: CommunitySubscriptionStatus;
+  status: CommunityMembershipStatus;
 
   @Expose()
   createdAt: Date;
 
   static fromEntity(
     entity: CommunityMembership,
-  ): CommunitySubscriptionResponseDto {
-    return plainToInstance(CommunitySubscriptionResponseDto, entity);
+  ): CommunityMembershipResponseDto {
+    return plainToInstance(CommunityMembershipResponseDto, entity);
   }
 }
 
@@ -2826,7 +2826,7 @@ export class CommunitySubscriptionResponseDto {
 ### FILE: src/community-memberships/dto/create-community-membership.dto.ts ###
 import { IsNumber } from 'class-validator';
 
-export class CreateCommunitySubscriptionDto {
+export class CreateCommunityMembershipDto {
   @IsNumber()
   communityId: number;
 }
@@ -4719,7 +4719,7 @@ import { PostReaction } from '../reactions/entities/post-reaction.entity';
 import { CommentReaction } from '../reactions/entities/comment-reaction.entity';
 import { Action } from './casl.types';
 import { Community } from 'src/communities/entities/community.entity';
-import { CommunitySubscriptionStatus } from 'src/community-memberships/types';
+import { CommunityMembershipStatus } from 'src/community-memberships/types';
 import { CommunityType } from 'src/communities/types';
 
 export type Subjects =
@@ -4888,7 +4888,7 @@ import { PostSort } from './dto/post-query.dto';
 import { CommunityType } from 'src/communities/types';
 import { Community } from 'src/communities/entities/community.entity';
 import { CommunityMembership } from 'src/community-memberships/entities/community-membership.entity';
-import { CommunitySubscriptionStatus } from 'src/community-memberships/types';
+import { CommunityMembershipStatus } from 'src/community-memberships/types';
 
 @Injectable()
 export class PostsService {
@@ -4899,7 +4899,7 @@ export class PostsService {
     private readonly communityRepository: Repository<Community>,
 
     @InjectRepository(CommunityMembership)
-    private readonly subscriptionRepository: Repository<CommunityMembership>,) { }
+    private readonly membershipRepository: Repository<CommunityMembership>,) { }
 
   async findAll(
     options: {
@@ -5161,11 +5161,11 @@ export class PostsService {
 
       case CommunityType.RESTRICTED:
       case CommunityType.PRIVATE:
-        const isActive = await this.subscriptionRepository.exist({
+        const isActive = await this.membershipRepository.exist({
           where: {
             userId,
             communityId: community.id,
-            status: CommunitySubscriptionStatus.ACTIVE,
+            status: CommunityMembershipStatus.ACTIVE,
           },
         });
 
@@ -5310,8 +5310,8 @@ import { PaginationMetaDto } from 'src/common/dto/pagination-meta.dto';
 import { OptionalJwtAuthGuard } from 'src/auth/guards/optional-jwt-auth.guard';
 import type { Request } from 'express';
 import { CommunityType } from 'src/communities/types';
-import { Subscription } from 'rxjs';
-import { CommunitySubscriptionStatus } from 'src/community-memberships/types';
+import { Membership } from 'rxjs';
+import { CommunityMembershipStatus } from 'src/community-memberships/types';
 
 @Controller('posts')
 export class PostsController {
@@ -6388,7 +6388,7 @@ import { Community } from './entities/community.entity';
 import { CommunityType } from './types';
 import { User } from '../users/entities/user.entity';
 import { CommunityMembership } from 'src/community-memberships/entities/community-membership.entity';
-import { CommunitySubscriptionStatus } from 'src/community-memberships/types';
+import { CommunityMembershipStatus } from 'src/community-memberships/types';
 
 @Injectable()
 export class CommunitiesService {
@@ -6398,7 +6398,7 @@ export class CommunitiesService {
     @InjectRepository(Community)
     private readonly communityRepository: Repository<Community>,
     @InjectRepository(CommunityMembership)
-    private readonly subscriptionRepository: Repository<CommunityMembership>
+    private readonly membershipRepository: Repository<CommunityMembership>
   ) { }
 
   async create(data: {
@@ -6515,11 +6515,11 @@ export class CommunitiesService {
           throw new ForbiddenException('Login required to view this community');
         }
 
-        const isMember = await this.subscriptionRepository.exist({
+        const isMember = await this.membershipRepository.exist({
           where: {
             userId,
             communityId: community.id,
-            status: CommunitySubscriptionStatus.ACTIVE,
+            status: CommunityMembershipStatus.ACTIVE,
           },
         });
 
@@ -6587,9 +6587,9 @@ ownerId: number;
 
   @OneToMany(
     () => CommunityMembership,
-    (subscription) => subscription.community,
+    (membership) => membership.community,
   )
-  subscriptions: CommunityMembership[];
+  memberships: CommunityMembership[];
 
   @OneToMany(() => CommunityModerator, (communityModerator) => communityModerator.community)
   moderators: CommunityModerator[];
@@ -7238,7 +7238,7 @@ import { PostsModule } from './posts/posts.module';
 import { CommentsModule } from './comments/comments.module';
 import { ReactionsModule } from './reactions/reactions.module';
 import { CommunitiesModule } from './communities/communities.module';
-import { CommunitySubscriptionsModule } from './community-memberships/community-memberships.module';
+import { CommunityMembershipsModule } from './community-memberships/community-memberships.module';
 
 import { User } from './users/entities/user.entity';
 import { Post } from './posts/entities/post.entity';
@@ -7300,7 +7300,7 @@ import { UserReport } from './reports/entities/user-report.entity';
     ResetPasswordModule,
     ProfileModule,
     CommunitiesModule,
-    CommunitySubscriptionsModule,
+    CommunityMembershipsModule,
     CommunityModeratorsModule,
     ReportsModule,
   ],
@@ -7423,9 +7423,9 @@ import { Repository } from 'typeorm';
 import { CommunityModerator } from './entities/community-moderator.entity';
 import { UsersService } from '../users/users.service';
 import { CommunitiesService } from '../communities/communities.service';
-import { CommunitySubscriptionsService } from '../community-memberships/community-memberships.service';
+import { CommunityMembershipsService } from '../community-memberships/community-memberships.service';
 import { User } from 'src/users/entities/user.entity';
-import { CommunitySubscriptionStatus } from 'src/community-memberships/types';
+import { CommunityMembershipStatus } from 'src/community-memberships/types';
 
 @Injectable()
 export class CommunityModeratorsService {
@@ -7434,7 +7434,7 @@ export class CommunityModeratorsService {
     private readonly communityModeratorRepository: Repository<CommunityModerator>,
     private readonly usersService: UsersService,
     private readonly communitiesService: CommunitiesService,
-    private readonly subscriptionsService: CommunitySubscriptionsService,
+    private readonly membershipsService: CommunityMembershipsService,
   ) {}
 
   async create(options: {
@@ -7470,25 +7470,25 @@ export class CommunityModeratorsService {
       throw new ConflictException('User is already a moderator');
     }
 
-    const subscription = await this.subscriptionsService.findOne(
+    const membership = await this.membershipsService.findOne(
       userId,
       communityId,
     );
 
-    if (subscription) {
-      if (subscription.status === CommunitySubscriptionStatus.BLOCKED) {
+    if (membership) {
+      if (membership.status === CommunityMembershipStatus.BLOCKED) {
         throw new BadRequestException(
           'Blocked users cannot be made moderators.',
         );
       }
-      if (subscription.status === CommunitySubscriptionStatus.PENDING) {
-        await this.subscriptionsService.activateSubscription(
+      if (membership.status === CommunityMembershipStatus.PENDING) {
+        await this.membershipsService.activateMembership(
           userId,
           communityId,
         );
       }
     } else {
-      await this.subscriptionsService.subscribe({
+      await this.membershipsService.subscribe({
         userId,
         communityId,
         activate: true,

@@ -10,7 +10,7 @@ import { Community } from './entities/community.entity';
 import { CommunityType } from './types';
 import { User } from '../users/entities/user.entity';
 import { CommunityMembership } from 'src/community-memberships/entities/community-membership.entity';
-import { CommunitySubscriptionStatus } from 'src/community-memberships/types';
+import { CommunityMembershipStatus } from 'src/community-memberships/types';
 
 @Injectable()
 export class CommunitiesService {
@@ -20,7 +20,7 @@ export class CommunitiesService {
     @InjectRepository(Community)
     private readonly communityRepository: Repository<Community>,
     @InjectRepository(CommunityMembership)
-    private readonly subscriptionRepository: Repository<CommunityMembership>
+    private readonly membershipRepository: Repository<CommunityMembership>
   ) { }
 
   async create(data: {
@@ -137,11 +137,11 @@ export class CommunitiesService {
           throw new ForbiddenException('Login required to view this community');
         }
 
-        const isMember = await this.subscriptionRepository.exist({
+        const isMember = await this.membershipRepository.exist({
           where: {
             userId,
             communityId: community.id,
-            status: CommunitySubscriptionStatus.ACTIVE,
+            status: CommunityMembershipStatus.ACTIVE,
           },
         });
 

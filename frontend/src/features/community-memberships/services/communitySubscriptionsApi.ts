@@ -1,44 +1,44 @@
 import { apiSlice } from '../../../shared/services/apiSlice';
-import type { CommunityMembership, CommunitySubscriptionQueryDto } from '../types';
+import type { CommunityMembership, CommunityMembershipQueryDto } from '../types';
 import type { PaginatedResponse, ResponseDto } from '../../../shared/types';
 
-export const communitySubscriptionsApi = apiSlice.injectEndpoints({
+export const communityMembershipsApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
-    getCommunitySubscriptions: builder.query<
+    getCommunityMemberships: builder.query<
       PaginatedResponse<CommunityMembership>,
-      CommunitySubscriptionQueryDto
+      CommunityMembershipQueryDto
     >({
       query: (params) => ({
         url: '/community-memberships',
         params,
       }),
-      providesTags: ['CommunitySubscriptions'],
+      providesTags: ['CommunityMemberships'],
     }),
     subscribeToCommunity: builder.mutation<
       ResponseDto<CommunityMembership>,
       number // communityId
     >({
       query: (communityId) => ({
-        url: `/communities/${communityId}/subscriptions`,
+        url: `/communities/${communityId}/memberships`,
         method: 'POST',
       }),
-      invalidatesTags: ['CommunitySubscriptions', 'Communities'], // Invalidate communities to update subscriber count
+      invalidatesTags: ['CommunityMemberships', 'Communities'], // Invalidate communities to update subscriber count
     }),
     unsubscribeFromCommunity: builder.mutation<
       ResponseDto<boolean>,
       number // communityId
     >({
       query: (communityId) => ({
-        url: `/users/me/communities/${communityId}/subscriptions`,
+        url: `/users/me/communities/${communityId}/memberships`,
         method: 'DELETE',
       }),
-      invalidatesTags: ['CommunitySubscriptions', 'Communities'], // Invalidate communities to update subscriber count
+      invalidatesTags: ['CommunityMemberships', 'Communities'], // Invalidate communities to update subscriber count
     }),
   }),
 });
 
 export const {
-  useGetCommunitySubscriptionsQuery,
+  useGetCommunityMembershipsQuery,
   useSubscribeToCommunityMutation,
   useUnsubscribeFromCommunityMutation,
-} = communitySubscriptionsApi;
+} = communityMembershipsApi;

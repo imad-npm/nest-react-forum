@@ -6,7 +6,7 @@ export interface CommunityMembership {
     createdAt: string;
   }
   
-  export interface CommunitySubscriptionQueryDto {
+  export interface CommunityMembershipQueryDto {
     userId?: number;
     communityId?: number;
     page?: number;

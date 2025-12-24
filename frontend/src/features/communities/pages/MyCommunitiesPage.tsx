@@ -1,5 +1,5 @@
 import React from 'react';
-import { useGetCommunitySubscriptionsQuery } from '../../community-memberships/services/communitySubscriptionsApi';
+import { useGetCommunityMembershipsQuery } from '../../community-memberships/services/communityMembershipsApi';
 import CommunityCard from '../components/CommunityCard'; // Assuming a CommunityCard component exists
 import type { CommunityMembership } from '../../community-memberships/types';
 import type { Community } from '../types';
@@ -8,10 +8,10 @@ import { useAuth } from '../../auth/hooks/useAuth';
 const MyCommunitiesPage: React.FC = () => {
   const { user } = useAuth(); // Get current user from auth context/hook
 
-  const { data, isLoading, isError, error } = useGetCommunitySubscriptionsQuery(
+  const { data, isLoading, isError, error } = useGetCommunityMembershipsQuery(
     {
       userId: user?.id,
-      limit: 100, // Fetch a reasonable number of subscriptions
+      limit: 100, // Fetch a reasonable number of memberships
     },
     { skip: !user?.id } // Skip query if user ID is not available
   );
@@ -25,8 +25,8 @@ const MyCommunitiesPage: React.FC = () => {
     return <div className="text-center mt-8 text-red-500">Error loading your communities.</div>;
   }
 
-  const subscriptions: CommunityMembership[] = data?.data || [];
-  const myCommunities: Community[] = subscriptions.map(sub => sub.community).filter(Boolean) as Community[];
+  const memberships: CommunityMembership[] = data?.data || [];
+  const myCommunities: Community[] = memberships.map(sub => sub.community).filter(Boolean) as Community[];
 
   return (
     <div className="container mx-auto p-4">

@@ -10,9 +10,9 @@ import { Repository } from 'typeorm';
 import { CommunityModerator } from './entities/community-moderator.entity';
 import { UsersService } from '../users/users.service';
 import { CommunitiesService } from '../communities/communities.service';
-import { CommunitySubscriptionsService } from '../community-memberships/community-memberships.service';
+import { CommunityMembershipsService } from '../community-memberships/community-memberships.service';
 import { User } from 'src/users/entities/user.entity';
-import { CommunitySubscriptionStatus } from 'src/community-memberships/types';
+import { CommunityMembershipStatus } from 'src/community-memberships/types';
 
 @Injectable()
 export class CommunityModeratorsService {
@@ -21,7 +21,7 @@ export class CommunityModeratorsService {
     private readonly communityModeratorRepository: Repository<CommunityModerator>,
     private readonly usersService: UsersService,
     private readonly communitiesService: CommunitiesService,
-    private readonly subscriptionsService: CommunitySubscriptionsService,
+    private readonly membershipsService: CommunityMembershipsService,
   ) {}
 
   async create(options: {
@@ -57,25 +57,25 @@ export class CommunityModeratorsService {
       throw new ConflictException('User is already a moderator');
     }
 
-    const subscription = await this.subscriptionsService.findOne(
+    const membership = await this.membershipsService.findOne(
       userId,
       communityId,
     );
 
-    if (subscription) {
-      if (subscription.status === CommunitySubscriptionStatus.BLOCKED) {
+    if (membership) {
+      if (membership.status === CommunityMembershipStatus.BLOCKED) {
         throw new BadRequestException(
           'Blocked users cannot be made moderators.',
         );
       }
-      if (subscription.status === CommunitySubscriptionStatus.PENDING) {
-        await this.subscriptionsService.activateSubscription(
+      if (membership.status === CommunityMembershipStatus.PENDING) {
+        await this.membershipsService.activateMembership(
           userId,
           communityId,
         );
       }
     } else {
-      await this.subscriptionsService.subscribe({
+      await this.membershipsService.subscribe({
         userId,
         communityId,
         activate: true,

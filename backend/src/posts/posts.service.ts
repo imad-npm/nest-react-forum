@@ -6,7 +6,7 @@ import { PostSort } from './dto/post-query.dto';
 import { CommunityType } from 'src/communities/types';
 import { Community } from 'src/communities/entities/community.entity';
 import { CommunityMembership } from 'src/community-memberships/entities/community-membership.entity';
-import { CommunitySubscriptionStatus } from 'src/community-memberships/types';
+import { CommunityMembershipStatus } from 'src/community-memberships/types';
 import { CommunityModerator } from 'src/community-moderators/entities/community-moderator.entity';
 
 @Injectable()
@@ -18,7 +18,7 @@ export class PostsService {
     private readonly communityRepository: Repository<Community>,
 
     @InjectRepository(CommunityMembership)
-    private readonly subscriptionRepository: Repository<CommunityMembership>,
+    private readonly membershipRepository: Repository<CommunityMembership>,
     @InjectRepository(CommunityModerator)
     private readonly communityModeratorRepository) 
     { }
@@ -293,11 +293,11 @@ export class PostsService {
 
       case CommunityType.RESTRICTED:
       case CommunityType.PRIVATE:
-        const isActive = await this.subscriptionRepository.exist({
+        const isActive = await this.membershipRepository.exist({
           where: {
             userId,
             communityId: community.id,
-            status: CommunitySubscriptionStatus.ACTIVE,
+            status: CommunityMembershipStatus.ACTIVE,
           },
         });
 

@@ -9,10 +9,10 @@ import { User } from '../users/entities/user.entity';
 import { CommunitiesService } from '../communities/communities.service';
 import { UsersService } from 'src/users/users.service';
 import { CommunityType } from 'src/communities/types';
-import { CommunitySubscriptionStatus } from './types';
+import { CommunityMembershipStatus } from './types';
 import { CommunityMembership } from './entities/community-memberships.entity';
 
-interface SubscriptionQuery {
+interface MembershipQuery {
   userId?: number;
   communityId?: number;
   page?: number;
@@ -20,17 +20,17 @@ interface SubscriptionQuery {
 }
 
 @Injectable()
-export class CommunitySubscriptionsService {
+export class CommunityMembershipsService {
   constructor(
     @InjectRepository(CommunityMembership)
-    private readonly subscriptionsRepository: Repository<CommunityMembership>,
+    private readonly membershipsRepository: Repository<CommunityMembership>,
     private readonly communitiesService: CommunitiesService,
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
   ) { }
 
 
-  async findSubscriptions(query: SubscriptionQuery): Promise<{ data: CommunityMembership[]; count: number }> {
+  async findMemberships(query: MembershipQuery): Promise<{ data: CommunityMembership[]; count: number }> {
     const where: any = {};
     const relations: string[] = [];
 
@@ -54,12 +54,12 @@ export class CommunitySubscriptionsService {
       options.take = limit;
     }
 
-    const [data, count] = await this.subscriptionsRepository.findAndCount(options);
+    const [data, count] = await this.membershipsRepository.findAndCount(options);
     return { data, count };
   }
 
   async findOne(userId: number, communityId: number): Promise<CommunityMembership | null> {
-    return this.subscriptionsRepository.findOne({
+    return this.membershipsRepository.findOne({
       where: { userId, communityId },
     });
   }
@@ -85,15 +85,15 @@ export class CommunitySubscriptionsService {
     }
 
 
-    const existingSubscription = await this.subscriptionsRepository.findOne({
+    const existingMembership = await this.membershipsRepository.findOne({
       where: {
         userId: userId,
         communityId: community.id,
       },
     });
 
-    if (existingSubscription) {
-      if (existingSubscription.status === CommunitySubscriptionStatus.BLOCKED) {
+    if (existingMembership) {
+      if (existingMembership.status === CommunityMembershipStatus.BLOCKED) {
         throw new ConflictException(
           `User ${userId} is blocked from community ${community.id}`,
         );
@@ -104,24 +104,24 @@ export class CommunitySubscriptionsService {
     }
 
     const communityType = community.communityType;
-    let subscriptionStatus: CommunitySubscriptionStatus;
+    let membershipStatus: CommunityMembershipStatus;
 
     if (activate) {
-      subscriptionStatus = CommunitySubscriptionStatus.ACTIVE;
+      membershipStatus = CommunityMembershipStatus.ACTIVE;
     } else if (communityType === CommunityType.PUBLIC) {
-      subscriptionStatus = CommunitySubscriptionStatus.ACTIVE;
+      membershipStatus = CommunityMembershipStatus.ACTIVE;
     } else {
-      subscriptionStatus = CommunitySubscriptionStatus.PENDING;
+      membershipStatus = CommunityMembershipStatus.PENDING;
     }
 
-    const subscription = this.subscriptionsRepository.create({
+    const membership = this.membershipsRepository.create({
       userId: userId,
       communityId: community.id,
-      status: subscriptionStatus,
+      status: membershipStatus,
     });
 
-    const savedSubscription = await this.subscriptionsRepository.save(
-      subscription,
+    const savedMembership = await this.membershipsRepository.save(
+      membership,
     );
 
     await this.communitiesService.update({
@@ -129,7 +129,7 @@ export class CommunitySubscriptionsService {
       subscribersCount: community.subscribersCount + 1,
     });
 
-    return savedSubscription;
+    return savedMembership;
   }
 
   async unsubscribe(communityId: number, userId: number) {
@@ -147,20 +147,20 @@ export class CommunitySubscriptionsService {
     }
 
 
-    const existingSubscription = await this.subscriptionsRepository.findOne({
+    const existingMembership = await this.membershipsRepository.findOne({
       where: {
         userId: userId,
         communityId: community.id,
       },
     });
 
-    if (!existingSubscription) {
+    if (!existingMembership) {
       throw new NotFoundException(
         `User ${userId} is not subscribed to community ${community.id}`,
       );
     }
 
-    await this.subscriptionsRepository.remove(existingSubscription);
+    await this.membershipsRepository.remove(existingMembership);
 
     await this.communitiesService.update({
       id: community.id,
@@ -170,40 +170,40 @@ export class CommunitySubscriptionsService {
     return { message: 'Unsubscribed successfully' };
   }
 
-  // --- New methods for subscription status checks ---
-  async getSubscriptionStatus(userId: number, communityId: number): Promise<CommunitySubscriptionStatus | null> {
-    const subscription = await this.subscriptionsRepository.findOne({
+  // --- New methods for membership status checks ---
+  async getMembershipStatus(userId: number, communityId: number): Promise<CommunityMembershipStatus | null> {
+    const membership = await this.membershipsRepository.findOne({
       where: { userId, communityId },
       select: ['status'],
     });
-    return subscription ? subscription.status : null;
+    return membership ? membership.status : null;
   }
 
   async isActiveMember(userId: number, communityId: number): Promise<boolean> {
-    const status = await this.getSubscriptionStatus(userId, communityId);
-    return status === CommunitySubscriptionStatus.ACTIVE;
+    const status = await this.getMembershipStatus(userId, communityId);
+    return status === CommunityMembershipStatus.ACTIVE;
   }
 
   async isBlocked(userId: number, communityId: number): Promise<boolean> {
-    const status = await this.getSubscriptionStatus(userId, communityId);
-    return status === CommunitySubscriptionStatus.BLOCKED;
+    const status = await this.getMembershipStatus(userId, communityId);
+    return status === CommunityMembershipStatus.BLOCKED;
   }
 
-  async activateSubscription(
+  async activateMembership(
     userId: number,
     communityId: number,
   ): Promise<CommunityMembership> {
-    const subscription = await this.findOne(userId, communityId);
-    if (!subscription) {
-      throw new NotFoundException('Subscription not found.');
+    const membership = await this.findOne(userId, communityId);
+    if (!membership) {
+      throw new NotFoundException('Membership not found.');
     }
-    if (subscription.status === CommunitySubscriptionStatus.BLOCKED) {
+    if (membership.status === CommunityMembershipStatus.BLOCKED) {
       throw new ConflictException('User is blocked from this community');
     }
-    if (subscription.status === CommunitySubscriptionStatus.ACTIVE) {
-      return subscription;
+    if (membership.status === CommunityMembershipStatus.ACTIVE) {
+      return membership;
     }
-    subscription.status = CommunitySubscriptionStatus.ACTIVE;
-    return this.subscriptionsRepository.save(subscription);
+    membership.status = CommunityMembershipStatus.ACTIVE;
+    return this.membershipsRepository.save(membership);
   }
 }

@@ -1,6 +1,6 @@
 import { IsNumber } from 'class-validator';
 
-export class CreateCommunitySubscriptionDto {
+export class CreateCommunityMembershipDto {
   @IsNumber()
   communityId: number;
 }

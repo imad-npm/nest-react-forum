@@ -10,7 +10,7 @@ import { PostsModule } from './posts/posts.module';
 import { CommentsModule } from './comments/comments.module';
 import { ReactionsModule } from './reactions/reactions.module';
 import { CommunitiesModule } from './communities/communities.module';
-import { CommunitySubscriptionsModule } from './community-memberships/community-memberships.module';
+import { CommunityMembershipsModule } from './community-memberships/community-memberships.module';
 
 import { User } from './users/entities/user.entity';
 import { Post } from './posts/entities/post.entity';
@@ -72,7 +72,7 @@ import { UserReport } from './reports/entities/user-report.entity';
     ResetPasswordModule,
     ProfileModule,
     CommunitiesModule,
-    CommunitySubscriptionsModule,
+    CommunityMembershipsModule,
     CommunityModeratorsModule,
     ReportsModule,
   ],

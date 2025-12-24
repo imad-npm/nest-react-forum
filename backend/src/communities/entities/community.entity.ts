@@ -8,9 +8,8 @@ import {
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Post } from '../../posts/entities/post.entity';
-import { CommunityMembership } from '../../community-memberships/entities/community-membership.entity';
+import { CommunityMembership } from '../../community-memberships/entities/community-memberships.entity';
 import { CommunityType } from '../types';
-import { CommunityModerator } from '../../community-moderators/entities/community-moderator.entity'; // Import CommunityModerator
 
 @Entity('communities')
 export class Community {
@@ -46,10 +45,7 @@ ownerId: number;
 
   @OneToMany(
     () => CommunityMembership,
-    (subscription) => subscription.community,
+    (membership) => membership.community,
   )
-  subscriptions: CommunityMembership[];
-
-  @OneToMany(() => CommunityModerator, (communityModerator) => communityModerator.community)
-  moderators: CommunityModerator[];
+  memberships: CommunityMembership[];
 }

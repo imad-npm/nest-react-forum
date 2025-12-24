@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
-import { CommunitySubscriptionsService } from './community-memberships.service';
-import { CommunitySubscriptionsController } from './community-memberships.controller';
+import { CommunityMembershipsService } from './community-memberships.service';
+import { CommunityMembershipsController } from './community-memberships.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CommunitiesModule } from '../communities/communities.module';
 import { UsersModule } from 'src/users/users.module';
@@ -10,8 +10,8 @@ import { CommunityMembership } from './entities/community-memberships.entity';
 @Module({
   imports: [TypeOrmModule.forFeature([CommunityMembership,User]), 
   CommunitiesModule],
-  controllers: [CommunitySubscriptionsController],
-  providers: [CommunitySubscriptionsService],
-  exports: [CommunitySubscriptionsService],
+  controllers: [CommunityMembershipsController],
+  providers: [CommunityMembershipsService],
+  exports: [CommunityMembershipsService],
 })
-export class CommunitySubscriptionsModule {}
+export class CommunityMembershipsModule {}

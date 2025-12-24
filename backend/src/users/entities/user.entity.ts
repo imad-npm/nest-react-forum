@@ -13,8 +13,7 @@ import { PostReaction } from '../../reactions/entities/post-reaction.entity';
 import { CommentReaction } from '../../reactions/entities/comment-reaction.entity';
 import { Profile } from '../../profile/entities/profile.entity'; // Import Profile
 import { Community } from '../../communities/entities/community.entity';
-import { CommunityMembership } from '../../community-memberships/entities/community-membership.entity';
-import { CommunityModerator } from '../../community-moderators/entities/community-moderator.entity'; // Import CommunityModerator
+import { CommunityMembership } from '../../community-memberships/entities/community-memberships.entity';
 import { PostReport } from '../../reports/entities/post-report.entity';
 import { CommentReport } from '../../reports/entities/comment-report.entity'; // NEW IMPORT
 import { UserReport } from '../../reports/entities/user-report.entity'; // NEW IMPORT
@@ -83,12 +82,9 @@ export class User {
 
   @OneToMany(
     () => CommunityMembership,
-    (communitySubscription) => communitySubscription.user,
+    (communityMembership) => communityMembership.user,
   )
-  communitySubscriptions: CommunityMembership[];
-
-  @OneToMany(() => CommunityModerator, (communityModerator) => communityModerator.moderator)
-  moderatedCommunities: CommunityModerator[];
+  communityMemberships: CommunityMembership[];
 
   @OneToMany(() => PostReport, (postReport) => postReport.reporter)
   postReports: PostReport[];

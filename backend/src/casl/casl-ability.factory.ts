@@ -13,7 +13,7 @@ import { PostReaction } from '../reactions/entities/post-reaction.entity';
 import { CommentReaction } from '../reactions/entities/comment-reaction.entity';
 import { Action } from './casl.types';
 import { Community } from 'src/communities/entities/community.entity';
-import { CommunitySubscriptionStatus } from 'src/community-memberships/types';
+import { CommunityMembershipStatus } from 'src/community-memberships/types';
 import { CommunityType } from 'src/communities/types';
 
 export type Subjects =

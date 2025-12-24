@@ -2,7 +2,7 @@ import { IsBoolean, IsNumber, IsOptional, IsString } from 'class-validator';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { Transform } from 'class-transformer';
 
-export class CommunitySubscriptionQueryDto extends PaginationDto {
+export class CommunityMembershipQueryDto extends PaginationDto {
   @IsOptional()
   @IsNumber()
   userId?: number;

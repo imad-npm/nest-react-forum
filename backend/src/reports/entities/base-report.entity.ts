@@ -30,7 +30,7 @@ export abstract class BaseReport {
   description: string;
 
   @Column({
-    type: 'enum',
+    type: 'simple-enum',
     enum: ReportStatus,
     default: ReportStatus.PENDING,
   })

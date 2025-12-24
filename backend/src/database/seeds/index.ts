@@ -3,7 +3,7 @@ import { seedPosts } from './post.seed';
 import { seedComments } from './comment.seed';
 import { seedReactions } from './reaction.seed';
 import { seedCommunities } from './community.seed';
-import { seedCommunitySubscriptions } from './community-membership.seed';
+import { seedCommunityMemberships } from './community-membership.seed';
 import { AppDataSource } from '../../data-source';
 
 async function main() {
@@ -24,8 +24,8 @@ async function main() {
     // Seed reactions (optional)
     await seedReactions(posts, comments, users);
 
-    // Seed community subscriptions
-    await seedCommunitySubscriptions(users, communities);
+    // Seed community memberships
+    await seedCommunityMemberships(users, communities);
 
     console.log('Database seeding complete ✅');
   } catch (error) {
