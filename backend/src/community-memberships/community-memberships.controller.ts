@@ -51,11 +51,11 @@ export class CommunityMembershipsController {
 
 @UseGuards(JwtAuthGuard)
   @Post('communities/:communityId/memberships')
-  async subscribe(
+  async createMembership(
     @Param('communityId', ParseIntPipe) communityId: number,
     @GetUser() user: User,
   ): Promise<ResponseDto<CommunityMembershipResponseDto>> {
-    const membership = await this.communityMembershipsService.subscribe(
+    const membership = await this.communityMembershipsService.createMembership(
      { communityId,
      userId: user.id,}
     );
@@ -64,11 +64,11 @@ export class CommunityMembershipsController {
   
 @UseGuards(JwtAuthGuard)
   @Delete('users/me/communities/:communityId/memberships')
-  async unsubscribe(
+  async deleteMembership(
     @Param('communityId', ParseIntPipe) communityId: number,
     @GetUser() user: User,
   ): Promise<ResponseDto<boolean>> {
-    await this.communityMembershipsService.unsubscribe(communityId, user.id);
+    await this.communityMembershipsService.deleteMembership(communityId, user.id);
     return new ResponseDto(true);
   }
 }

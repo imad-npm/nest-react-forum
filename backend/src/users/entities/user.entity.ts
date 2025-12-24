@@ -14,6 +14,7 @@ import { CommentReaction } from '../../reactions/entities/comment-reaction.entit
 import { Profile } from '../../profile/entities/profile.entity'; // Import Profile
 import { Community } from '../../communities/entities/community.entity';
 import { CommunityMembership } from '../../community-memberships/entities/community-memberships.entity';
+import { CommunityMembershipRequest } from '../../community-membership-requests/entities/community-membership-request.entity';
 import { PostReport } from '../../reports/entities/post-report.entity';
 import { CommentReport } from '../../reports/entities/comment-report.entity'; // NEW IMPORT
 import { UserReport } from '../../reports/entities/user-report.entity'; // NEW IMPORT
@@ -85,6 +86,12 @@ export class User {
     (communityMembership) => communityMembership.user,
   )
   communityMemberships: CommunityMembership[];
+
+  @OneToMany(
+    () => CommunityMembershipRequest,
+    (request) => request.user,
+  )
+  communityMembershipRequests: CommunityMembershipRequest[];
 
   @OneToMany(() => PostReport, (postReport) => postReport.reporter)
   postReports: PostReport[];

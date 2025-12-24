@@ -31,7 +31,7 @@ export const SubscribeUnsubscribeButton: React.FC<SubscribeUnsubscribeButtonProp
 
   const handleSubscribe = () => {
     if (currentUserId) {
-      subscribe(communityId);
+      createMembership(communityId);
     } else {
       console.log('Please log in to subscribe.');
       // TODO: Implement proper login redirect or prompt
@@ -40,7 +40,7 @@ export const SubscribeUnsubscribeButton: React.FC<SubscribeUnsubscribeButtonProp
 
   const handleUnsubscribe = () => {
     if (currentUserId) {
-      unsubscribe(communityId);
+      deleteMembership(communityId);
     } else {
       console.log('Please log in to unsubscribe.');
       // TODO: Implement proper login redirect or prompt

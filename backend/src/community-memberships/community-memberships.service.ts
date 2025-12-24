@@ -9,7 +9,6 @@ import { User } from '../users/entities/user.entity';
 import { CommunitiesService } from '../communities/communities.service';
 import { UsersService } from 'src/users/users.service';
 import { CommunityType } from 'src/communities/types';
-import { CommunityMembershipStatus } from './types';
 import { CommunityMembership } from './entities/community-memberships.entity';
 
 interface MembershipQuery {
@@ -64,7 +63,7 @@ export class CommunityMembershipsService {
     });
   }
 
-  async subscribe(input: {
+  async createMembership(input: {
     userId: number;
     communityId: number;
     activate?: boolean;
@@ -93,31 +92,18 @@ export class CommunityMembershipsService {
     });
 
     if (existingMembership) {
-      if (existingMembership.status === CommunityMembershipStatus.BLOCKED) {
-        throw new ConflictException(
-          `User ${userId} is blocked from community ${community.id}`,
-        );
-      }
+
       throw new ConflictException(
         `User ${userId} is already subscribed to community ${community.id}`,
       );
     }
 
     const communityType = community.communityType;
-    let membershipStatus: CommunityMembershipStatus;
 
-    if (activate) {
-      membershipStatus = CommunityMembershipStatus.ACTIVE;
-    } else if (communityType === CommunityType.PUBLIC) {
-      membershipStatus = CommunityMembershipStatus.ACTIVE;
-    } else {
-      membershipStatus = CommunityMembershipStatus.PENDING;
-    }
 
     const membership = this.membershipsRepository.create({
       userId: userId,
       communityId: community.id,
-      status: membershipStatus,
     });
 
     const savedMembership = await this.membershipsRepository.save(
@@ -132,7 +118,7 @@ export class CommunityMembershipsService {
     return savedMembership;
   }
 
-  async unsubscribe(communityId: number, userId: number) {
+  async deleteMembership(communityId: number, userId: number) {
 
     // Check community existence
     const community = await this.communitiesService.findOne(communityId);
@@ -170,40 +156,6 @@ export class CommunityMembershipsService {
     return { message: 'Unsubscribed successfully' };
   }
 
-  // --- New methods for membership status checks ---
-  async getMembershipStatus(userId: number, communityId: number): Promise<CommunityMembershipStatus | null> {
-    const membership = await this.membershipsRepository.findOne({
-      where: { userId, communityId },
-      select: ['status'],
-    });
-    return membership ? membership.status : null;
-  }
 
-  async isActiveMember(userId: number, communityId: number): Promise<boolean> {
-    const status = await this.getMembershipStatus(userId, communityId);
-    return status === CommunityMembershipStatus.ACTIVE;
-  }
 
-  async isBlocked(userId: number, communityId: number): Promise<boolean> {
-    const status = await this.getMembershipStatus(userId, communityId);
-    return status === CommunityMembershipStatus.BLOCKED;
-  }
-
-  async activateMembership(
-    userId: number,
-    communityId: number,
-  ): Promise<CommunityMembership> {
-    const membership = await this.findOne(userId, communityId);
-    if (!membership) {
-      throw new NotFoundException('Membership not found.');
-    }
-    if (membership.status === CommunityMembershipStatus.BLOCKED) {
-      throw new ConflictException('User is blocked from this community');
-    }
-    if (membership.status === CommunityMembershipStatus.ACTIVE) {
-      return membership;
-    }
-    membership.status = CommunityMembershipStatus.ACTIVE;
-    return this.membershipsRepository.save(membership);
-  }
 }

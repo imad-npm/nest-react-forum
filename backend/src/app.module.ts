@@ -27,11 +27,12 @@ import { Profile } from './profile/entities/profile.entity';
 import { ProfileModule } from './profile/profile.module';
 import { Community } from './communities/entities/community.entity';
 import { CommunityMembership } from './community-memberships/entities/community-membership.entity';
-import { CommunityModeratorsModule } from './community-moderators/community-moderators.module';
 import { ReportsModule } from './reports/reports.module';
 import { CommentReport } from './reports/entities/comment-report.entity';
 import { PostReport } from './reports/entities/post-report.entity';
 import { UserReport } from './reports/entities/user-report.entity';
+import { CommunityMembershipRequest } from './community-membership-requests/entities/community-membership-request.entity';
+import { CommunityMembershipRequestsModule } from './community-membership-requests/community-membership-requests.module';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { UserReport } from './reports/entities/user-report.entity';
           Profile,
           Community,
           CommunityMembership,
+          CommunityMembershipRequest, // NEW ENTITY
           CommentReport,
           PostReport,
           UserReport,
@@ -73,7 +75,7 @@ import { UserReport } from './reports/entities/user-report.entity';
     ProfileModule,
     CommunitiesModule,
     CommunityMembershipsModule,
-    CommunityModeratorsModule,
+    CommunityMembershipRequestsModule, // NEW MODULE
     ReportsModule,
   ],
   controllers: [AppController],

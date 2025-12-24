@@ -2501,7 +2501,7 @@ export class CommunityMembershipsService {
     });
   }
 
-  async subscribe(input: {
+  async createMembership(input: {
     userId: number;
     communityId: number;
     activate?: boolean;
@@ -2569,7 +2569,7 @@ export class CommunityMembershipsService {
     return savedMembership;
   }
 
-  async unsubscribe(communityId: number, userId: number) {
+  async deleteMembership(communityId: number, userId: number) {
 
     // Check community existence
     const community = await this.communitiesService.findOne(communityId);
@@ -2739,11 +2739,11 @@ export class CommunityMembershipsController {
 
 @UseGuards(JwtAuthGuard)
   @Post('communities/:communityId/memberships')
-  async subscribe(
+  async createMembership(
     @Param('communityId', ParseIntPipe) communityId: number,
     @GetUser() user: User,
   ): Promise<ResponseDto<CommunityMembershipResponseDto>> {
-    const membership = await this.communityMembershipsService.subscribe(
+    const membership = await this.communityMembershipsService.createMembership(
       communityId,
       user.id,
     );
@@ -2752,11 +2752,11 @@ export class CommunityMembershipsController {
   
 @UseGuards(JwtAuthGuard)
   @Delete('users/me/communities/:communityId/memberships')
-  async unsubscribe(
+  async deleteMembership(
     @Param('communityId', ParseIntPipe) communityId: number,
     @GetUser() user: User,
   ): Promise<ResponseDto<boolean>> {
-    await this.communityMembershipsService.unsubscribe(communityId, user.id);
+    await this.communityMembershipsService.deleteMembership(communityId, user.id);
     return new ResponseDto(true);
   }
 }
@@ -7488,7 +7488,7 @@ export class CommunityModeratorsService {
         );
       }
     } else {
-      await this.membershipsService.subscribe({
+      await this.membershipsService.createMembership({
         userId,
         communityId,
         activate: true,

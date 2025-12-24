@@ -9,6 +9,7 @@ import {
 import { User } from '../../users/entities/user.entity';
 import { Post } from '../../posts/entities/post.entity';
 import { CommunityMembership } from '../../community-memberships/entities/community-memberships.entity';
+import { CommunityMembershipRequest } from '../../community-membership-requests/entities/community-membership-request.entity';
 import { CommunityType } from '../types';
 
 @Entity('communities')
@@ -48,4 +49,10 @@ ownerId: number;
     (membership) => membership.community,
   )
   memberships: CommunityMembership[];
+
+  @OneToMany(
+    () => CommunityMembershipRequest,
+    (request) => request.community,
+  )
+  membershipRequests: CommunityMembershipRequest[];
 }

@@ -1,8 +1,7 @@
 import { Expose, Type, plainToInstance } from 'class-transformer';
 import { UserResponseDto } from '../../users/dtos/user-response.dto';
 import { CommunityResponseDto } from '../../communities/dto/community-response.dto';
-import { CommunityMembership } from '../entities/community-membership.entity';
-import { CommunityMembershipStatus } from '../types';
+import { CommunityMembership } from '../entities/community-memberships.entity';
 
 export class CommunityMembershipResponseDto {
   @Expose()
@@ -18,9 +17,6 @@ export class CommunityMembershipResponseDto {
   @Expose()
   @Type(() => CommunityResponseDto)
   community: CommunityResponseDto;
-
-  @Expose()
-  status: CommunityMembershipStatus;
 
   @Expose()
   createdAt: Date;
