@@ -20,7 +20,7 @@ export class EmailVerificationController {
     private readonly service: EmailVerificationService,
     private readonly usersService: UsersService,
     private readonly configService: ConfigService,
-  ) {}
+  ) { }
 
   @Post('resend')
   async resend(@Body() dto: SendVerificationDto): Promise<ResponseDto<null>> {
@@ -31,39 +31,38 @@ export class EmailVerificationController {
     return new ResponseDto(null, 'If the email exists and is not verified, a new verification link has been sent.');
   }
 
-@Get('verify')
-async verify(
-  @Query('token') token: string,
-  @Res() res: Response,
-): Promise<void> {
-  const frontendUrl = this.configService.getOrThrow<string>(
-    'FRONTEND_URL'  );
-  const redirectUrl = new URL(`${frontendUrl}/verify-email`);
+  @Get('verify')
+  async verify(
+    @Query('token') token: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    const frontendUrl = this.configService.getOrThrow<string>(
+      'FRONTEND_URL');
+    const redirectUrl = new URL(`${frontendUrl}/verify-email`);
 
-  if (!token) {
-    redirectUrl.searchParams.set('error', 'Token is required');
+    if (!token) {
+      redirectUrl.searchParams.set('error', 'Token is required');
+      return res.redirect(redirectUrl.toString());
+    }
+
+    try {
+      const userId = await this.service.verifyToken(token);
+      await this.usersService.markEmailAsVerified(userId);
+
+      redirectUrl.searchParams.set('success', '1');
+      redirectUrl.searchParams.set( 'message',
+        'Email verified successfully',
+      );
+    } catch (err) {
+      const message =
+        err instanceof BadRequestException
+          ? err.message
+          : 'Invalid or expired verification token';
+      redirectUrl.searchParams.set('error', '1');
+      redirectUrl.searchParams.set('message', message);
+    }
+
     return res.redirect(redirectUrl.toString());
   }
-
-  try {
-    const userId = await this.service.verifyToken(token);
-    await this.usersService.markEmailAsVerified(userId);
-
-    redirectUrl.searchParams.set('success', '1');
-    redirectUrl.searchParams.set(
-      'message',
-      'Email verified successfully',
-    );
-  } catch (err) {
-    const message =
-      err instanceof BadRequestException
-        ? err.message
-        : 'Invalid or expired verification token';
-    redirectUrl.searchParams.set('error', '1');
-    redirectUrl.searchParams.set('message', message);
-  }
-
-  return res.redirect(redirectUrl.toString());
-}
 
 }

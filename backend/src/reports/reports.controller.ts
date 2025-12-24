@@ -21,20 +21,18 @@ export class ReportsController {
     @Body() createReportDto: CreateReportDto,
     @GetUser() user: User,
   ) {
-    return this.reportsService.create(
-      {
-        entityType: createReportDto.entityType,
-        entityId: createReportDto.entityId,
-        reason: createReportDto.reason,
-        description: createReportDto.description,
-      },
-      user,
-    );
+    return this.reportsService.create(createReportDto, user);
   }
 
   @Get()
-  async findAll(@Query() query: ReportQueryDto): Promise<PaginatedResponseDto<ReportResponseDto>> {
-    const { data, count } = await this.reportsService.findAll(query);
+  async findAll(
+    @Query() query: ReportQueryDto & { communityId?: number },
+    @GetUser() user: User,
+  ): Promise<PaginatedResponseDto<ReportResponseDto>> {
+    const { data, count } = await this.reportsService.findAll({
+      ...query,
+      userId: user.id,
+    });
     const paginationMeta = new PaginationMetaDto(query.page, query.limit, count, data.length); // Use defaulted values
     return new PaginatedResponseDto(data.map(ReportResponseDto.fromEntity), paginationMeta);
   }

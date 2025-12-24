@@ -15,6 +15,12 @@ export class CommentReport extends BaseReport {
   @Column()
   commentId: number;
 
+    @Column()
+  communityId: number;
+
   @ManyToOne(() => Comment, (comment) => comment.reports, { onDelete: 'CASCADE' })
   comment: Comment;
+
+  @Column({ default: false })
+  isPlatformComplaint: boolean;
 }

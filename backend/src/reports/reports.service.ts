@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from 'src/users/entities/user.entity';
@@ -8,14 +12,24 @@ import { CommentReport } from './entities/comment-report.entity';
 import { PostReport } from './entities/post-report.entity';
 import { UserReport } from './entities/user-report.entity';
 import { ReportStatus } from './entities/base-report.entity';
-import { ReportQueryDto } from './dto/report-query.dto';
+import { CommunityModerator } from 'src/community-moderators/entities/community-moderator.entity';
 
-interface CreateReportData {
-  entityType: 'comment' | 'post' | 'user';
-  entityId: number;
-  reason: string;
-  description?: string;
-}
+const PLATFORM_COMPLAINT_REASONS = [
+  'HARASSMENT',
+  'VIOLENCE',
+  'HATE_CONTENT',
+  'MINOR_ABUSE_OR_SEXUALIZATION',
+  'PII',
+  'INVOLUNTARY_PORN',
+  'PROHIBITED_SALES',
+  'IMPERSONATION',
+  'MANIPULATED_CONTENT',
+  'COPYRIGHT',
+  'TRADEMARK',
+  'SELF_HARM',
+  'SPAM',
+  'CONTRIBUTOR_PROGRAM',
+];
 
 @Injectable()
 export class ReportsService {
@@ -37,56 +51,129 @@ export class ReportsService {
 
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
+
+    @InjectRepository(CommunityModerator)
+    private readonly communityModeratorRepository: Repository<CommunityModerator>,
   ) {}
 
-  async create(data: CreateReportData, reporter: User) {
-    const { entityType, entityId, reason, description } = data;
+  async create(
+    {
+      entityType,
+      entityId,
+      reason,
+      description,
+    }: {
+      entityType: 'comment' | 'post' | 'user';
+      entityId: number;
+      reason: string;
+      description?: string;
+    },
+    reporter: User,
+  ) {
+    const isPlatformComplaint = PLATFORM_COMPLAINT_REASONS.includes(
+      reason.toUpperCase(),
+    );
 
     if (entityType === 'comment') {
-      const exists = await this.commentsRepository.exist({ where: { id: entityId } });
-      if (!exists) throw new NotFoundException('Comment not found');
+      const entity = await this.commentsRepository.findOne({
+        where: { id: entityId },
+      });
+      if (!entity) throw new NotFoundException('Comment not found');
+
+      const existingReport = await this.commentReportRepository.findOne({
+        where: { commentId: entityId, reporterId: reporter.id },
+      });
+      if (existingReport) {
+        throw new ConflictException('You have already reported this comment');
+      }
 
       const report = this.commentReportRepository.create({
         reporterId: reporter.id,
         commentId: entityId,
         reason,
         description,
+        isPlatformComplaint,
       });
       return this.commentReportRepository.save(report);
     }
 
     if (entityType === 'post') {
-      const exists = await this.postsRepository.exist({ where: { id: entityId } });
-      if (!exists) throw new NotFoundException('Post not found');
+      const entity = await this.postsRepository.findOne({
+        where: { id: entityId },
+      });
+      if (!entity) throw new NotFoundException('Post not found');
+
+      const existingReport = await this.postReportRepository.findOne({
+        where: { postId: entityId, reporterId: reporter.id },
+      });
+      if (existingReport) {
+        throw new ConflictException('You have already reported this post');
+      }
 
       const report = this.postReportRepository.create({
         reporterId: reporter.id,
         postId: entityId,
         reason,
         description,
+        isPlatformComplaint,
+        communityId: (entity as Post).communityId,
       });
       return this.postReportRepository.save(report);
     }
 
     if (entityType === 'user') {
-      const exists = await this.usersRepository.exist({ where: { id: entityId } });
-      if (!exists) throw new NotFoundException('User not found');
+      const entity = await this.usersRepository.findOne({
+        where: { id: entityId },
+      });
+      if (!entity) throw new NotFoundException('User not found');
+
+      if (entity.id === reporter.id) {
+        throw new ConflictException('You cannot report yourself');
+      }
+
+      const existingReport = await this.userReportRepository.findOne({
+        where: { reportedUserId: entityId, reporterId: reporter.id },
+      });
+      if (existingReport) {
+        throw new ConflictException('You have already reported this user');
+      }
 
       const report = this.userReportRepository.create({
         reporterId: reporter.id,
         reportedUserId: entityId,
         reason,
         description,
+        isPlatformComplaint,
       });
       return this.userReportRepository.save(report);
     }
   }
 
-  async findAll(
-    query: ReportQueryDto,
-  ): Promise<{ data: (CommentReport | PostReport | UserReport)[]; count: number }> {
-    const { page = 1, limit = 10, status, entityType, reporterId } = query;
+  async findAll({
+    page = 1,
+    limit = 10,
+    status,
+    entityType,
+    reporterId,
+    userId,
+    communityId,
+  }: {
+    page?: number;
+    limit?: number;
+    status?: ReportStatus;
+    entityType?: 'comment' | 'post' | 'user';
+    reporterId?: number;
+    userId: number;
+    communityId?: number;
+  }): Promise<{ data: (CommentReport | PostReport | UserReport)[]; count: number }> {
     const offset = (page - 1) * limit;
+
+    const user = await this.usersRepository.findOne({ where: { id: userId } });
+    const isModerator =
+      communityId &&
+      (await this.communityModeratorRepository.findOne({
+        where: { moderatorId: userId, communityId },
+      }));
 
     const parameters: any[] = [];
     let paramIndex = 1;
@@ -108,6 +195,15 @@ export class ReportsService {
         parameters.push(reporterId);
       }
 
+      if (user.role === 'admin') {
+        whereClauses.push(`"isPlatformComplaint" = TRUE`);
+      } else if (isModerator && communityId) {
+        whereClauses.push(`"communityId" = $${paramIndex++}`);
+        parameters.push(communityId);
+      } else {
+        whereClauses.push(`"isPlatformComplaint" = FALSE`);
+      }
+
       if (entityType && entityType !== type) return null;
 
       const where =
@@ -122,6 +218,8 @@ export class ReportsService {
           status,
           "createdAt",
           "updatedAt",
+          "isPlatformComplaint",
+          "communityId",
           ${specificIdColumn} AS "entitySpecificId",
           '${type}' AS "entityType"
         FROM ${tableName}
@@ -168,6 +266,8 @@ export class ReportsService {
       status: item.status,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
+      isPlatformComplaint: item.isPlatformComplaint,
+      communityId: item.communityId,
       entityType: item.entityType,
       commentId: item.entityType === 'comment' ? item.entitySpecificId : undefined,
       postId: item.entityType === 'post' ? item.entitySpecificId : undefined,
@@ -201,6 +301,13 @@ export class ReportsService {
     entityType: 'comment' | 'post' | 'user',
   ) {
     const report = await this.findOne(id, entityType);
+
+    if (report.status === status) {
+      throw new ConflictException(
+        `Report is already with status "${status}"`,
+      );
+    }
+
     report.status = status;
 
     if (entityType === 'comment') {

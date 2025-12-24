@@ -16,4 +16,7 @@ export class UserReport extends BaseReport {
 
   @ManyToOne(() => User, (user) => user.userReports, { onDelete: 'CASCADE' })
   reportedUser: User;
+
+  @Column({ default: false })
+  isPlatformComplaint: boolean;
 }

@@ -41,4 +41,5 @@ export abstract class BaseReport {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
 }

@@ -17,4 +17,9 @@ export class ReportQueryDto extends PaginationDto {
   @Transform(({ value }) => parseInt(value, 10))
   @IsNumber()
   reporterId?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => parseInt(value, 10))
+  @IsNumber()
+  communityId?: number;
 }

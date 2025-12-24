@@ -16,6 +16,13 @@ export class PostReport extends BaseReport {
   @Column()
   postId: number;
 
+
+  @Column()
+  communityId: number;
+
   @ManyToOne(() => Post, (post) => post.reports, { onDelete: 'CASCADE' })
   post: Post;
+
+  @Column({ default: false })
+  isPlatformComplaint: boolean;
 }
