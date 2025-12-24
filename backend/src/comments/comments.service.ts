@@ -1,16 +1,20 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm'; // Added DataSource
 import { Comment } from './entities/comment.entity';
+import { Post } from 'src/posts/entities/post.entity'; // Added Post entity
 
-import { PostsService } from 'src/posts/posts.service';
+// import { PostsService } from 'src/posts/posts.service'; // Removed PostsService
 
 @Injectable()
 export class CommentsService {
   constructor(
     @InjectRepository(Comment)
     private readonly commentRepo: Repository<Comment>,
-    private readonly postsService: PostsService, // Inject PostsService
+    // private readonly postsService: PostsService, // Removed PostsService
+    @InjectRepository(Post) // Injected Post repository
+    private readonly postRepo: Repository<Post>,
+    private dataSource: DataSource, // Injected DataSource
   ) { }
 
   async findAll(options: {
@@ -165,45 +169,57 @@ export class CommentsService {
     userId: number,
     parentId?: number,
   ) {
-    // We get the post via postsService.findOne to ensure consistency and proper typeorm relations loading
-    const post = await this.postsService.findOne(postId);
-    if (!post) {
-      throw new NotFoundException('Post not found');
-    }
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    if (post.commentsLocked) {
-      throw new BadRequestException('Comments are locked for this post.');
-    }
-
-    
-    const comment = this.commentRepo.create({
-      content,
-      authorId: userId,
-      post: post,
-    });
-
-    if (parentId) {
-      const parent = await this.commentRepo.findOne({
-        where: { id: parentId },
-        relations: ['post'],
-      });
-      if (!parent)
-        throw new NotFoundException('Parent comment not found');
-      if (parent.post.id !== postId) {
-        throw new BadRequestException(
-          'Parent comment does not belong to this post',
-        );
+    try {
+      // Get the post directly
+      const post = await queryRunner.manager.findOne(Post, { where: { id: postId } });
+      if (!post) {
+        throw new NotFoundException('Post not found');
       }
-      comment.parent = parent;
-      await this.incrementRepliesCount(parentId);
+
+      if (post.commentsLocked) {
+        throw new BadRequestException('Comments are locked for this post.');
+      }
+
+      
+      const comment = queryRunner.manager.create(Comment, {
+        content,
+        authorId: userId,
+        post: post,
+      });
+
+      if (parentId) {
+        const parent = await queryRunner.manager.findOne(Comment, {
+          where: { id: parentId },
+          relations: ['post'],
+        });
+        if (!parent)
+          throw new NotFoundException('Parent comment not found');
+        if (parent.post.id !== postId) {
+          throw new BadRequestException(
+            'Parent comment does not belong to this post',
+          );
+        }
+        comment.parent = parent;
+        await queryRunner.manager.increment(Comment, { id: parentId }, 'repliesCount', 1); // Increment repliesCount directly
+      }
+
+      const savedComment = await queryRunner.manager.save(comment);
+
+      // Increment commentsCount on the post directly
+      await queryRunner.manager.increment(Post, { id: postId }, 'commentsCount', 1);
+
+      await queryRunner.commitTransaction();
+      return savedComment;
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
     }
-
-    const savedComment = await this.commentRepo.save(comment);
-
-    // Increment commentsCount on the post using PostsService
-    await this.postsService.incrementCommentsCount(post.id);
-
-    return savedComment;
   }
 
   async update(
@@ -226,49 +242,40 @@ export class CommentsService {
   }
 
   async remove(id: number): Promise<boolean> {
-    const comment = await this.commentRepo.findOne({
-      where: { id },
-      relations: ['post', 'parent'], // Load post and parent relation to update counts
-    });
-    if (!comment) {
-      throw new NotFoundException('Comment not found');
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const comment = await queryRunner.manager.findOne(Comment, {
+        where: { id },
+        relations: ['post', 'parent'], // Load post and parent relation to update counts
+      });
+      if (!comment) {
+        throw new NotFoundException('Comment not found');
+      }
+
+      // Decrement commentsCount on the post directly
+      if (comment.post) {
+        await queryRunner.manager.decrement(Post, { id: comment.post.id }, 'commentsCount', 1);
+      }
+
+      // Decrement repliesCount on the parent comment directly
+      if (comment.parent) {
+        await queryRunner.manager.decrement(Comment, { id: comment.parent.id }, 'repliesCount', 1);
+      }
+
+      await queryRunner.manager.remove(comment);
+      await queryRunner.commitTransaction();
+      return true;
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
     }
-
-    // Decrement commentsCount on the post using PostsService
-    if (comment.post) {
-      await this.postsService.decrementCommentsCount(comment.post.id);
-    }
-
-    // Decrement repliesCount on the parent comment
-    if (comment.parent) {
-      await this.decrementRepliesCount(comment.parent.id);
-    }
-
-    await this.commentRepo.remove(comment);
-    return true;
   }
 
-  async incrementLikesCount(commentId: number): Promise<void> {
-    await this.commentRepo.increment({ id: commentId }, 'likesCount', 1);
-  }
 
-  async decrementLikesCount(commentId: number): Promise<void> {
-    await this.commentRepo.decrement({ id: commentId }, 'likesCount', 1);
-  }
 
-  async incrementDislikesCount(commentId: number): Promise<void> {
-    await this.commentRepo.increment({ id: commentId }, 'dislikesCount', 1);
-  }
-
-  async decrementDislikesCount(commentId: number): Promise<void> {
-    await this.commentRepo.decrement({ id: commentId }, 'dislikesCount', 1);
-  }
-
-  async incrementRepliesCount(commentId: number): Promise<void> {
-    await this.commentRepo.increment({ id: commentId }, 'repliesCount', 1);
-  }
-
-  async decrementRepliesCount(commentId: number): Promise<void> {
-    await this.commentRepo.decrement({ id: commentId }, 'repliesCount', 1);
-  }
 }

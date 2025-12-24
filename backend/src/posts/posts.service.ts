@@ -255,29 +255,9 @@ export class PostsService {
   }
 
 
-  async incrementCommentsCount(postId: number): Promise<void> {
-    await this.postsRepository.increment({ id: postId }, 'commentsCount', 1);
-  }
 
-  async decrementCommentsCount(postId: number): Promise<void> {
-    await this.postsRepository.decrement({ id: postId }, 'commentsCount', 1);
-  }
 
-  async incrementLikesCount(postId: number): Promise<void> {
-    await this.postsRepository.increment({ id: postId }, 'likesCount', 1);
-  }
 
-  async decrementLikesCount(postId: number): Promise<void> {
-    await this.postsRepository.decrement({ id: postId }, 'likesCount', 1);
-  }
-
-  async incrementDislikesCount(postId: number): Promise<void> {
-    await this.postsRepository.increment({ id: postId }, 'dislikesCount', 1);
-  }
-
-  async decrementDislikesCount(postId: number): Promise<void> {
-    await this.postsRepository.decrement({ id: postId }, 'dislikesCount', 1);
-  }
 
   async incrementViews(postId: number): Promise<void> {
     await this.postsRepository.increment({ id: postId }, 'views', 1);

@@ -5,14 +5,16 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm'; // Added DataSource
 
 import { PostReaction } from './entities/post-reaction.entity';
 import { CommentReaction } from './entities/comment-reaction.entity';
 import { ReactionType } from './reactions.types';
-import { PostsService } from 'src/posts/posts.service';
-import { CommentsService } from 'src/comments/comments.service';
+// import { PostsService } from 'src/posts/posts.service'; // Removed
+// import { CommentsService } from 'src/comments/comments.service'; // Removed
 import { UpdateReactionDto } from './dto/update-reaction.dto';
+import { Post } from 'src/posts/entities/post.entity'; // Added Post entity
+import { Comment } from 'src/comments/entities/comment.entity'; // Added Comment entity
 
 @Injectable()
 export class ReactionsService {
@@ -23,8 +25,13 @@ export class ReactionsService {
     @InjectRepository(CommentReaction)
     private readonly commentReactionRepo: Repository<CommentReaction>,
 
-    private readonly postsService: PostsService,
-    private readonly commentsService: CommentsService,
+    // private readonly postsService: PostsService, // Removed
+    // private readonly commentsService: CommentsService, // Removed
+    @InjectRepository(Post) // Injected Post repository
+    private readonly postRepo: Repository<Post>,
+    @InjectRepository(Comment) // Injected Comment repository
+    private readonly commentRepo: Repository<Comment>,
+    private dataSource: DataSource, // Injected DataSource
   ) { }
 
   // ─────────────────────────────────────────────
@@ -51,62 +58,71 @@ export class ReactionsService {
       );
     }
 
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    if (postId) {
-      const post = await this.postsService.findOne(postId);
-      if (!post) throw new NotFoundException(`Post with ID ${postId} not found`);
+    try {
+      if (postId) {
+        const post = await queryRunner.manager.findOne(Post, { where: { id: postId } });
+        if (!post) throw new NotFoundException(`Post with ID ${postId} not found`);
 
-      const existing = await this.postReactionRepo.findOne({
-        where: { userId, postId },
-      });
-      console.log(existing);
-      
-      if (existing) {
-        throw new ForbiddenException(
-          'You already reacted to this post',
-        );
+        const existing = await queryRunner.manager.findOne(PostReaction, {
+          where: { userId, postId },
+        });
+        
+        if (existing) {
+          throw new ForbiddenException(
+            'You already reacted to this post',
+          );
+        }
+
+        const newReaction = queryRunner.manager.create(PostReaction, { type, userId, postId });
+        await queryRunner.manager.save(newReaction);
+
+        if (newReaction.type === ReactionType.LIKE) {
+          await queryRunner.manager.increment(Post, { id: postId }, 'likesCount', 1);
+        } else {
+          await queryRunner.manager.increment(Post, { id: postId }, 'dislikesCount', 1);
+        }
+        await queryRunner.commitTransaction();
+        return newReaction;
       }
+      else if (commentId) {
+        const comment = await queryRunner.manager.findOne(Comment, { where: { id: commentId } });
+        if (!comment) throw new NotFoundException(`Comment with ID ${commentId} not found`);
 
-      const newReaction = await this.postReactionRepo.save(
-        this.postReactionRepo.create({ type, userId, postId }),
+        const existing = await queryRunner.manager.findOne(CommentReaction, {
+          where: { userId, commentId },
+        });
+
+        if (existing) {
+          throw new ForbiddenException(
+            'You already reacted to this comment',
+          );
+        }
+
+        const newReaction = queryRunner.manager.create(CommentReaction, { type, userId, commentId });
+        await queryRunner.manager.save(newReaction);
+
+        if (newReaction.type === ReactionType.LIKE) {
+          await queryRunner.manager.increment(Comment, { id: commentId }, 'likesCount', 1);
+        } else {
+          await queryRunner.manager.increment(Comment, { id: commentId }, 'dislikesCount', 1);
+        }
+        await queryRunner.commitTransaction();
+        return newReaction;
+      }
+      throw new BadRequestException(
+        'Reaction must target either a post or a comment',
       );
-      if (newReaction.type === ReactionType.LIKE) {
-        await this.postsService.incrementLikesCount(postId);
-      } else {
-        await this.postsService.incrementDislikesCount(postId);
-      }
-      return newReaction;
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
     }
-    else if (commentId) {
-      const comment = await this.commentsService.findOne(commentId);
-      if (!comment) throw new NotFoundException(`Comment with ID ${commentId} not found`);
-
-      const existing = await this.commentReactionRepo.findOne({
-        where: { userId, commentId },
-      });
-
-      if (existing) {
-        throw new ForbiddenException(
-          'You already reacted to this comment',
-        );
-      }
-
-      const newReaction = await this.commentReactionRepo.save(
-        this.commentReactionRepo.create({ type, userId, commentId }),
-      );
-      if (newReaction.type === ReactionType.LIKE) {
-        await this.commentsService.incrementLikesCount(commentId);
-      } else {
-        await this.commentsService.incrementDislikesCount(commentId);
-      }
-      return newReaction;
-    }
-    throw new BadRequestException(
-      'Reaction must target either a post or a comment',
-    );
-
-  }
-  async findByPost({
+  }  async findByPost({
     postId,
     page = 1,
     limit = 10,
@@ -193,32 +209,49 @@ export class ReactionsService {
   id: number;
   type: ReactionType;
 }) {
-  const reaction = await this.postReactionRepo.findOneBy({ id });
-  if (!reaction) throw new NotFoundException('Post reaction not found');
-  
-  // Return early if no change
-  if (reaction.type === type) return reaction;
+  const queryRunner = this.dataSource.createQueryRunner();
+  await queryRunner.connect();
+  await queryRunner.startTransaction();
 
-  const oldType = reaction.type;
-  const newType = type;
-  const postId = reaction.postId;
+  try {
+    const reaction = await queryRunner.manager.findOne(PostReaction, { where: { id } });
+    if (!reaction) throw new NotFoundException('Post reaction not found');
+    
+    // Return early if no change
+    if (reaction.type === type) {
+      await queryRunner.commitTransaction();
+      return reaction;
+    }
 
-  // Update counters based on change
-  if (oldType === ReactionType.LIKE) {
-    await this.postsService.decrementLikesCount(postId);
-  } else if (oldType === ReactionType.DISLIKE) {
-    await this.postsService.decrementDislikesCount(postId);
+    const oldType = reaction.type;
+    const newType = type;
+    const postId = reaction.postId;
+
+    // Update counters based on change
+    if (oldType === ReactionType.LIKE) {
+      await queryRunner.manager.decrement(Post, { id: postId }, 'likesCount', 1);
+    } else if (oldType === ReactionType.DISLIKE) {
+      await queryRunner.manager.decrement(Post, { id: postId }, 'dislikesCount', 1);
+    }
+
+    if (newType === ReactionType.LIKE) {
+      await queryRunner.manager.increment(Post, { id: postId }, 'likesCount', 1);
+    } else if (newType === ReactionType.DISLIKE) {
+      await queryRunner.manager.increment(Post, { id: postId }, 'dislikesCount', 1);
+    }
+
+    // Update reaction type
+    reaction.type = newType;
+    await queryRunner.manager.save(reaction);
+
+    await queryRunner.commitTransaction();
+    return reaction;
+  } catch (err) {
+    await queryRunner.rollbackTransaction();
+    throw err;
+  } finally {
+    await queryRunner.release();
   }
-
-  if (newType === ReactionType.LIKE) {
-    await this.postsService.incrementLikesCount(postId);
-  } else if (newType === ReactionType.DISLIKE) {
-    await this.postsService.incrementDislikesCount(postId);
-  }
-
-  // Update reaction type
-  reaction.type = newType;
-  return this.postReactionRepo.save(reaction);
 }
 
 async updateCommentReaction({
@@ -228,73 +261,106 @@ async updateCommentReaction({
   id: number;
   type: ReactionType;
 }) {
-  const reaction = await this.commentReactionRepo.findOneBy({ id });
-  if (!reaction) throw new NotFoundException('Comment reaction not found');
+  const queryRunner = this.dataSource.createQueryRunner();
+  await queryRunner.connect();
+  await queryRunner.startTransaction();
 
-  // Return early if no change
-  if (reaction.type === type) return reaction;
+  try {
+    const reaction = await queryRunner.manager.findOne(CommentReaction, { where: { id } });
+    if (!reaction) throw new NotFoundException('Comment reaction not found');
 
-  const oldType = reaction.type;
-  const newType = type;
-  const commentId = reaction.commentId;
+    // Return early if no change
+    if (reaction.type === type) {
+      await queryRunner.commitTransaction();
+      return reaction;
+    }
 
-  // Update counters based on change
-  if (oldType === ReactionType.LIKE) {
-    await this.commentsService.decrementLikesCount(commentId);
-  } else if (oldType === ReactionType.DISLIKE) {
-    await this.commentsService.decrementDislikesCount(commentId);
+    const oldType = reaction.type;
+    const newType = type;
+    const commentId = reaction.commentId;
+
+    // Update counters based on change
+    if (oldType === ReactionType.LIKE) {
+      await queryRunner.manager.decrement(Comment, { id: commentId }, 'likesCount', 1);
+    } else if (oldType === ReactionType.DISLIKE) {
+      await queryRunner.manager.decrement(Comment, { id: commentId }, 'dislikesCount', 1);
+    }
+
+    if (newType === ReactionType.LIKE) {
+      await queryRunner.manager.increment(Comment, { id: commentId }, 'likesCount', 1);
+    } else if (newType === ReactionType.DISLIKE) {
+      await queryRunner.manager.increment(Comment, { id: commentId }, 'dislikesCount', 1);
+    }
+
+    // Update reaction type
+    reaction.type = newType;
+    await queryRunner.manager.save(reaction);
+
+    await queryRunner.commitTransaction();
+    return reaction;
+  } catch (err) {
+    await queryRunner.rollbackTransaction();
+    throw err;
+  } finally {
+    await queryRunner.release();
   }
-
-  if (newType === ReactionType.LIKE) {
-    await this.commentsService.incrementLikesCount(commentId);
-  } else if (newType === ReactionType.DISLIKE) {
-    await this.commentsService.incrementDislikesCount(commentId);
-  }
-
-  // Update reaction type
-  reaction.type = newType;
-  return this.commentReactionRepo.save(reaction);
 }
   // ─────────────────────────────────────────────
   // DELETE
   // ─────────────────────────────────────────────
   async deletePostReaction(id: number) {
-    const reaction = await this.postReactionRepo.findOneBy({ id });
-    if (!reaction) {
-      throw new NotFoundException('Post reaction not found');
-    }
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    const result = await this.postReactionRepo.delete(id);
-    if (result.affected) {
-      const post = await this.postsService.findOne(reaction.postId);
-      if (!post) throw new NotFoundException(`Post with ID               
-     ${reaction.postId} not found`);
-
-      if (reaction.type === ReactionType.LIKE) {
-        await this.postsService.decrementLikesCount(reaction.postId);
-      } else {
-        await this.postsService.decrementDislikesCount(reaction.postId);
+    try {
+      const reaction = await queryRunner.manager.findOne(PostReaction, { where: { id } });
+      if (!reaction) {
+        throw new NotFoundException('Post reaction not found');
       }
+
+      const result = await queryRunner.manager.delete(PostReaction, id);
+      if (result.affected) {
+        // No need to fetch post explicitly, can directly decrement
+        if (reaction.type === ReactionType.LIKE) {
+          await queryRunner.manager.decrement(Post, { id: reaction.postId }, 'likesCount', 1);
+        } else {
+          await queryRunner.manager.decrement(Post, { id: reaction.postId }, 'dislikesCount', 1);
+        }
+      }
+      await queryRunner.commitTransaction();
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
     }
   }
-
   async deleteCommentReaction(id: number) {
-    const reaction = await this.commentReactionRepo.findOneBy({ id });
-    if (!reaction) {
-      throw new NotFoundException('Comment reaction not found');
-    }
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    const result = await this.commentReactionRepo.delete(id);
-    if (result.affected) {
-      const comment = await this.commentsService.findOne(reaction.commentId);
-      if (!comment) throw new NotFoundException(`Comment with ID               
-     ${reaction.commentId} not found`);
-
-      if (reaction.type === ReactionType.LIKE) {
-        await this.commentsService.decrementLikesCount(reaction.commentId);
-      } else {
-        await this.commentsService.decrementDislikesCount(reaction.commentId);
+    try {
+      const reaction = await queryRunner.manager.findOne(CommentReaction, { where: { id } });
+      if (!reaction) {
+        throw new NotFoundException('Comment reaction not found');
       }
+
+      const result = await queryRunner.manager.delete(CommentReaction, id);
+      if (result.affected) {
+        // No need to fetch comment explicitly, can directly decrement
+        if (reaction.type === ReactionType.LIKE) {
+          await queryRunner.manager.decrement(Comment, { id: reaction.commentId }, 'likesCount', 1);
+        } else {
+          await queryRunner.manager.decrement(Comment, { id: reaction.commentId }, 'dislikesCount', 1);
+        }
+      }
+      await queryRunner.commitTransaction();
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
     }
-  }
-}
+  }}
