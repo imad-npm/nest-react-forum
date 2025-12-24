@@ -8,7 +8,7 @@ import {
   CommunityMembershipRequest,
   CommunityMembershipRequestStatus,
 } from './entities/community-membership-request.entity';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm'; // Added DataSource
 import { CommunityMembership } from '../community-memberships/entities/community-memberships.entity';
 import { User } from '../users/entities/user.entity';
 import { Community } from '../communities/entities/community.entity';
@@ -26,96 +26,127 @@ export class CommunityMembershipRequestsService {
     private readonly userRepository: Repository<User>,
     @InjectRepository(Community)
     private readonly communityRepository: Repository<Community>,
+    private dataSource: DataSource, // Injected DataSource
   ) {}
 
   async createMembershipRequest(userId: number, communityId: number) {
-    const user = await this.userRepository.findOneBy({ id: userId });
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    const community = await this.communityRepository.findOne({
-      where: { id: communityId },
-      select: ['id', 'ownerId', 'communityType'], // Select communityType
-    });
-    if (!community) {
-      throw new NotFoundException('Community not found');
-    }
-
-    const existingMembership = await this.membershipRepository.findOne({
-      where: { userId, communityId },
-    });
-    if (existingMembership) {
-      throw new BadRequestException('User is already a member of this community');
-    }
-
-    // If community is public, create membership directly
-    if (community.communityType === CommunityType.PUBLIC) {
-      const membership = this.membershipRepository.create({
-        userId,
-        communityId,
-        role: CommunityMembershipRole.MEMBER, // Default role for auto-membership
-      });
-      return this.membershipRepository.save(membership);
-    } else {
-      // For restricted or private communities, create a pending request
-      const existingRequest = await this.requestRepository.findOne({
-        where: { userId, communityId, status: CommunityMembershipRequestStatus.PENDING },
-      });
-      if (existingRequest) {
-        throw new BadRequestException('Pending request already exists');
+    try {
+      const user = await queryRunner.manager.findOne(User, { where: { id: userId } });
+      if (!user) {
+        throw new NotFoundException('User not found');
       }
 
-      const request = this.requestRepository.create({
-        userId,
-        communityId,
+      const community = await queryRunner.manager.findOne(Community, {
+        where: { id: communityId },
+        select: ['id', 'ownerId', 'communityType'], // Select communityType
       });
-      return this.requestRepository.save(request);
+      if (!community) {
+        throw new NotFoundException('Community not found');
+      }
+
+      const existingMembership = await queryRunner.manager.findOne(CommunityMembership, {
+        where: { userId, communityId },
+      });
+      if (existingMembership) {
+        throw new BadRequestException('User is already a member of this community');
+      }
+
+      // If community is public, create membership directly
+      if (community.communityType === CommunityType.PUBLIC) {
+        const membership = queryRunner.manager.create(CommunityMembership, {
+          userId,
+          communityId,
+          role: CommunityMembershipRole.MEMBER, // Default role for auto-membership
+        });
+        await queryRunner.manager.save(membership);
+        await queryRunner.manager.increment(Community, { id: community.id }, 'membersCount', 1);
+        await queryRunner.commitTransaction();
+        return membership;
+      } else {
+        // For restricted or private communities, create a pending request
+        const existingRequest = await queryRunner.manager.findOne(CommunityMembershipRequest, {
+          where: { userId, communityId, status: CommunityMembershipRequestStatus.PENDING },
+        });
+        if (existingRequest) {
+          throw new BadRequestException('Pending request already exists');
+        }
+
+        const request = queryRunner.manager.create(CommunityMembershipRequest, {
+          userId,
+          communityId,
+        });
+        await queryRunner.manager.save(request);
+        await queryRunner.commitTransaction();
+        return request;
+      }
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
     }
   }
 
   async acceptMembershipRequest(requestId: number, adminId: number) {
-    const request = await this.requestRepository.findOne({
-      where: { id: requestId },
-      relations: ['community'],
-    });
-    if (!request) {
-      throw new NotFoundException('Membership request not found');
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const request = await queryRunner.manager.findOne(CommunityMembershipRequest, {
+        where: { id: requestId },
+        relations: ['community'],
+      });
+      if (!request) {
+        throw new NotFoundException('Membership request not found');
+      }
+      if (request.status !== CommunityMembershipRequestStatus.PENDING) {
+        throw new BadRequestException('Request is not pending');
+      }
+
+      // Check if adminId is an admin or moderator of the community
+      const adminMembership = await queryRunner.manager.findOne(CommunityMembership, {
+        where: {
+          userId: adminId,
+          communityId: request.community.id,
+          role: CommunityMembershipRole.ADMIN, // Only admin can accept for now
+        },
+      });
+
+      // Currently only the community owner can accept requests
+      if (request.community.ownerId !== adminId) {
+          throw new BadRequestException('Only the community owner can accept membership requests');
+      }
+
+      if (!adminMembership && request.community.ownerId !== adminId) {
+        throw new BadRequestException('Admin is not authorized to accept this request');
+      }
+
+      const membership = queryRunner.manager.create(CommunityMembership, {
+        userId: request.userId,
+        communityId: request.communityId,
+        role: CommunityMembershipRole.MEMBER, // Default role for new members
+      });
+
+      await queryRunner.manager.save(membership);
+
+      request.status = CommunityMembershipRequestStatus.ACCEPTED;
+      await queryRunner.manager.save(request); // Save the updated request status
+      await queryRunner.manager.increment(Community, { id: request.community.id }, 'membersCount', 1); // Increment membersCount
+
+      await queryRunner.commitTransaction();
+      return membership; // Return the created membership
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
     }
-    if (request.status !== CommunityMembershipRequestStatus.PENDING) {
-      throw new BadRequestException('Request is not pending');
-    }
-
-    // Check if adminId is an admin or moderator of the community
-    const adminMembership = await this.membershipRepository.findOne({
-      where: {
-        userId: adminId,
-        communityId: request.community.id,
-        role: CommunityMembershipRole.ADMIN, // Only admin can accept for now
-      },
-    });
-
-    // Currently only the community owner can accept requests
-    if (request.community.ownerId !== adminId) {
-        throw new BadRequestException('Only the community owner can accept membership requests');
-    }
-
-    if (!adminMembership && request.community.ownerId !== adminId) {
-      throw new BadRequestException('Admin is not authorized to accept this request');
-    }
-
-    const membership = this.membershipRepository.create({
-      userId: request.userId,
-      communityId: request.communityId,
-      role: CommunityMembershipRole.MEMBER, // Default role for new members
-    });
-
-    await this.membershipRepository.save(membership);
-
-    request.status = CommunityMembershipRequestStatus.ACCEPTED;
-    return this.requestRepository.save(request);
   }
-
   async rejectMembershipRequest(requestId: number, adminId: number) {
     const request = await this.requestRepository.findOne({
       where: { id: requestId },

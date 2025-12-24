@@ -4,9 +4,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm'; // Added DataSource
 import { User } from '../users/entities/user.entity';
-import { CommunitiesService } from '../communities/communities.service';
+// import { CommunitiesService } from '../communities/communities.service'; // This import is removed
+import { Community } from '../communities/entities/community.entity'; // Added Community entity
 
 import { CommunityMembership } from './entities/community-memberships.entity';
 
@@ -22,9 +23,12 @@ export class CommunityMembershipsService {
   constructor(
     @InjectRepository(CommunityMembership)
     private readonly membershipsRepository: Repository<CommunityMembership>,
-    private readonly communitiesService: CommunitiesService,
+    // private readonly communitiesService: CommunitiesService, // This is removed
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
+    @InjectRepository(Community) // Injected Community repository
+    private readonly communityRepository: Repository<Community>,
+    private dataSource: DataSource, // Injected DataSource
   ) { }
 
 
@@ -63,41 +67,49 @@ export class CommunityMembershipsService {
   }
   
   async deleteMembership(communityId: number, userId: number) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    // Check community existence
-    const community = await this.communitiesService.findOne(communityId);
-    if (!community) throw new NotFoundException(`Community ${communityId} not found`);
+    try {
+      // Check community existence
+      const community = await queryRunner.manager.findOne(Community, { where: { id: communityId } });
+      if (!community) throw new NotFoundException(`Community ${communityId} not found`);
 
-    // Check user existence via UsersService
-    const userExists = await this.usersRepository.exist({
-      where: { id: userId },
-    });
-    if (!userExists) {
-      throw new NotFoundException(`User ${userId} not found`);
+      // Check user existence via UsersService
+      const userExists = await queryRunner.manager.exists(User, {
+        where: { id: userId },
+      });
+      if (!userExists) {
+        throw new NotFoundException(`User ${userId} not found`);
+      }
+
+      const existingMembership = await queryRunner.manager.findOne(CommunityMembership, {
+        where: {
+          userId: userId,
+          communityId: community.id,
+        },
+      });
+
+      if (!existingMembership) {
+        throw new NotFoundException(
+          `User ${userId} is not member of to community ${community.id}`,
+        );
+      }
+
+      await queryRunner.manager.remove(existingMembership);
+
+      // Decrement membersCount directly using the repository within the transaction
+      await queryRunner.manager.decrement(Community, { id: community.id }, 'membersCount', 1);
+
+      await queryRunner.commitTransaction();
+      return { message: 'Left community successfully' };
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
     }
-
-
-    const existingMembership = await this.membershipsRepository.findOne({
-      where: {
-        userId: userId,
-        communityId: community.id,
-      },
-    });
-
-    if (!existingMembership) {
-      throw new NotFoundException(
-        `User ${userId} is not member of to community ${community.id}`,
-      );
-    }
-
-    await this.membershipsRepository.remove(existingMembership);
-
-    await this.communitiesService.update({
-      id: community.id,
-      membersCount: community.membersCount - 1,
-    });
-
-    return { message: 'Left community successfully' };
   }
 
 
