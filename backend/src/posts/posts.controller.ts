@@ -134,9 +134,7 @@ export class PostsController {
     @Body() dto: UpdatePostApprovalDto, // Use the new DTO
     @GetUser() user: User, // For potential admin check
   ): Promise<ResponseDto<PostResponseDto>> {
-    // Implement admin role check using caslService.enforce here
-    // For now, let's assume `user` is an admin or has the right permissions
-    const updatedPost = await this.postsService.updatePostApprovalStatus(post.id, dto.isApproved);
+    const updatedPost = await this.postsService.updatePostApprovalStatus(post.id, dto.isApproved,user.id);
     return new ResponseDto(PostResponseDto.fromEntity(updatedPost));
   }
 

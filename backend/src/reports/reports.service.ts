@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { User } from 'src/users/entities/user.entity';
+import { User, UserRole } from 'src/users/entities/user.entity';
 import { Comment } from 'src/comments/entities/comment.entity';
 import { Post } from 'src/posts/entities/post.entity';
 import { CommentReport } from './entities/comment-report.entity';
@@ -54,7 +54,7 @@ export class ReportsService {
 
     @InjectRepository(CommunityModerator)
     private readonly communityModeratorRepository: Repository<CommunityModerator>,
-  ) {}
+  ) { }
 
   async create(
     {
@@ -168,7 +168,14 @@ export class ReportsService {
   }): Promise<{ data: (CommentReport | PostReport | UserReport)[]; count: number }> {
     const offset = (page - 1) * limit;
 
-    const user = await this.usersRepository.findOne({ where: { id: userId } });
+
+    const user = await this.usersRepository.findOne({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException(`User ${userId} not found`);
+    }
     const isModerator =
       communityId &&
       (await this.communityModeratorRepository.findOne({
@@ -195,7 +202,7 @@ export class ReportsService {
         parameters.push(reporterId);
       }
 
-      if (user.role === 'admin') {
+      if (user.role == UserRole.ADMIN) {
         whereClauses.push(`"isPlatformComplaint" = TRUE`);
       } else if (isModerator && communityId) {
         whereClauses.push(`"communityId" = $${paramIndex++}`);

@@ -7,6 +7,7 @@ import { CommunityType } from 'src/communities/types';
 import { Community } from 'src/communities/entities/community.entity';
 import { CommunitySubscription } from 'src/community-subscriptions/entities/community-subscription.entity';
 import { CommunitySubscriptionStatus } from 'src/community-subscriptions/types';
+import { CommunityModerator } from 'src/community-moderators/entities/community-moderator.entity';
 
 @Injectable()
 export class PostsService {
@@ -17,8 +18,10 @@ export class PostsService {
     private readonly communityRepository: Repository<Community>,
 
     @InjectRepository(CommunitySubscription)
-    private readonly subscriptionRepository: Repository<CommunitySubscription>,) { }
-
+    private readonly subscriptionRepository: Repository<CommunitySubscription>,
+    @InjectRepository(CommunityModerator)
+    private readonly communityModeratorRepository) 
+    { }
   async findAll(
     options: {
       page?: number;
@@ -221,11 +224,22 @@ export class PostsService {
   }
 
 
-  async updatePostApprovalStatus(postId: number, isApproved: boolean): Promise<Post> {
+  async updatePostApprovalStatus(postId: number, isApproved: boolean,userId:number): Promise<Post> {
     const post = await this.postsRepository.findOneBy({ id: postId });
     if (!post) {
       throw new NotFoundException('Post not found');
     }
+    const isModerator = await this.communityModeratorRepository.exist({
+    where: { 
+      moderatorId: userId, 
+      communityId: post.communityId 
+    },
+  });
+
+  // 4. If neither, deny access [cite: 594, 610]
+  if (!isModerator) {
+    throw new ForbiddenException('Only moderators or the owner can approve posts');
+  }
     post.isApproved = isApproved;
     post.approvedAt = isApproved ? new Date() : null;
     return this.postsRepository.save(post);

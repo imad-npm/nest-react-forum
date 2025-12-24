@@ -2281,6 +2281,13 @@ import { PostReport } from '../../reports/entities/post-report.entity';
 import { CommentReport } from '../../reports/entities/comment-report.entity'; // NEW IMPORT
 import { UserReport } from '../../reports/entities/user-report.entity'; // NEW IMPORT
 
+
+export enum UserRole {
+  SUPER_ADMIN,
+  ADMIN,
+  USER
+}
+
 @Entity('users')
 export class User {
   @PrimaryGeneratedColumn()
@@ -2312,6 +2319,13 @@ export class User {
   // One-to-one relation with Profile
   @OneToOne(() => Profile, (profile) => profile.user)
   profile: Profile;
+
+    @Column({
+    type: 'simple-enum', // sqlite compatible
+    enum: UserRole,
+    default: UserRole.USER,
+  })
+  role: UserRole;
 
   // Relations
   @OneToMany(() => Post, (post) => post.author)
@@ -2406,10 +2420,11 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { CommunitySubscription } from './entities/community-subscription.entity';
 import { CommunitiesModule } from '../communities/communities.module';
 import { UsersModule } from 'src/users/users.module';
+import { User } from 'src/users/entities/user.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([CommunitySubscription]), 
-  CommunitiesModule,UsersModule],
+  imports: [TypeOrmModule.forFeature([CommunitySubscription,User]), 
+  CommunitiesModule],
   controllers: [CommunitySubscriptionsController],
   providers: [CommunitySubscriptionsService],
   exports: [CommunitySubscriptionsService],
@@ -2447,7 +2462,8 @@ export class CommunitySubscriptionsService {
     @InjectRepository(CommunitySubscription)
     private readonly subscriptionsRepository: Repository<CommunitySubscription>,
     private readonly communitiesService: CommunitiesService,
-    private readonly usersService: UsersService,
+    @InjectRepository(User)
+    private readonly usersRepository: Repository<User>,
   ) { }
 
 
@@ -2498,11 +2514,13 @@ export class CommunitySubscriptionsService {
       throw new NotFoundException(`Community ${communityId} not found`);
     }
 
-    // Check user existence via UsersService
-    const user = await this.usersService.findOneById(userId);
-    if (!user) {
+    const userExists = await this.usersRepository.exist({
+      where: { id: userId },
+    });
+    if (!userExists) {
       throw new NotFoundException(`User ${userId} not found`);
     }
+
 
     const existingSubscription = await this.subscriptionsRepository.findOne({
       where: {
@@ -2558,8 +2576,12 @@ export class CommunitySubscriptionsService {
     if (!community) throw new NotFoundException(`Community ${communityId} not found`);
 
     // Check user existence via UsersService
-    const user = await this.usersService.findOneById(userId);
-    if (!user) throw new NotFoundException(`User ${userId} not found`);
+    const userExists = await this.usersRepository.exist({
+      where: { id: userId },
+    });
+    if (!userExists) {
+      throw new NotFoundException(`User ${userId} not found`);
+    }
 
 
     const existingSubscription = await this.subscriptionsRepository.findOne({
@@ -3630,31 +3652,36 @@ export class PaginatedResponseDto<T> extends ResponseDto<T[]> {
 
 
 ### FILE: src/reports/reports.module.ts ###
-import { PostsModule } from 'src/posts/posts.module';
-import { CommentsModule } from 'src/comments/comments.module';
-import { UsersModule } from 'src/users/users.module';
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { ReportsService } from './reports.service';
 import { ReportsController } from './reports.controller';
-import { UserReport } from './entities/user-report.entity';
-import { PostReport } from './entities/post-report.entity';
 import { CommentReport } from './entities/comment-report.entity';
+import { PostReport } from './entities/post-report.entity';
+import { UserReport } from './entities/user-report.entity';
+import { Post } from 'src/posts/entities/post.entity';
+import { User } from 'src/users/entities/user.entity';
+import { Comment } from 'src/comments/entities/comment.entity';
 import { CaslModule } from 'src/casl/casl.module';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { Module } from '@nestjs/common';
+import { CommunityModerator } from 'src/community-moderators/entities/community-moderator.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([CommentReport, PostReport, UserReport]),
+    TypeOrmModule.forFeature([
+      CommentReport,
+      PostReport,
+      UserReport,
+      Post,
+      User,
+      Comment,
+      CommunityModerator,
+    ]),
     CaslModule,
-    UsersModule,
-    PostsModule,
-    CommentsModule,
   ],
   controllers: [ReportsController],
   providers: [ReportsService],
 })
 export class ReportsModule {}
-
 
 ---
 
@@ -3683,20 +3710,18 @@ export class ReportsController {
     @Body() createReportDto: CreateReportDto,
     @GetUser() user: User,
   ) {
-    return this.reportsService.create(
-      {
-        entityType: createReportDto.entityType,
-        entityId: createReportDto.entityId,
-        reason: createReportDto.reason,
-        description: createReportDto.description,
-      },
-      user,
-    );
+    return this.reportsService.create(createReportDto, user);
   }
 
   @Get()
-  async findAll(@Query() query: ReportQueryDto): Promise<PaginatedResponseDto<ReportResponseDto>> {
-    const { data, count } = await this.reportsService.findAll(query);
+  async findAll(
+    @Query() query: ReportQueryDto & { communityId?: number },
+    @GetUser() user: User,
+  ): Promise<PaginatedResponseDto<ReportResponseDto>> {
+    const { data, count } = await this.reportsService.findAll({
+      ...query,
+      userId: user.id,
+    });
     const paginationMeta = new PaginationMetaDto(query.page, query.limit, count, data.length); // Use defaulted values
     return new PaginatedResponseDto(data.map(ReportResponseDto.fromEntity), paginationMeta);
   }
@@ -3738,8 +3763,14 @@ export class CommentReport extends BaseReport {
   @Column()
   commentId: number;
 
+    @Column()
+  communityId: number;
+
   @ManyToOne(() => Comment, (comment) => comment.reports, { onDelete: 'CASCADE' })
   comment: Comment;
+
+  @Column({ default: false })
+  isPlatformComplaint: boolean;
 }
 ---
 
@@ -3763,8 +3794,15 @@ export class PostReport extends BaseReport {
   @Column()
   postId: number;
 
+
+  @Column()
+  communityId: number;
+
   @ManyToOne(() => Post, (post) => post.reports, { onDelete: 'CASCADE' })
   post: Post;
+
+  @Column({ default: false })
+  isPlatformComplaint: boolean;
 }
 ---
 
@@ -3788,6 +3826,9 @@ export class UserReport extends BaseReport {
 
   @ManyToOne(() => User, (user) => user.userReports, { onDelete: 'CASCADE' })
   reportedUser: User;
+
+  @Column({ default: false })
+  isPlatformComplaint: boolean;
 }
 ---
 
@@ -3836,102 +3877,231 @@ export abstract class BaseReport {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
 }
 
 ---
 
 
 ### FILE: src/reports/reports.service.ts ###
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { User } from 'src/users/entities/user.entity';
+import { User, UserRole } from 'src/users/entities/user.entity';
+import { Comment } from 'src/comments/entities/comment.entity';
+import { Post } from 'src/posts/entities/post.entity';
 import { CommentReport } from './entities/comment-report.entity';
 import { PostReport } from './entities/post-report.entity';
 import { UserReport } from './entities/user-report.entity';
 import { ReportStatus } from './entities/base-report.entity';
-import { CommentsService } from 'src/comments/comments.service';
-import { PostsService } from 'src/posts/posts.service';
-import { UsersService } from 'src/users/users.service';
-import { ReportQueryDto } from './dto/report-query.dto';
+import { CommunityModerator } from 'src/community-moderators/entities/community-moderator.entity';
 
-interface CreateReportData {
-  entityType: 'comment' | 'post' | 'user';
-  entityId: number;
-  reason: string;
-  description?: string;
-}
+const PLATFORM_COMPLAINT_REASONS = [
+  'HARASSMENT',
+  'VIOLENCE',
+  'HATE_CONTENT',
+  'MINOR_ABUSE_OR_SEXUALIZATION',
+  'PII',
+  'INVOLUNTARY_PORN',
+  'PROHIBITED_SALES',
+  'IMPERSONATION',
+  'MANIPULATED_CONTENT',
+  'COPYRIGHT',
+  'TRADEMARK',
+  'SELF_HARM',
+  'SPAM',
+  'CONTRIBUTOR_PROGRAM',
+];
 
 @Injectable()
 export class ReportsService {
   constructor(
     @InjectRepository(CommentReport)
     private readonly commentReportRepository: Repository<CommentReport>,
+
     @InjectRepository(PostReport)
     private readonly postReportRepository: Repository<PostReport>,
+
     @InjectRepository(UserReport)
     private readonly userReportRepository: Repository<UserReport>,
-    private readonly commentsService: CommentsService,
-    private readonly postsService: PostsService,
-    private readonly usersService: UsersService,
-  ) {}
 
-  async create(data: CreateReportData, reporter: User) {
-    const { entityType, entityId, reason, description } = data;
+    @InjectRepository(Comment)
+    private readonly commentsRepository: Repository<Comment>,
+
+    @InjectRepository(Post)
+    private readonly postsRepository: Repository<Post>,
+
+    @InjectRepository(User)
+    private readonly usersRepository: Repository<User>,
+
+    @InjectRepository(CommunityModerator)
+    private readonly communityModeratorRepository: Repository<CommunityModerator>,
+  ) { }
+
+  async create(
+    {
+      entityType,
+      entityId,
+      reason,
+      description,
+    }: {
+      entityType: 'comment' | 'post' | 'user';
+      entityId: number;
+      reason: string;
+      description?: string;
+    },
+    reporter: User,
+  ) {
+    const isPlatformComplaint = PLATFORM_COMPLAINT_REASONS.includes(
+      reason.toUpperCase(),
+    );
 
     if (entityType === 'comment') {
-      await this.commentsService.findOne(entityId);
+      const entity = await this.commentsRepository.findOne({
+        where: { id: entityId },
+      });
+      if (!entity) throw new NotFoundException('Comment not found');
+
+      const existingReport = await this.commentReportRepository.findOne({
+        where: { commentId: entityId, reporterId: reporter.id },
+      });
+      if (existingReport) {
+        throw new ConflictException('You have already reported this comment');
+      }
+
       const report = this.commentReportRepository.create({
         reporterId: reporter.id,
         commentId: entityId,
         reason,
         description,
+        isPlatformComplaint,
       });
       return this.commentReportRepository.save(report);
-    } else if (entityType === 'post') {
-      await this.postsService.findOne(entityId);
+    }
+
+    if (entityType === 'post') {
+      const entity = await this.postsRepository.findOne({
+        where: { id: entityId },
+      });
+      if (!entity) throw new NotFoundException('Post not found');
+
+      const existingReport = await this.postReportRepository.findOne({
+        where: { postId: entityId, reporterId: reporter.id },
+      });
+      if (existingReport) {
+        throw new ConflictException('You have already reported this post');
+      }
+
       const report = this.postReportRepository.create({
         reporterId: reporter.id,
         postId: entityId,
         reason,
         description,
+        isPlatformComplaint,
+        communityId: (entity as Post).communityId,
       });
       return this.postReportRepository.save(report);
-    } else if (entityType === 'user') {
-      await this.usersService.findOneById(entityId);
+    }
+
+    if (entityType === 'user') {
+      const entity = await this.usersRepository.findOne({
+        where: { id: entityId },
+      });
+      if (!entity) throw new NotFoundException('User not found');
+
+      if (entity.id === reporter.id) {
+        throw new ConflictException('You cannot report yourself');
+      }
+
+      const existingReport = await this.userReportRepository.findOne({
+        where: { reportedUserId: entityId, reporterId: reporter.id },
+      });
+      if (existingReport) {
+        throw new ConflictException('You have already reported this user');
+      }
+
       const report = this.userReportRepository.create({
         reporterId: reporter.id,
         reportedUserId: entityId,
         reason,
         description,
+        isPlatformComplaint,
       });
       return this.userReportRepository.save(report);
     }
   }
 
-  async findAll(query: ReportQueryDto): Promise<{ data: (CommentReport | PostReport | UserReport)[]; count: number }> {
-    const { page = 1, limit = 10, status, entityType, reporterId } = query;
+  async findAll({
+    page = 1,
+    limit = 10,
+    status,
+    entityType,
+    reporterId,
+    userId,
+    communityId,
+  }: {
+    page?: number;
+    limit?: number;
+    status?: ReportStatus;
+    entityType?: 'comment' | 'post' | 'user';
+    reporterId?: number;
+    userId: number;
+    communityId?: number;
+  }): Promise<{ data: (CommentReport | PostReport | UserReport)[]; count: number }> {
     const offset = (page - 1) * limit;
+
+
+    const user = await this.usersRepository.findOne({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException(`User ${userId} not found`);
+    }
+    const isModerator =
+      communityId &&
+      (await this.communityModeratorRepository.findOne({
+        where: { moderatorId: userId, communityId },
+      }));
 
     const parameters: any[] = [];
     let paramIndex = 1;
 
-    const buildSelectQuery = (tableName: string, type: string, specificIdColumn: string) => {
-      let whereClauses: string[] = [];
+    const buildSelectQuery = (
+      tableName: string,
+      type: string,
+      specificIdColumn: string,
+    ) => {
+      const whereClauses: string[] = [];
 
       if (status) {
         whereClauses.push(`status = $${paramIndex++}`);
         parameters.push(status);
       }
+
       if (reporterId) {
         whereClauses.push(`"reporterId" = $${paramIndex++}`);
         parameters.push(reporterId);
       }
-      if (entityType && entityType !== type) {
-        return null; // Exclude this type if a specific entityType is requested
+
+      if (user.role == UserRole.ADMIN) {
+        whereClauses.push(`"isPlatformComplaint" = TRUE`);
+      } else if (isModerator && communityId) {
+        whereClauses.push(`"communityId" = $${paramIndex++}`);
+        parameters.push(communityId);
+      } else {
+        whereClauses.push(`"isPlatformComplaint" = FALSE`);
       }
 
-      const where = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+      if (entityType && entityType !== type) return null;
+
+      const where =
+        whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+
       return `
         SELECT
           id,
@@ -3941,6 +4111,8 @@ export class ReportsService {
           status,
           "createdAt",
           "updatedAt",
+          "isPlatformComplaint",
+          "communityId",
           ${specificIdColumn} AS "entitySpecificId",
           '${type}' AS "entityType"
         FROM ${tableName}
@@ -3948,36 +4120,38 @@ export class ReportsService {
       `;
     };
 
-    const commentSelect = buildSelectQuery('comment_reports', 'comment', 'commentId');
-    const postSelect = buildSelectQuery('post_reports', 'post', 'postId');
-    const userSelect = buildSelectQuery('user_reports', 'user', 'reportedUserId');
+    const unionQueries = [
+      buildSelectQuery('comment_reports', 'comment', 'commentId'),
+      buildSelectQuery('post_reports', 'post', 'postId'),
+      buildSelectQuery('user_reports', 'user', 'reportedUserId'),
+    ].filter(Boolean);
 
-    const unionQueries = [commentSelect, postSelect, userSelect].filter(q => q !== null);
-
-    if (unionQueries.length === 0) {
-      return { data: [], count: 0 }; // No queries to run
+    if (!unionQueries.length) {
+      return { data: [], count: 0 };
     }
 
     const unionAllQuery = unionQueries.join(' UNION ALL ');
 
-    // Total count query
     const countQuery = `SELECT COUNT(*) FROM (${unionAllQuery}) AS union_counts`;
-    const totalCountResult = await this.commentReportRepository.query(countQuery, parameters); // Using any repository for query
-    const totalCount = parseInt(totalCountResult[0].count, 10);
+    const countResult = await this.commentReportRepository.query(
+      countQuery,
+      parameters,
+    );
+    const count = parseInt(countResult[0].count, 10);
 
-    // Data query with pagination and ordering
     const dataQuery = `
       ${unionAllQuery}
       ORDER BY "createdAt" DESC
       LIMIT $${paramIndex++} OFFSET $${paramIndex++}
     `;
-    parameters.push(limit);
-    parameters.push(offset);
+    parameters.push(limit, offset);
 
-    const rawData = await this.commentReportRepository.query(dataQuery, parameters);
+    const raw = await this.commentReportRepository.query(
+      dataQuery,
+      parameters,
+    );
 
-    // Map raw data to a consistent structure (similar to ReportResponseDto)
-    const data = rawData.map(item => ({
+    const data = raw.map(item => ({
       id: item.id,
       reporterId: item.reporterId,
       reason: item.reason,
@@ -3985,69 +4159,57 @@ export class ReportsService {
       status: item.status,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
+      isPlatformComplaint: item.isPlatformComplaint,
+      communityId: item.communityId,
       entityType: item.entityType,
       commentId: item.entityType === 'comment' ? item.entitySpecificId : undefined,
       postId: item.entityType === 'post' ? item.entitySpecificId : undefined,
-      reportedUserId: item.entityType === 'user' ? item.entitySpecificId : undefined,
+      reportedUserId:
+        item.entityType === 'user' ? item.entitySpecificId : undefined,
     }));
 
-    return { data, count: totalCount };
+    return { data, count };
   }
 
-  async findOne(id: number, entityType?: 'comment' | 'post' | 'user'): Promise<CommentReport | PostReport | UserReport> {
-    let report: CommentReport | PostReport | UserReport | null;
-    let repository: Repository<CommentReport | PostReport | UserReport>;
+  async findOne(
+    id: number,
+    entityType: 'comment' | 'post' | 'user',
+  ): Promise<CommentReport | PostReport | UserReport> {
+    let repository: Repository<any>;
 
-    if (!entityType) {
-      throw new NotFoundException('entityType is required to find a specific report.');
-    }
+    if (entityType === 'comment') repository = this.commentReportRepository;
+    else if (entityType === 'post') repository = this.postReportRepository;
+    else repository = this.userReportRepository;
 
-    switch (entityType) {
-      case 'comment':
-        repository = this.commentReportRepository;
-        break;
-      case 'post':
-        repository = this.postReportRepository;
-        break;
-      case 'user':
-        repository = this.userReportRepository;
-        break;
-      default:
-        throw new NotFoundException(`Invalid entityType: ${entityType}`);
-    }
-    report = await repository.findOne({ where: { id } });
-
+    const report = await repository.findOne({ where: { id } });
     if (!report) {
-      throw new NotFoundException(`Report with ID ${id} and type ${entityType} not found.`);
+      throw new NotFoundException(`Report ${id} not found`);
     }
-
     return report;
   }
 
-  async updateStatus(id: number, status: ReportStatus, entityType: 'comment' | 'post' | 'user') {
-    let report: CommentReport | PostReport | UserReport|null;
-    let repository: Repository<CommentReport | PostReport | UserReport>;
+  async updateStatus(
+    id: number,
+    status: ReportStatus,
+    entityType: 'comment' | 'post' | 'user',
+  ) {
+    const report = await this.findOne(id, entityType);
 
-    switch (entityType) {
-      case 'comment':
-        repository = this.commentReportRepository;
-        break;
-      case 'post':
-        repository = this.postReportRepository;
-        break;
-      case 'user':
-        repository = this.userReportRepository;
-        break;
-    }
-
-    report = await repository.findOne({ where: { id } });
-
-    if (!report) {
-      throw new NotFoundException(`Report with ID ${id} and type ${entityType} not found.`);
+    if (report.status === status) {
+      throw new ConflictException(
+        `Report is already with status "${status}"`,
+      );
     }
 
     report.status = status;
-    return repository.save(report);
+
+    if (entityType === 'comment') {
+      return this.commentReportRepository.save(report);
+    }
+    if (entityType === 'post') {
+      return this.postReportRepository.save(report);
+    }
+    return this.userReportRepository.save(report);
   }
 }
 
@@ -4144,6 +4306,11 @@ export class ReportQueryDto extends PaginationDto {
   @Transform(({ value }) => parseInt(value, 10))
   @IsNumber()
   reporterId?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => parseInt(value, 10))
+  @IsNumber()
+  communityId?: number;
 }
 
 ---
@@ -4216,7 +4383,7 @@ export class EmailVerificationController {
     private readonly service: EmailVerificationService,
     private readonly usersService: UsersService,
     private readonly configService: ConfigService,
-  ) {}
+  ) { }
 
   @Post('resend')
   async resend(@Body() dto: SendVerificationDto): Promise<ResponseDto<null>> {
@@ -4228,40 +4395,38 @@ export class EmailVerificationController {
   }
 
   @Get('verify')
-@Get('verify')
-async verify(
-  @Query('token') token: string,
-  @Res() res: Response,
-): Promise<void> {
-  const frontendUrl = this.configService.getOrThrow<string>(
-    'FRONTEND_URL'  );
-  const redirectUrl = new URL(`${frontendUrl}/verify-email`);
+  async verify(
+    @Query('token') token: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    const frontendUrl = this.configService.getOrThrow<string>(
+      'FRONTEND_URL');
+    const redirectUrl = new URL(`${frontendUrl}/verify-email`);
 
-  if (!token) {
-    redirectUrl.searchParams.set('error', 'Token is required');
+    if (!token) {
+      redirectUrl.searchParams.set('error', 'Token is required');
+      return res.redirect(redirectUrl.toString());
+    }
+
+    try {
+      const userId = await this.service.verifyToken(token);
+      await this.usersService.markEmailAsVerified(userId);
+
+      redirectUrl.searchParams.set('success', '1');
+      redirectUrl.searchParams.set( 'message',
+        'Email verified successfully',
+      );
+    } catch (err) {
+      const message =
+        err instanceof BadRequestException
+          ? err.message
+          : 'Invalid or expired verification token';
+      redirectUrl.searchParams.set('error', '1');
+      redirectUrl.searchParams.set('message', message);
+    }
+
     return res.redirect(redirectUrl.toString());
   }
-
-  try {
-    const userId = await this.service.verifyToken(token);
-    await this.usersService.markEmailAsVerified(userId);
-
-    redirectUrl.searchParams.set('success', '1');
-    redirectUrl.searchParams.set(
-      'message',
-      'Email verified successfully',
-    );
-  } catch (err) {
-    const message =
-      err instanceof BadRequestException
-        ? err.message
-        : 'Invalid or expired verification token';
-    redirectUrl.searchParams.set('error', '1');
-    redirectUrl.searchParams.set('message', message);
-  }
-
-  return res.redirect(redirectUrl.toString());
-}
 
 }
 
@@ -4696,20 +4861,20 @@ import { PostsController } from './posts.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Post } from './entities/post.entity';
 import { CaslModule } from 'src/casl/casl.module';
-import { CommunitiesModule } from 'src/communities/communities.module';
-import { CommunitySubscriptionsModule } from 'src/community-subscriptions/community-subscriptions.module';
-import { CommunityAccessModule } from 'src/community-access/community-access.module';
+import { Community } from 'src/communities/entities/community.entity';
+import { CommunitySubscription } from 'src/community-subscriptions/entities/community-subscription.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Post]),
-   CaslModule, CommunitiesModule, CommunityAccessModule
-      
-],
+  imports: [TypeOrmModule.forFeature(
+    [Post, Community, CommunitySubscription]),
+    CaslModule,
+
+  ],
   providers: [PostsService],
   controllers: [PostsController],
   exports: [PostsService],
 })
-export class PostsModule {}
+export class PostsModule { }
 
 ---
 
@@ -4720,18 +4885,21 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Repository } from 'typeorm';
 import { Post } from './entities/post.entity';
 import { PostSort } from './dto/post-query.dto';
-import { CommunitiesService } from 'src/communities/communities.service'; // Import CommunitiesService
-import { CommunityAccessService } from 'src/community-access/community-access.service';
+import { CommunityType } from 'src/communities/types';
+import { Community } from 'src/communities/entities/community.entity';
+import { CommunitySubscription } from 'src/community-subscriptions/entities/community-subscription.entity';
+import { CommunitySubscriptionStatus } from 'src/community-subscriptions/types';
 
 @Injectable()
 export class PostsService {
   constructor(
     @InjectRepository(Post)
     private postsRepository: Repository<Post>,
-    private readonly accessService: CommunityAccessService,
+    @InjectRepository(Community)
+    private readonly communityRepository: Repository<Community>,
 
-    private readonly communitiesService: CommunitiesService, // Inject CommunitiesService
-  ) { }
+    @InjectRepository(CommunitySubscription)
+    private readonly subscriptionRepository: Repository<CommunitySubscription>,) { }
 
   async findAll(
     options: {
@@ -4765,7 +4933,7 @@ export class PostsService {
       .createQueryBuilder('post')
       .leftJoinAndSelect('post.author', 'author')
       .leftJoinAndSelect('post.community', 'community')
-  .where('post.isApproved = :approved', { approved: true });
+      .where('post.isApproved = :approved', { approved: true });
 
     if (currentUserId) {
       query.leftJoinAndMapOne(
@@ -4885,23 +5053,18 @@ export class PostsService {
 
     // Execute query
     const post = await query.getOne();
-
-    if (!post) return null;
-
-    const { community } = post;
-    await this.accessService.assertUserCanViewCommunity(currentUserId, community.id)
     return post;
   }
 
   async create(
     { title, content, authorId, communityId, isApproved }: { title: string; content: string; authorId: number; communityId: number; isApproved?: boolean },
   ): Promise<Post> {
-    const community = await this.communitiesService.findOne(communityId);
+    const community = await this.communityRepository.findOneBy({ id: communityId });
     if (!community) {
       throw new NotFoundException(`Community with ID ${communityId} not found`);
     }
     // Check if user can contribute based on community rules
-    await this.accessService.assertUserCanContribute(authorId, communityId);
+    await this.assertUserCanPostToCommunity(authorId, community);
 
     const post = this.postsRepository.create({
       title,
@@ -4959,6 +5122,7 @@ export class PostsService {
     return this.postsRepository.save(post);
   }
 
+
   async incrementCommentsCount(postId: number): Promise<void> {
     await this.postsRepository.increment({ id: postId }, 'commentsCount', 1);
   }
@@ -4987,6 +5151,33 @@ export class PostsService {
     await this.postsRepository.increment({ id: postId }, 'views', 1);
   }
 
+  async assertUserCanPostToCommunity(
+    userId: number,
+    community: Community,
+  ): Promise<void> {
+    switch (community.communityType) {
+      case CommunityType.PUBLIC:
+        return;
+
+      case CommunityType.RESTRICTED:
+      case CommunityType.PRIVATE:
+        const isActive = await this.subscriptionRepository.exist({
+          where: {
+            userId,
+            communityId: community.id,
+            status: CommunitySubscriptionStatus.ACTIVE,
+          },
+        });
+
+        if (!isActive) {
+          throw new ForbiddenException('You cannot post in this community');
+        }
+        return;
+
+      default:
+        throw new ForbiddenException('Posting not allowed');
+    }
+  }
 
 
 }
@@ -5118,18 +5309,21 @@ import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
 import { PaginationMetaDto } from 'src/common/dto/pagination-meta.dto';
 import { OptionalJwtAuthGuard } from 'src/auth/guards/optional-jwt-auth.guard';
 import type { Request } from 'express';
+import { CommunityType } from 'src/communities/types';
+import { Subscription } from 'rxjs';
+import { CommunitySubscriptionStatus } from 'src/community-subscriptions/types';
 
 @Controller('posts')
 export class PostsController {
   constructor(
     private readonly postsService: PostsService,
     private readonly caslService: CaslService,
-  ) {}
+  ) { }
 
   @Get()
   @UseGuards(JwtAuthGuard)
   async findAll(@Query() query: PostQueryDto,
-    @Req() req : any
+    @Req() req: any
   ): Promise<PaginatedResponseDto<PostResponseDto>> {
 
     const { data, count } = await this.postsService.findAll({
@@ -5140,7 +5334,7 @@ export class PostsController {
       sort: query.sort,
       startDate: query.startDate,
       endDate: query.endDate,
-      currentUserId : req.user?.id ??undefined,
+      currentUserId: req.user?.id ?? undefined,
       communityId: query.communityId,
     });
 
@@ -5163,9 +5357,9 @@ export class PostsController {
     const postId = +id;
     const post = await this.postsService.findOne(postId, user?.id); // Pass currentUserId
 
-     if (!post) {
-    throw new NotFoundException(`Post not found`);
-  }
+    if (!post) {
+      throw new NotFoundException(`Post not found`);
+    }
 
     this.postsService.incrementViews(postId);
     return new ResponseDto(PostResponseDto.fromEntity(post));
@@ -5196,7 +5390,7 @@ export class PostsController {
   ): Promise<ResponseDto<PostResponseDto>> {
     this.caslService.enforce(user, Action.Update, post);
     const updatedPost = await this.postsService.update({
-      id:post.id,
+      id: post.id,
       title: dto.title,
       content: dto.content,
     });
@@ -5233,11 +5427,13 @@ export class PostsController {
     @Body() dto: UpdateCommentsLockedDto,
     @GetUser() user: User, // For authorization check
   ): Promise<ResponseDto<PostResponseDto>> {
-    this.caslService.enforce(user, Action.Update, post, 'commentsLocked'); // Enforce update on commentsLocked field
+    this.caslService.enforce(user, Action.Update, post); // Enforce update on commentsLocked field
     const updatedPost = await this.postsService.updateCommentsLockedStatus(post.id, dto.commentsLocked);
     return new ResponseDto(PostResponseDto.fromEntity(updatedPost));
   }
-}
+
+
+  }
 
 ---
 
@@ -5949,89 +6145,6 @@ export class JwtRefreshStrategy extends PassportStrategy(
 ---
 
 
-### FILE: src/community-access/community-access.service.ts ###
-import { Injectable, NotFoundException, ForbiddenException } from "@nestjs/common";
-import { CommunitiesService } from "src/communities/communities.service";
-import { Community } from "src/communities/entities/community.entity";
-import { CommunityType } from "src/communities/types";
-import { CommunitySubscriptionsService } from "src/community-subscriptions/community-subscriptions.service";
-
-@Injectable()
-export class CommunityAccessService {
-  constructor(
-    private readonly subscriptionsService: CommunitySubscriptionsService,
-    private readonly communitiesService: CommunitiesService,
-  ) {}
-
-  async canUserViewCommunity(userId: number | undefined, communityId: number): Promise<boolean> {
-    const community = await this.communitiesService.findOne(communityId);
-    if (!community) throw new NotFoundException('Community not found');
-
-    switch (community.communityType) {
-      case CommunityType.PUBLIC:
-      case CommunityType.RESTRICTED:
-        return true;
-      case CommunityType.PRIVATE:
-        if (!userId) return false;
-        return this.subscriptionsService.isActiveMember(userId, communityId);
-      default:
-        return false;
-    }
-  }
-
-  async canUserContribute(userId: number, communityId: number): Promise<boolean> {
-   const community = await this.communitiesService.findOne(communityId);
-    if (!community) throw new NotFoundException('Community not found');
-
-
-    switch (community.communityType) {
-      case CommunityType.PUBLIC:
-        return true;
-      case CommunityType.RESTRICTED:
-      case CommunityType.PRIVATE:
-        return this.subscriptionsService.isActiveMember(userId, communityId);
-      default:
-        return false;
-    }
-  }
-
-  async assertUserCanViewCommunity(userId: number | undefined, communityId: number) {
-    const canView = await this.canUserViewCommunity(userId, communityId);
-    if (!canView) {
-      throw new ForbiddenException('You do not have permission to view this community.');
-    }
-  }
-
-  async assertUserCanContribute(userId: number, communityId: number) {
-    const canContribute = await this.canUserContribute(userId, communityId);
-    if (!canContribute) {
-      throw new ForbiddenException('You do not have permission to contribute to this community.');
-    }
-  }
-}
-
----
-
-
-### FILE: src/community-access/community-access.module.ts ###
-import { Module } from '@nestjs/common';
-import { CommunityAccessService } from './community-access.service';
-import { CommunitySubscriptionsModule } from '../community-subscriptions/community-subscriptions.module';
-import { CommunitiesModule } from 'src/communities/communities.module';
-
-@Module({
-  imports: [
-    CommunitySubscriptionsModule,  // for subscription checks
-    CommunitiesModule,   // for community data access
-  ],
-  providers: [CommunityAccessService],
-  exports: [CommunityAccessService], // allow other modules to inject this service
-})
-export class CommunityAccessModule {}
-
----
-
-
 ### FILE: src/reset-password/password-reset.controller.ts ###
 import { Controller, Post, Body, Inject } from '@nestjs/common';
 import { PasswordResetService } from './password-reset.service';
@@ -6265,6 +6378,7 @@ export enum CommunityType {
 ### FILE: src/communities/communities.service.ts ###
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -6273,15 +6387,19 @@ import { Not, Repository } from 'typeorm';
 import { Community } from './entities/community.entity';
 import { CommunityType } from './types';
 import { User } from '../users/entities/user.entity';
-import { CommunityAccessService } from '../community-access/community-access.service';
+import { CommunitySubscription } from 'src/community-subscriptions/entities/community-subscription.entity';
+import { CommunitySubscriptionStatus } from 'src/community-subscriptions/types';
 
 @Injectable()
 export class CommunitiesService {
   constructor(
     @InjectRepository(Community)
     private readonly communitiesRepository: Repository<Community>,
-    private readonly accessService: CommunityAccessService, // new service for permissions
-  ) {}
+    @InjectRepository(Community)
+    private readonly communityRepository: Repository<Community>,
+    @InjectRepository(CommunitySubscription)
+    private readonly subscriptionRepository: Repository<CommunitySubscription>
+  ) { }
 
   async create(data: {
     userId: number;
@@ -6337,10 +6455,10 @@ export class CommunitiesService {
 
     if (!community) throw new NotFoundException(`Community with ID ${id} not found.`);
 
-    // use CommunityAccessService for permissions
-    await this.accessService.assertUserCanViewCommunity(user?.id, community.id);
-
+    await this.assertUserCanViewCommunity(user?.id, community);
     return community;
+
+
   }
 
   async findByName(name: string, user?: User) {
@@ -6351,9 +6469,9 @@ export class CommunitiesService {
 
     if (!community) throw new NotFoundException(`Community with name "${name}" not found.`);
 
-    await this.accessService.assertUserCanViewCommunity(user?.id, community.id);
-
+    await this.assertUserCanViewCommunity(user?.id, community);
     return community;
+
   }
 
   async update(data: {
@@ -6383,7 +6501,37 @@ export class CommunitiesService {
     const community = await this.findOne(id);
     await this.communitiesRepository.remove(community);
   }
+  async assertUserCanViewCommunity(
+    userId: number | undefined,
+    community: Community,
+  ): Promise<void> {
+    switch (community.communityType) {
+      case CommunityType.PUBLIC:
+      case CommunityType.RESTRICTED:
+        return;
 
+      case CommunityType.PRIVATE:
+        if (!userId) {
+          throw new ForbiddenException('Login required to view this community');
+        }
+
+        const isMember = await this.subscriptionRepository.exist({
+          where: {
+            userId,
+            communityId: community.id,
+            status: CommunitySubscriptionStatus.ACTIVE,
+          },
+        });
+
+        if (!isMember) {
+          throw new ForbiddenException('You are not a member of this community');
+        }
+        return;
+
+      default:
+        throw new ForbiddenException('Community is not accessible');
+    }
+  }
 
 }
 
@@ -6556,12 +6704,10 @@ import { CommunitiesController } from './communities.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Community } from './entities/community.entity';
 import { CommunitySubscription } from 'src/community-subscriptions/entities/community-subscription.entity';
-import { CommunitySubscriptionsModule } from 'src/community-subscriptions/community-subscriptions.module';
-import { CommunityAccessModule } from 'src/community-access/community-access.module';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Community]),
-CommunitySubscriptionsModule,CommunityAccessModule],
+CommunitySubscription],
   controllers: [CommunitiesController],
   providers: [CommunitiesService],
   exports: [CommunitiesService],
@@ -7109,7 +7255,6 @@ import { Profile } from './profile/entities/profile.entity';
 import { ProfileModule } from './profile/profile.module';
 import { Community } from './communities/entities/community.entity';
 import { CommunitySubscription } from './community-subscriptions/entities/community-subscription.entity';
-import { CommunityAccessModule } from './community-access/community-access.module';
 import { CommunityModeratorsModule } from './community-moderators/community-moderators.module';
 import { ReportsModule } from './reports/reports.module';
 import { CommentReport } from './reports/entities/comment-report.entity';
@@ -7156,7 +7301,6 @@ import { UserReport } from './reports/entities/user-report.entity';
     ProfileModule,
     CommunitiesModule,
     CommunitySubscriptionsModule,
-    CommunityAccessModule,
     CommunityModeratorsModule,
     ReportsModule,
   ],
@@ -7635,7 +7779,6 @@ import { Brackets, Repository } from 'typeorm';
 import { Comment } from './entities/comment.entity';
 
 import { PostsService } from 'src/posts/posts.service';
-import { CommunityAccessService } from 'src/community-access/community-access.service';
 
 @Injectable()
 export class CommentsService {
@@ -7643,7 +7786,6 @@ export class CommentsService {
     @InjectRepository(Comment)
     private readonly commentRepo: Repository<Comment>,
     private readonly postsService: PostsService, // Inject PostsService
-    private readonly accessService: CommunityAccessService,
   ) { }
 
   async findAll(options: {
@@ -7808,9 +7950,7 @@ export class CommentsService {
       throw new BadRequestException('Comments are locked for this post.');
     }
 
-    // Check if user can contribute based on community rules
-    await this.accessService.assertUserCanContribute(userId,post.communityId)
-
+    
     const comment = this.commentRepo.create({
       content,
       authorId: userId,

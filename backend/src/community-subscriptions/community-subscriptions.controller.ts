@@ -57,8 +57,8 @@ export class CommunitySubscriptionsController {
     @GetUser() user: User,
   ): Promise<ResponseDto<CommunitySubscriptionResponseDto>> {
     const subscription = await this.communitySubscriptionsService.subscribe(
-      communityId,
-      user.id,
+     { communityId,
+     userId: user.id,}
     );
     return new ResponseDto(CommunitySubscriptionResponseDto.fromEntity(subscription));
   }

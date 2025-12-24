@@ -19,6 +19,13 @@ import { PostReport } from '../../reports/entities/post-report.entity';
 import { CommentReport } from '../../reports/entities/comment-report.entity'; // NEW IMPORT
 import { UserReport } from '../../reports/entities/user-report.entity'; // NEW IMPORT
 
+
+export enum UserRole {
+  SUPER_ADMIN,
+  ADMIN,
+  USER
+}
+
 @Entity('users')
 export class User {
   @PrimaryGeneratedColumn()
@@ -50,6 +57,13 @@ export class User {
   // One-to-one relation with Profile
   @OneToOne(() => Profile, (profile) => profile.user)
   profile: Profile;
+
+    @Column({
+    type: 'simple-enum', // sqlite compatible
+    enum: UserRole,
+    default: UserRole.USER,
+  })
+  role: UserRole;
 
   // Relations
   @OneToMany(() => Post, (post) => post.author)
