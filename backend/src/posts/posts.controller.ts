@@ -32,7 +32,7 @@ import { OptionalJwtAuthGuard } from 'src/auth/guards/optional-jwt-auth.guard';
 import type { Request } from 'express';
 import { CommunityType } from 'src/communities/types';
 import { Subscription } from 'rxjs';
-import { CommunitySubscriptionStatus } from 'src/community-subscriptions/types';
+import { CommunitySubscriptionStatus } from 'src/community-memberships/types';
 
 @Controller('posts')
 export class PostsController {

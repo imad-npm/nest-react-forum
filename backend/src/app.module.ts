@@ -10,7 +10,7 @@ import { PostsModule } from './posts/posts.module';
 import { CommentsModule } from './comments/comments.module';
 import { ReactionsModule } from './reactions/reactions.module';
 import { CommunitiesModule } from './communities/communities.module';
-import { CommunitySubscriptionsModule } from './community-subscriptions/community-subscriptions.module';
+import { CommunitySubscriptionsModule } from './community-memberships/community-memberships.module';
 
 import { User } from './users/entities/user.entity';
 import { Post } from './posts/entities/post.entity';
@@ -26,7 +26,7 @@ import { PostReaction } from './reactions/entities/post-reaction.entity';
 import { Profile } from './profile/entities/profile.entity';
 import { ProfileModule } from './profile/profile.module';
 import { Community } from './communities/entities/community.entity';
-import { CommunitySubscription } from './community-subscriptions/entities/community-subscription.entity';
+import { CommunityMembership } from './community-memberships/entities/community-membership.entity';
 import { CommunityModeratorsModule } from './community-moderators/community-moderators.module';
 import { ReportsModule } from './reports/reports.module';
 import { CommentReport } from './reports/entities/comment-report.entity';
@@ -53,7 +53,7 @@ import { UserReport } from './reports/entities/user-report.entity';
           PasswordResetToken,
           Profile,
           Community,
-          CommunitySubscription,
+          CommunityMembership,
           CommentReport,
           PostReport,
           UserReport,

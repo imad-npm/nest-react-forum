@@ -1,7 +1,7 @@
 import React from 'react';
-import { useGetCommunitySubscriptionsQuery } from '../../community-subscriptions/services/communitySubscriptionsApi';
+import { useGetCommunitySubscriptionsQuery } from '../../community-memberships/services/communitySubscriptionsApi';
 import CommunityCard from '../components/CommunityCard'; // Assuming a CommunityCard component exists
-import type { CommunitySubscription } from '../../community-subscriptions/types';
+import type { CommunityMembership } from '../../community-memberships/types';
 import type { Community } from '../types';
 import { useAuth } from '../../auth/hooks/useAuth';
 
@@ -25,7 +25,7 @@ const MyCommunitiesPage: React.FC = () => {
     return <div className="text-center mt-8 text-red-500">Error loading your communities.</div>;
   }
 
-  const subscriptions: CommunitySubscription[] = data?.data || [];
+  const subscriptions: CommunityMembership[] = data?.data || [];
   const myCommunities: Community[] = subscriptions.map(sub => sub.community).filter(Boolean) as Community[];
 
   return (

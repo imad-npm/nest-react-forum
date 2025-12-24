@@ -1,7 +1,7 @@
 import { Expose, Type, plainToInstance } from 'class-transformer';
 import { UserResponseDto } from '../../users/dtos/user-response.dto';
 import { CommunityResponseDto } from '../../communities/dto/community-response.dto';
-import { CommunitySubscription } from '../entities/community-subscription.entity';
+import { CommunityMembership } from '../entities/community-membership.entity';
 import { CommunitySubscriptionStatus } from '../types';
 
 export class CommunitySubscriptionResponseDto {
@@ -26,7 +26,7 @@ export class CommunitySubscriptionResponseDto {
   createdAt: Date;
 
   static fromEntity(
-    entity: CommunitySubscription,
+    entity: CommunityMembership,
   ): CommunitySubscriptionResponseDto {
     return plainToInstance(CommunitySubscriptionResponseDto, entity);
   }

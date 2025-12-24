@@ -8,16 +8,15 @@ import {
   Get,
   Query,
 } from '@nestjs/common';
-import { CommunitySubscriptionsService } from './community-subscriptions.service';
+import { CommunitySubscriptionsService } from './community-memberships.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { User } from '../users/entities/user.entity';
-import { CommunitySubscriptionResponseDto } from './dto/community-subscription-response.dto';
 import { GetUser } from 'src/decorators/user.decorator';
-import { CommunitySubscription } from './entities/community-subscription.entity';
-import { CommunitySubscriptionQueryDto } from './dto/community-subscription-query.dto';
 import { ResponseDto } from 'src/common/dto/response.dto';
 import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
 import { PaginationMetaDto } from 'src/common/dto/pagination-meta.dto';
+import { CommunitySubscriptionQueryDto } from './dto/community-memberships-query.dto';
+import { CommunitySubscriptionResponseDto } from './dto/community-memberships-response.dto';
 
 @Controller()
 export class CommunitySubscriptionsController {
@@ -27,7 +26,7 @@ export class CommunitySubscriptionsController {
 
 
   // Unified GET endpoint
-  @Get('community-subscriptions')
+  @Get('community-memberships')
   async findSubscriptions(
    @Query() query: CommunitySubscriptionQueryDto,
   ): Promise<PaginatedResponseDto<CommunitySubscriptionResponseDto>> {

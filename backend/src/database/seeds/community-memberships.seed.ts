@@ -1,17 +1,17 @@
 import { AppDataSource } from '../../data-source';
-import { communitySubscriptionFactory } from '../factories/community-subscription.factory';
-import { CommunitySubscription } from '../../community-subscriptions/entities/community-subscription.entity';
+import { communitySubscriptionFactory } from '../factories/community-membership.factory';
+import { CommunityMembership } from '../../community-memberships/entities/community-membership.entity';
 import { User } from '../../users/entities/user.entity';
 import { Community } from '../../communities/entities/community.entity';
 
 export async function seedCommunitySubscriptions(
   users: User[],
   communities: Community[],
-): Promise<CommunitySubscription[]> {
-  const subscriptionRepo = AppDataSource.getRepository(CommunitySubscription);
+): Promise<CommunityMembership[]> {
+  const subscriptionRepo = AppDataSource.getRepository(CommunityMembership);
   const communityRepo = AppDataSource.getRepository(Community);
 
-  const subscriptions: CommunitySubscription[] = [];
+  const subscriptions: CommunityMembership[] = [];
 
   for (const user of users) {
     const numSubscriptions = Math.floor(Math.random() * 3) + 1;
@@ -38,7 +38,7 @@ export async function seedCommunitySubscriptions(
       subscribersCount: () => `
         (
           SELECT COUNT(*)
-          FROM community_subscriptions cs
+          FROM community_memberships cs
           WHERE cs.communityId = communities.id
         )
       `,

@@ -169,21 +169,21 @@ export class AppController {
 ---
 
 
-### FILE: src/database/seeds/community-subscription.seed.ts ###
+### FILE: src/database/seeds/community-membership.seed.ts ###
 import { AppDataSource } from '../../data-source';
-import { communitySubscriptionFactory } from '../factories/community-subscription.factory';
-import { CommunitySubscription } from '../../community-subscriptions/entities/community-subscription.entity';
+import { communitySubscriptionFactory } from '../factories/community-membership.factory';
+import { CommunityMembership } from '../../community-memberships/entities/community-membership.entity';
 import { User } from '../../users/entities/user.entity';
 import { Community } from '../../communities/entities/community.entity';
 
 export async function seedCommunitySubscriptions(
   users: User[],
   communities: Community[],
-): Promise<CommunitySubscription[]> {
-  const subscriptionRepo = AppDataSource.getRepository(CommunitySubscription);
+): Promise<CommunityMembership[]> {
+  const subscriptionRepo = AppDataSource.getRepository(CommunityMembership);
   const communityRepo = AppDataSource.getRepository(Community);
 
-  const subscriptions: CommunitySubscription[] = [];
+  const subscriptions: CommunityMembership[] = [];
 
   for (const user of users) {
     const numSubscriptions = Math.floor(Math.random() * 3) + 1;
@@ -210,7 +210,7 @@ export async function seedCommunitySubscriptions(
       subscribersCount: () => `
         (
           SELECT COUNT(*)
-          FROM community_subscriptions cs
+          FROM community_memberships cs
           WHERE cs.communityId = communities.id
         )
       `,
@@ -545,7 +545,7 @@ import { seedPosts } from './post.seed';
 import { seedComments } from './comment.seed';
 import { seedReactions } from './reaction.seed';
 import { seedCommunities } from './community.seed';
-import { seedCommunitySubscriptions } from './community-subscription.seed';
+import { seedCommunitySubscriptions } from './community-membership.seed';
 import { AppDataSource } from '../../data-source';
 
 async function main() {
@@ -583,12 +583,12 @@ main();
 ---
 
 
-### FILE: src/database/factories/community-subscription.factory.ts ###
+### FILE: src/database/factories/community-membership.factory.ts ###
 import { faker } from '@faker-js/faker';
-import { CommunitySubscription } from '../../community-subscriptions/entities/community-subscription.entity';
+import { CommunityMembership } from '../../community-memberships/entities/community-membership.entity';
 
-export function communitySubscriptionFactory(): CommunitySubscription {
-  const subscription = new CommunitySubscription();
+export function communitySubscriptionFactory(): CommunityMembership {
+  const subscription = new CommunityMembership();
   // userId and communityId will be set when seeding, as they are foreign keys
   // For now, we can just return the basic subscription object.
   return subscription;
@@ -1082,17 +1082,17 @@ export class AddStatusToCommunitySubscription1766320141300 implements MigrationI
     name = 'AddStatusToCommunitySubscription1766320141300'
 
     public async up(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`CREATE TABLE "temporary_community_subscriptions" ("userId" integer NOT NULL, "communityId" integer NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "status" varchar CHECK( "status" IN ('active','pending','blocked') ) NOT NULL DEFAULT ('pending'), CONSTRAINT "FK_bcf2842e0032d27fb9d1c830e09" FOREIGN KEY ("communityId") REFERENCES "communities" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_a0761971a3fcd032c682d45f8a6" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, PRIMARY KEY ("userId", "communityId"))`);
-        await queryRunner.query(`INSERT INTO "temporary_community_subscriptions"("userId", "communityId", "createdAt") SELECT "userId", "communityId", "createdAt" FROM "community_subscriptions"`);
-        await queryRunner.query(`DROP TABLE "community_subscriptions"`);
-        await queryRunner.query(`ALTER TABLE "temporary_community_subscriptions" RENAME TO "community_subscriptions"`);
+        await queryRunner.query(`CREATE TABLE "temporary_community_memberships" ("userId" integer NOT NULL, "communityId" integer NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "status" varchar CHECK( "status" IN ('active','pending','blocked') ) NOT NULL DEFAULT ('pending'), CONSTRAINT "FK_bcf2842e0032d27fb9d1c830e09" FOREIGN KEY ("communityId") REFERENCES "communities" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_a0761971a3fcd032c682d45f8a6" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, PRIMARY KEY ("userId", "communityId"))`);
+        await queryRunner.query(`INSERT INTO "temporary_community_memberships"("userId", "communityId", "createdAt") SELECT "userId", "communityId", "createdAt" FROM "community_memberships"`);
+        await queryRunner.query(`DROP TABLE "community_memberships"`);
+        await queryRunner.query(`ALTER TABLE "temporary_community_memberships" RENAME TO "community_memberships"`);
     }
 
     public async down(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`ALTER TABLE "community_subscriptions" RENAME TO "temporary_community_subscriptions"`);
-        await queryRunner.query(`CREATE TABLE "community_subscriptions" ("userId" integer NOT NULL, "communityId" integer NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), CONSTRAINT "FK_bcf2842e0032d27fb9d1c830e09" FOREIGN KEY ("communityId") REFERENCES "communities" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_a0761971a3fcd032c682d45f8a6" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, PRIMARY KEY ("userId", "communityId"))`);
-        await queryRunner.query(`INSERT INTO "community_subscriptions"("userId", "communityId", "createdAt") SELECT "userId", "communityId", "createdAt" FROM "temporary_community_subscriptions"`);
-        await queryRunner.query(`DROP TABLE "temporary_community_subscriptions"`);
+        await queryRunner.query(`ALTER TABLE "community_memberships" RENAME TO "temporary_community_memberships"`);
+        await queryRunner.query(`CREATE TABLE "community_memberships" ("userId" integer NOT NULL, "communityId" integer NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), CONSTRAINT "FK_bcf2842e0032d27fb9d1c830e09" FOREIGN KEY ("communityId") REFERENCES "communities" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_a0761971a3fcd032c682d45f8a6" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, PRIMARY KEY ("userId", "communityId"))`);
+        await queryRunner.query(`INSERT INTO "community_memberships"("userId", "communityId", "createdAt") SELECT "userId", "communityId", "createdAt" FROM "temporary_community_memberships"`);
+        await queryRunner.query(`DROP TABLE "temporary_community_memberships"`);
     }
 
 }
@@ -1156,16 +1156,16 @@ export class AddCommunitiesAndSubscriptions1765671180328 implements MigrationInt
     name = 'AddCommunitiesAndSubscriptions1765671180328'
 
     public async up(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`CREATE TABLE "community_subscriptions" ("userId" integer NOT NULL, "communityId" integer NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), PRIMARY KEY ("userId", "communityId"))`);
+        await queryRunner.query(`CREATE TABLE "community_memberships" ("userId" integer NOT NULL, "communityId" integer NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), PRIMARY KEY ("userId", "communityId"))`);
         await queryRunner.query(`CREATE TABLE "communities" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(50) NOT NULL, "displayName" varchar(100), "description" text, "createdById" integer, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "isPublic" boolean NOT NULL DEFAULT (1), "subscribersCount" integer NOT NULL DEFAULT (0), CONSTRAINT "UQ_501bb6c8f7c8e8a7d614d9435f6" UNIQUE ("name"))`);
         await queryRunner.query(`CREATE TABLE "temporary_post" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "title" varchar NOT NULL, "content" varchar NOT NULL, "authorId" integer NOT NULL, "views" integer NOT NULL DEFAULT (0), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, "communityId" integer, CONSTRAINT "FK_c6fb082a3114f35d0cc27c518e0" FOREIGN KEY ("authorId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`);
         await queryRunner.query(`INSERT INTO "temporary_post"("id", "title", "content", "authorId", "views", "createdAt", "updatedAt", "deletedAt") SELECT "id", "title", "content", "authorId", "views", "createdAt", "updatedAt", "deletedAt" FROM "post"`);
         await queryRunner.query(`DROP TABLE "post"`);
         await queryRunner.query(`ALTER TABLE "temporary_post" RENAME TO "post"`);
-        await queryRunner.query(`CREATE TABLE "temporary_community_subscriptions" ("userId" integer NOT NULL, "communityId" integer NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), CONSTRAINT "FK_a0761971a3fcd032c682d45f8a6" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_bcf2842e0032d27fb9d1c830e09" FOREIGN KEY ("communityId") REFERENCES "communities" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, PRIMARY KEY ("userId", "communityId"))`);
-        await queryRunner.query(`INSERT INTO "temporary_community_subscriptions"("userId", "communityId", "createdAt") SELECT "userId", "communityId", "createdAt" FROM "community_subscriptions"`);
-        await queryRunner.query(`DROP TABLE "community_subscriptions"`);
-        await queryRunner.query(`ALTER TABLE "temporary_community_subscriptions" RENAME TO "community_subscriptions"`);
+        await queryRunner.query(`CREATE TABLE "temporary_community_memberships" ("userId" integer NOT NULL, "communityId" integer NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), CONSTRAINT "FK_a0761971a3fcd032c682d45f8a6" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_bcf2842e0032d27fb9d1c830e09" FOREIGN KEY ("communityId") REFERENCES "communities" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, PRIMARY KEY ("userId", "communityId"))`);
+        await queryRunner.query(`INSERT INTO "temporary_community_memberships"("userId", "communityId", "createdAt") SELECT "userId", "communityId", "createdAt" FROM "community_memberships"`);
+        await queryRunner.query(`DROP TABLE "community_memberships"`);
+        await queryRunner.query(`ALTER TABLE "temporary_community_memberships" RENAME TO "community_memberships"`);
         await queryRunner.query(`CREATE TABLE "temporary_communities" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(50) NOT NULL, "displayName" varchar(100), "description" text, "createdById" integer, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "isPublic" boolean NOT NULL DEFAULT (1), "subscribersCount" integer NOT NULL DEFAULT (0), CONSTRAINT "UQ_501bb6c8f7c8e8a7d614d9435f6" UNIQUE ("name"), CONSTRAINT "FK_d035f75868bd42e56593ffa4aa7" FOREIGN KEY ("createdById") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION)`);
         await queryRunner.query(`INSERT INTO "temporary_communities"("id", "name", "displayName", "description", "createdById", "createdAt", "isPublic", "subscribersCount") SELECT "id", "name", "displayName", "description", "createdById", "createdAt", "isPublic", "subscribersCount" FROM "communities"`);
         await queryRunner.query(`DROP TABLE "communities"`);
@@ -1185,16 +1185,16 @@ export class AddCommunitiesAndSubscriptions1765671180328 implements MigrationInt
         await queryRunner.query(`CREATE TABLE "communities" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(50) NOT NULL, "displayName" varchar(100), "description" text, "createdById" integer, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "isPublic" boolean NOT NULL DEFAULT (1), "subscribersCount" integer NOT NULL DEFAULT (0), CONSTRAINT "UQ_501bb6c8f7c8e8a7d614d9435f6" UNIQUE ("name"))`);
         await queryRunner.query(`INSERT INTO "communities"("id", "name", "displayName", "description", "createdById", "createdAt", "isPublic", "subscribersCount") SELECT "id", "name", "displayName", "description", "createdById", "createdAt", "isPublic", "subscribersCount" FROM "temporary_communities"`);
         await queryRunner.query(`DROP TABLE "temporary_communities"`);
-        await queryRunner.query(`ALTER TABLE "community_subscriptions" RENAME TO "temporary_community_subscriptions"`);
-        await queryRunner.query(`CREATE TABLE "community_subscriptions" ("userId" integer NOT NULL, "communityId" integer NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), PRIMARY KEY ("userId", "communityId"))`);
-        await queryRunner.query(`INSERT INTO "community_subscriptions"("userId", "communityId", "createdAt") SELECT "userId", "communityId", "createdAt" FROM "temporary_community_subscriptions"`);
-        await queryRunner.query(`DROP TABLE "temporary_community_subscriptions"`);
+        await queryRunner.query(`ALTER TABLE "community_memberships" RENAME TO "temporary_community_memberships"`);
+        await queryRunner.query(`CREATE TABLE "community_memberships" ("userId" integer NOT NULL, "communityId" integer NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), PRIMARY KEY ("userId", "communityId"))`);
+        await queryRunner.query(`INSERT INTO "community_memberships"("userId", "communityId", "createdAt") SELECT "userId", "communityId", "createdAt" FROM "temporary_community_memberships"`);
+        await queryRunner.query(`DROP TABLE "temporary_community_memberships"`);
         await queryRunner.query(`ALTER TABLE "post" RENAME TO "temporary_post"`);
         await queryRunner.query(`CREATE TABLE "post" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "title" varchar NOT NULL, "content" varchar NOT NULL, "authorId" integer NOT NULL, "views" integer NOT NULL DEFAULT (0), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, CONSTRAINT "FK_c6fb082a3114f35d0cc27c518e0" FOREIGN KEY ("authorId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`);
         await queryRunner.query(`INSERT INTO "post"("id", "title", "content", "authorId", "views", "createdAt", "updatedAt", "deletedAt") SELECT "id", "title", "content", "authorId", "views", "createdAt", "updatedAt", "deletedAt" FROM "temporary_post"`);
         await queryRunner.query(`DROP TABLE "temporary_post"`);
         await queryRunner.query(`DROP TABLE "communities"`);
-        await queryRunner.query(`DROP TABLE "community_subscriptions"`);
+        await queryRunner.query(`DROP TABLE "community_memberships"`);
     }
 
 }
@@ -2275,7 +2275,7 @@ import { PostReaction } from '../../reactions/entities/post-reaction.entity';
 import { CommentReaction } from '../../reactions/entities/comment-reaction.entity';
 import { Profile } from '../../profile/entities/profile.entity'; // Import Profile
 import { Community } from '../../communities/entities/community.entity';
-import { CommunitySubscription } from '../../community-subscriptions/entities/community-subscription.entity';
+import { CommunityMembership } from '../../community-memberships/entities/community-membership.entity';
 import { CommunityModerator } from '../../community-moderators/entities/community-moderator.entity'; // Import CommunityModerator
 import { PostReport } from '../../reports/entities/post-report.entity';
 import { CommentReport } from '../../reports/entities/comment-report.entity'; // NEW IMPORT
@@ -2344,10 +2344,10 @@ export class User {
   createdCommunities: Community[];
 
   @OneToMany(
-    () => CommunitySubscription,
+    () => CommunityMembership,
     (communitySubscription) => communitySubscription.user,
   )
-  communitySubscriptions: CommunitySubscription[];
+  communitySubscriptions: CommunityMembership[];
 
   @OneToMany(() => CommunityModerator, (communityModerator) => communityModerator.moderator)
   moderatedCommunities: CommunityModerator[];
@@ -2402,7 +2402,7 @@ export class UsersController {
 ---
 
 
-### FILE: src/community-subscriptions/types.ts ###
+### FILE: src/community-memberships/types.ts ###
 
 export enum CommunitySubscriptionStatus {
   ACTIVE = 'active',
@@ -2412,18 +2412,18 @@ export enum CommunitySubscriptionStatus {
 ---
 
 
-### FILE: src/community-subscriptions/community-subscriptions.module.ts ###
+### FILE: src/community-memberships/community-memberships.module.ts ###
 import { Module } from '@nestjs/common';
-import { CommunitySubscriptionsService } from './community-subscriptions.service';
-import { CommunitySubscriptionsController } from './community-subscriptions.controller';
+import { CommunitySubscriptionsService } from './community-memberships.service';
+import { CommunitySubscriptionsController } from './community-memberships.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { CommunitySubscription } from './entities/community-subscription.entity';
+import { CommunityMembership } from './entities/community-membership.entity';
 import { CommunitiesModule } from '../communities/communities.module';
 import { UsersModule } from 'src/users/users.module';
 import { User } from 'src/users/entities/user.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([CommunitySubscription,User]), 
+  imports: [TypeOrmModule.forFeature([CommunityMembership,User]), 
   CommunitiesModule],
   controllers: [CommunitySubscriptionsController],
   providers: [CommunitySubscriptionsService],
@@ -2434,7 +2434,7 @@ export class CommunitySubscriptionsModule {}
 ---
 
 
-### FILE: src/community-subscriptions/community-subscriptions.service.ts ###
+### FILE: src/community-memberships/community-memberships.service.ts ###
 import {
   ConflictException,
   Injectable,
@@ -2442,7 +2442,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { CommunitySubscription } from './entities/community-subscription.entity';
+import { CommunityMembership } from './entities/community-membership.entity';
 import { User } from '../users/entities/user.entity';
 import { CommunitiesService } from '../communities/communities.service';
 import { UsersService } from 'src/users/users.service';
@@ -2459,15 +2459,15 @@ interface SubscriptionQuery {
 @Injectable()
 export class CommunitySubscriptionsService {
   constructor(
-    @InjectRepository(CommunitySubscription)
-    private readonly subscriptionsRepository: Repository<CommunitySubscription>,
+    @InjectRepository(CommunityMembership)
+    private readonly subscriptionsRepository: Repository<CommunityMembership>,
     private readonly communitiesService: CommunitiesService,
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
   ) { }
 
 
-  async findSubscriptions(query: SubscriptionQuery): Promise<{ data: CommunitySubscription[]; count: number }> {
+  async findSubscriptions(query: SubscriptionQuery): Promise<{ data: CommunityMembership[]; count: number }> {
     const where: any = {};
     const relations: string[] = [];
 
@@ -2495,7 +2495,7 @@ export class CommunitySubscriptionsService {
     return { data, count };
   }
 
-  async findOne(userId: number, communityId: number): Promise<CommunitySubscription | null> {
+  async findOne(userId: number, communityId: number): Promise<CommunityMembership | null> {
     return this.subscriptionsRepository.findOne({
       where: { userId, communityId },
     });
@@ -2629,7 +2629,7 @@ export class CommunitySubscriptionsService {
   async activateSubscription(
     userId: number,
     communityId: number,
-  ): Promise<CommunitySubscription> {
+  ): Promise<CommunityMembership> {
     const subscription = await this.findOne(userId, communityId);
     if (!subscription) {
       throw new NotFoundException('Subscription not found.');
@@ -2648,7 +2648,7 @@ export class CommunitySubscriptionsService {
 ---
 
 
-### FILE: src/community-subscriptions/entities/community-subscription.entity.ts ###
+### FILE: src/community-memberships/entities/community-membership.entity.ts ###
 import {
   Column,
   CreateDateColumn,
@@ -2660,8 +2660,8 @@ import { User } from '../../users/entities/user.entity';
 import { Community } from '../../communities/entities/community.entity';
 import { CommunitySubscriptionStatus } from '../types';
 
-@Entity('community_subscriptions')
-export class CommunitySubscription {
+@Entity('community_memberships')
+export class CommunityMembership {
   @PrimaryColumn()
   userId: number;
 
@@ -2684,7 +2684,7 @@ export class CommunitySubscription {
 ---
 
 
-### FILE: src/community-subscriptions/community-subscriptions.controller.ts ###
+### FILE: src/community-memberships/community-memberships.controller.ts ###
 import {
   Controller,
   Post,
@@ -2695,13 +2695,13 @@ import {
   Get,
   Query,
 } from '@nestjs/common';
-import { CommunitySubscriptionsService } from './community-subscriptions.service';
+import { CommunitySubscriptionsService } from './community-memberships.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { User } from '../users/entities/user.entity';
-import { CommunitySubscriptionResponseDto } from './dto/community-subscription-response.dto';
+import { CommunitySubscriptionResponseDto } from './dto/community-membership-response.dto';
 import { GetUser } from 'src/decorators/user.decorator';
-import { CommunitySubscription } from './entities/community-subscription.entity';
-import { CommunitySubscriptionQueryDto } from './dto/community-subscription-query.dto';
+import { CommunityMembership } from './entities/community-membership.entity';
+import { CommunitySubscriptionQueryDto } from './dto/community-membership-query.dto';
 import { ResponseDto } from 'src/common/dto/response.dto';
 import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
 import { PaginationMetaDto } from 'src/common/dto/pagination-meta.dto';
@@ -2714,7 +2714,7 @@ export class CommunitySubscriptionsController {
 
 
   // Unified GET endpoint
-  @Get('community-subscriptions')
+  @Get('community-memberships')
   async findSubscriptions(
    @Query() query: CommunitySubscriptionQueryDto,
   ): Promise<PaginatedResponseDto<CommunitySubscriptionResponseDto>> {
@@ -2765,7 +2765,7 @@ export class CommunitySubscriptionsController {
 ---
 
 
-### FILE: src/community-subscriptions/dto/community-subscription-query.dto.ts ###
+### FILE: src/community-memberships/dto/community-membership-query.dto.ts ###
 import { IsBoolean, IsNumber, IsOptional, IsString } from 'class-validator';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { Transform } from 'class-transformer';
@@ -2785,11 +2785,11 @@ export class CommunitySubscriptionQueryDto extends PaginationDto {
 ---
 
 
-### FILE: src/community-subscriptions/dto/community-subscription-response.dto.ts ###
+### FILE: src/community-memberships/dto/community-membership-response.dto.ts ###
 import { Expose, Type, plainToInstance } from 'class-transformer';
 import { UserResponseDto } from '../../users/dtos/user-response.dto';
 import { CommunityResponseDto } from '../../communities/dto/community-response.dto';
-import { CommunitySubscription } from '../entities/community-subscription.entity';
+import { CommunityMembership } from '../entities/community-membership.entity';
 import { CommunitySubscriptionStatus } from '../types';
 
 export class CommunitySubscriptionResponseDto {
@@ -2814,7 +2814,7 @@ export class CommunitySubscriptionResponseDto {
   createdAt: Date;
 
   static fromEntity(
-    entity: CommunitySubscription,
+    entity: CommunityMembership,
   ): CommunitySubscriptionResponseDto {
     return plainToInstance(CommunitySubscriptionResponseDto, entity);
   }
@@ -2823,7 +2823,7 @@ export class CommunitySubscriptionResponseDto {
 ---
 
 
-### FILE: src/community-subscriptions/dto/create-community-subscription.dto.ts ###
+### FILE: src/community-memberships/dto/create-community-membership.dto.ts ###
 import { IsNumber } from 'class-validator';
 
 export class CreateCommunitySubscriptionDto {
@@ -4719,7 +4719,7 @@ import { PostReaction } from '../reactions/entities/post-reaction.entity';
 import { CommentReaction } from '../reactions/entities/comment-reaction.entity';
 import { Action } from './casl.types';
 import { Community } from 'src/communities/entities/community.entity';
-import { CommunitySubscriptionStatus } from 'src/community-subscriptions/types';
+import { CommunitySubscriptionStatus } from 'src/community-memberships/types';
 import { CommunityType } from 'src/communities/types';
 
 export type Subjects =
@@ -4862,11 +4862,11 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Post } from './entities/post.entity';
 import { CaslModule } from 'src/casl/casl.module';
 import { Community } from 'src/communities/entities/community.entity';
-import { CommunitySubscription } from 'src/community-subscriptions/entities/community-subscription.entity';
+import { CommunityMembership } from 'src/community-memberships/entities/community-membership.entity';
 
 @Module({
   imports: [TypeOrmModule.forFeature(
-    [Post, Community, CommunitySubscription]),
+    [Post, Community, CommunityMembership]),
     CaslModule,
 
   ],
@@ -4887,8 +4887,8 @@ import { Post } from './entities/post.entity';
 import { PostSort } from './dto/post-query.dto';
 import { CommunityType } from 'src/communities/types';
 import { Community } from 'src/communities/entities/community.entity';
-import { CommunitySubscription } from 'src/community-subscriptions/entities/community-subscription.entity';
-import { CommunitySubscriptionStatus } from 'src/community-subscriptions/types';
+import { CommunityMembership } from 'src/community-memberships/entities/community-membership.entity';
+import { CommunitySubscriptionStatus } from 'src/community-memberships/types';
 
 @Injectable()
 export class PostsService {
@@ -4898,8 +4898,8 @@ export class PostsService {
     @InjectRepository(Community)
     private readonly communityRepository: Repository<Community>,
 
-    @InjectRepository(CommunitySubscription)
-    private readonly subscriptionRepository: Repository<CommunitySubscription>,) { }
+    @InjectRepository(CommunityMembership)
+    private readonly subscriptionRepository: Repository<CommunityMembership>,) { }
 
   async findAll(
     options: {
@@ -5001,7 +5001,7 @@ export class PostsService {
           }).orWhere(
             `EXISTS (
           SELECT 1
-          FROM community_subscriptions cs
+          FROM community_memberships cs
           WHERE cs.communityId = community.id
           AND cs.userId = :currentUserId
           AND cs.status = 'approved'
@@ -5311,7 +5311,7 @@ import { OptionalJwtAuthGuard } from 'src/auth/guards/optional-jwt-auth.guard';
 import type { Request } from 'express';
 import { CommunityType } from 'src/communities/types';
 import { Subscription } from 'rxjs';
-import { CommunitySubscriptionStatus } from 'src/community-subscriptions/types';
+import { CommunitySubscriptionStatus } from 'src/community-memberships/types';
 
 @Controller('posts')
 export class PostsController {
@@ -6387,8 +6387,8 @@ import { Not, Repository } from 'typeorm';
 import { Community } from './entities/community.entity';
 import { CommunityType } from './types';
 import { User } from '../users/entities/user.entity';
-import { CommunitySubscription } from 'src/community-subscriptions/entities/community-subscription.entity';
-import { CommunitySubscriptionStatus } from 'src/community-subscriptions/types';
+import { CommunityMembership } from 'src/community-memberships/entities/community-membership.entity';
+import { CommunitySubscriptionStatus } from 'src/community-memberships/types';
 
 @Injectable()
 export class CommunitiesService {
@@ -6397,8 +6397,8 @@ export class CommunitiesService {
     private readonly communitiesRepository: Repository<Community>,
     @InjectRepository(Community)
     private readonly communityRepository: Repository<Community>,
-    @InjectRepository(CommunitySubscription)
-    private readonly subscriptionRepository: Repository<CommunitySubscription>
+    @InjectRepository(CommunityMembership)
+    private readonly subscriptionRepository: Repository<CommunityMembership>
   ) { }
 
   async create(data: {
@@ -6549,7 +6549,7 @@ import {
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Post } from '../../posts/entities/post.entity';
-import { CommunitySubscription } from '../../community-subscriptions/entities/community-subscription.entity';
+import { CommunityMembership } from '../../community-memberships/entities/community-membership.entity';
 import { CommunityType } from '../types';
 import { CommunityModerator } from '../../community-moderators/entities/community-moderator.entity'; // Import CommunityModerator
 
@@ -6586,10 +6586,10 @@ ownerId: number;
   posts: Post[];
 
   @OneToMany(
-    () => CommunitySubscription,
+    () => CommunityMembership,
     (subscription) => subscription.community,
   )
-  subscriptions: CommunitySubscription[];
+  subscriptions: CommunityMembership[];
 
   @OneToMany(() => CommunityModerator, (communityModerator) => communityModerator.community)
   moderators: CommunityModerator[];
@@ -6703,11 +6703,11 @@ import { CommunitiesService } from './communities.service';
 import { CommunitiesController } from './communities.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Community } from './entities/community.entity';
-import { CommunitySubscription } from 'src/community-subscriptions/entities/community-subscription.entity';
+import { CommunityMembership } from 'src/community-memberships/entities/community-membership.entity';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Community]),
-CommunitySubscription],
+CommunityMembership],
   controllers: [CommunitiesController],
   providers: [CommunitiesService],
   exports: [CommunitiesService],
@@ -7238,7 +7238,7 @@ import { PostsModule } from './posts/posts.module';
 import { CommentsModule } from './comments/comments.module';
 import { ReactionsModule } from './reactions/reactions.module';
 import { CommunitiesModule } from './communities/communities.module';
-import { CommunitySubscriptionsModule } from './community-subscriptions/community-subscriptions.module';
+import { CommunitySubscriptionsModule } from './community-memberships/community-memberships.module';
 
 import { User } from './users/entities/user.entity';
 import { Post } from './posts/entities/post.entity';
@@ -7254,7 +7254,7 @@ import { PostReaction } from './reactions/entities/post-reaction.entity';
 import { Profile } from './profile/entities/profile.entity';
 import { ProfileModule } from './profile/profile.module';
 import { Community } from './communities/entities/community.entity';
-import { CommunitySubscription } from './community-subscriptions/entities/community-subscription.entity';
+import { CommunityMembership } from './community-memberships/entities/community-membership.entity';
 import { CommunityModeratorsModule } from './community-moderators/community-moderators.module';
 import { ReportsModule } from './reports/reports.module';
 import { CommentReport } from './reports/entities/comment-report.entity';
@@ -7281,7 +7281,7 @@ import { UserReport } from './reports/entities/user-report.entity';
           PasswordResetToken,
           Profile,
           Community,
-          CommunitySubscription,
+          CommunityMembership,
           CommentReport,
           PostReport,
           UserReport,
@@ -7423,9 +7423,9 @@ import { Repository } from 'typeorm';
 import { CommunityModerator } from './entities/community-moderator.entity';
 import { UsersService } from '../users/users.service';
 import { CommunitiesService } from '../communities/communities.service';
-import { CommunitySubscriptionsService } from '../community-subscriptions/community-subscriptions.service';
+import { CommunitySubscriptionsService } from '../community-memberships/community-memberships.service';
 import { User } from 'src/users/entities/user.entity';
-import { CommunitySubscriptionStatus } from 'src/community-subscriptions/types';
+import { CommunitySubscriptionStatus } from 'src/community-memberships/types';
 
 @Injectable()
 export class CommunityModeratorsService {
@@ -7709,7 +7709,7 @@ import { EmailVerificationToken } from './email-verification/entities/email-veri
 import { PasswordResetToken } from './reset-password/entities/password-reset-token.entity';
 import { Profile } from './profile/entities/profile.entity';
 import { Community } from './communities/entities/community.entity'; // Import Community
-import { CommunitySubscription } from './community-subscriptions/entities/community-subscription.entity'; // Import CommunitySubscription
+import { CommunityMembership } from './community-memberships/entities/community-membership.entity'; // Import CommunityMembership
 import { CommunityModerator } from './community-moderators/entities/community-moderator.entity'; // Import CommunityModerator
 import { PostReport } from './reports/entities/post-report.entity';
 import { CommentReport } from './reports/entities/comment-report.entity';
@@ -7735,7 +7735,7 @@ export const AppDataSource = new DataSource({
     EmailVerificationToken,
     Profile,
     Community, // Add Community
-    CommunitySubscription, // Add CommunitySubscription
+    CommunityMembership, // Add CommunityMembership
     CommunityModerator, // Add Moderator
     PostReport,
     CommentReport,
@@ -8291,7 +8291,7 @@ import { CommentsController } from './comments.controller';
 import { PostsModule } from 'src/posts/posts.module';
 import { CaslModule } from 'src/casl/casl.module';
 import { CommunitiesModule } from 'src/communities/communities.module';
-import { CommunitySubscription } from 'src/community-subscriptions/entities/community-subscription.entity';
+import { CommunityMembership } from 'src/community-memberships/entities/community-membership.entity';
 import { CommunityAccessModule } from 'src/community-access/community-access.module';
 
 @Module({

@@ -10,9 +10,9 @@ import { Repository } from 'typeorm';
 import { CommunityModerator } from './entities/community-moderator.entity';
 import { UsersService } from '../users/users.service';
 import { CommunitiesService } from '../communities/communities.service';
-import { CommunitySubscriptionsService } from '../community-subscriptions/community-subscriptions.service';
+import { CommunitySubscriptionsService } from '../community-memberships/community-memberships.service';
 import { User } from 'src/users/entities/user.entity';
-import { CommunitySubscriptionStatus } from 'src/community-subscriptions/types';
+import { CommunitySubscriptionStatus } from 'src/community-memberships/types';
 
 @Injectable()
 export class CommunityModeratorsService {

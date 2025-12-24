@@ -1,4 +1,4 @@
-export interface CommunitySubscription {
+export interface CommunityMembership {
     userId: number;
     communityId: number;
     // user: UserResponseDto; // Assuming UserResponseDto exists

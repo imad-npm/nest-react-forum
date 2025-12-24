@@ -1,7 +1,7 @@
 import React from 'react';
 import { useGetCommunityByIdQuery } from '../services/communitiesApi';
 import { Link } from 'react-router-dom';
-import { SubscribeUnsubscribeButton } from '../../community-subscriptions/components/SubscribeUnsubscribeButton';
+import { SubscribeUnsubscribeButton } from '../../community-memberships/components/SubscribeUnsubscribeButton';
 
 interface AboutCommunityProps {
   communityId: number;

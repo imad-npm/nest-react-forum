@@ -1,21 +1,21 @@
 import { apiSlice } from '../../../shared/services/apiSlice';
-import type { CommunitySubscription, CommunitySubscriptionQueryDto } from '../types';
+import type { CommunityMembership, CommunitySubscriptionQueryDto } from '../types';
 import type { PaginatedResponse, ResponseDto } from '../../../shared/types';
 
 export const communitySubscriptionsApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
     getCommunitySubscriptions: builder.query<
-      PaginatedResponse<CommunitySubscription>,
+      PaginatedResponse<CommunityMembership>,
       CommunitySubscriptionQueryDto
     >({
       query: (params) => ({
-        url: '/community-subscriptions',
+        url: '/community-memberships',
         params,
       }),
       providesTags: ['CommunitySubscriptions'],
     }),
     subscribeToCommunity: builder.mutation<
-      ResponseDto<CommunitySubscription>,
+      ResponseDto<CommunityMembership>,
       number // communityId
     >({
       query: (communityId) => ({

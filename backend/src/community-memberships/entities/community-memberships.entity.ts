@@ -9,8 +9,8 @@ import { User } from '../../users/entities/user.entity';
 import { Community } from '../../communities/entities/community.entity';
 import { CommunitySubscriptionStatus } from '../types';
 
-@Entity('community_subscriptions')
-export class CommunitySubscription {
+@Entity('community_memberships')
+export class CommunityMembership {
   @PrimaryColumn()
   userId: number;
 

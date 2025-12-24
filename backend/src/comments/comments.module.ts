@@ -6,7 +6,7 @@ import { CommentsController } from './comments.controller';
 import { PostsModule } from 'src/posts/posts.module';
 import { CaslModule } from 'src/casl/casl.module';
 import { CommunitiesModule } from 'src/communities/communities.module';
-import { CommunitySubscription } from 'src/community-subscriptions/entities/community-subscription.entity';
+import { CommunityMembership } from 'src/community-memberships/entities/community-membership.entity';
 import { CommunityAccessModule } from 'src/community-access/community-access.module';
 
 @Module({

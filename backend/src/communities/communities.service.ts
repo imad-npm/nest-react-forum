@@ -9,8 +9,8 @@ import { Not, Repository } from 'typeorm';
 import { Community } from './entities/community.entity';
 import { CommunityType } from './types';
 import { User } from '../users/entities/user.entity';
-import { CommunitySubscription } from 'src/community-subscriptions/entities/community-subscription.entity';
-import { CommunitySubscriptionStatus } from 'src/community-subscriptions/types';
+import { CommunityMembership } from 'src/community-memberships/entities/community-membership.entity';
+import { CommunitySubscriptionStatus } from 'src/community-memberships/types';
 
 @Injectable()
 export class CommunitiesService {
@@ -19,8 +19,8 @@ export class CommunitiesService {
     private readonly communitiesRepository: Repository<Community>,
     @InjectRepository(Community)
     private readonly communityRepository: Repository<Community>,
-    @InjectRepository(CommunitySubscription)
-    private readonly subscriptionRepository: Repository<CommunitySubscription>
+    @InjectRepository(CommunityMembership)
+    private readonly subscriptionRepository: Repository<CommunityMembership>
   ) { }
 
   async create(data: {

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useGetCommunityByIdQuery } from '../services/communitiesApi';
-import { SubscribeUnsubscribeButton } from '../../community-subscriptions/components/SubscribeUnsubscribeButton';
+import { SubscribeUnsubscribeButton } from '../../community-memberships/components/SubscribeUnsubscribeButton';
 
 interface CommunityHeaderProps {
   communityId: number;

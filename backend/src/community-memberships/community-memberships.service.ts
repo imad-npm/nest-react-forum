@@ -5,12 +5,12 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { CommunitySubscription } from './entities/community-subscription.entity';
 import { User } from '../users/entities/user.entity';
 import { CommunitiesService } from '../communities/communities.service';
 import { UsersService } from 'src/users/users.service';
 import { CommunityType } from 'src/communities/types';
 import { CommunitySubscriptionStatus } from './types';
+import { CommunityMembership } from './entities/community-memberships.entity';
 
 interface SubscriptionQuery {
   userId?: number;
@@ -22,15 +22,15 @@ interface SubscriptionQuery {
 @Injectable()
 export class CommunitySubscriptionsService {
   constructor(
-    @InjectRepository(CommunitySubscription)
-    private readonly subscriptionsRepository: Repository<CommunitySubscription>,
+    @InjectRepository(CommunityMembership)
+    private readonly subscriptionsRepository: Repository<CommunityMembership>,
     private readonly communitiesService: CommunitiesService,
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
   ) { }
 
 
-  async findSubscriptions(query: SubscriptionQuery): Promise<{ data: CommunitySubscription[]; count: number }> {
+  async findSubscriptions(query: SubscriptionQuery): Promise<{ data: CommunityMembership[]; count: number }> {
     const where: any = {};
     const relations: string[] = [];
 
@@ -58,7 +58,7 @@ export class CommunitySubscriptionsService {
     return { data, count };
   }
 
-  async findOne(userId: number, communityId: number): Promise<CommunitySubscription | null> {
+  async findOne(userId: number, communityId: number): Promise<CommunityMembership | null> {
     return this.subscriptionsRepository.findOne({
       where: { userId, communityId },
     });
@@ -192,7 +192,7 @@ export class CommunitySubscriptionsService {
   async activateSubscription(
     userId: number,
     communityId: number,
-  ): Promise<CommunitySubscription> {
+  ): Promise<CommunityMembership> {
     const subscription = await this.findOne(userId, communityId);
     if (!subscription) {
       throw new NotFoundException('Subscription not found.');

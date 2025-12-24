@@ -3,7 +3,7 @@ import { seedPosts } from './post.seed';
 import { seedComments } from './comment.seed';
 import { seedReactions } from './reaction.seed';
 import { seedCommunities } from './community.seed';
-import { seedCommunitySubscriptions } from './community-subscription.seed';
+import { seedCommunitySubscriptions } from './community-membership.seed';
 import { AppDataSource } from '../../data-source';
 
 async function main() {

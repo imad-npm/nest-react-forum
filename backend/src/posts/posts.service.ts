@@ -5,8 +5,8 @@ import { Post } from './entities/post.entity';
 import { PostSort } from './dto/post-query.dto';
 import { CommunityType } from 'src/communities/types';
 import { Community } from 'src/communities/entities/community.entity';
-import { CommunitySubscription } from 'src/community-subscriptions/entities/community-subscription.entity';
-import { CommunitySubscriptionStatus } from 'src/community-subscriptions/types';
+import { CommunityMembership } from 'src/community-memberships/entities/community-membership.entity';
+import { CommunitySubscriptionStatus } from 'src/community-memberships/types';
 import { CommunityModerator } from 'src/community-moderators/entities/community-moderator.entity';
 
 @Injectable()
@@ -17,8 +17,8 @@ export class PostsService {
     @InjectRepository(Community)
     private readonly communityRepository: Repository<Community>,
 
-    @InjectRepository(CommunitySubscription)
-    private readonly subscriptionRepository: Repository<CommunitySubscription>,
+    @InjectRepository(CommunityMembership)
+    private readonly subscriptionRepository: Repository<CommunityMembership>,
     @InjectRepository(CommunityModerator)
     private readonly communityModeratorRepository) 
     { }
@@ -122,7 +122,7 @@ export class PostsService {
           }).orWhere(
             `EXISTS (
           SELECT 1
-          FROM community_subscriptions cs
+          FROM community_memberships cs
           WHERE cs.communityId = community.id
           AND cs.userId = :currentUserId
           AND cs.status = 'approved'

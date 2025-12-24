@@ -9,7 +9,7 @@ import { EmailVerificationToken } from './email-verification/entities/email-veri
 import { PasswordResetToken } from './reset-password/entities/password-reset-token.entity';
 import { Profile } from './profile/entities/profile.entity';
 import { Community } from './communities/entities/community.entity'; // Import Community
-import { CommunitySubscription } from './community-subscriptions/entities/community-subscription.entity'; // Import CommunitySubscription
+import { CommunityMembership } from './community-memberships/entities/community-membership.entity'; // Import CommunityMembership
 import { CommunityModerator } from './community-moderators/entities/community-moderator.entity'; // Import CommunityModerator
 import { PostReport } from './reports/entities/post-report.entity';
 import { CommentReport } from './reports/entities/comment-report.entity';
@@ -35,7 +35,7 @@ export const AppDataSource = new DataSource({
     EmailVerificationToken,
     Profile,
     Community, // Add Community
-    CommunitySubscription, // Add CommunitySubscription
+    CommunityMembership, // Add CommunityMembership
     CommunityModerator, // Add Moderator
     PostReport,
     CommentReport,
