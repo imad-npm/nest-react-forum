@@ -13,6 +13,7 @@ import { CommunityMembership } from '../community-memberships/entities/community
 import { User } from '../users/entities/user.entity';
 import { Community } from '../communities/entities/community.entity';
 import { CommunityMembershipRole } from '../community-memberships/types';
+import { CommunityType } from '../communities/types';
 
 @Injectable()
 export class CommunityMembershipRequestsService {
@@ -33,8 +34,9 @@ export class CommunityMembershipRequestsService {
       throw new NotFoundException('User not found');
     }
 
-    const community = await this.communityRepository.findOneBy({
-      id: communityId,
+    const community = await this.communityRepository.findOne({
+      where: { id: communityId },
+      select: ['id', 'ownerId', 'communityType'], // Select communityType
     });
     if (!community) {
       throw new NotFoundException('Community not found');
@@ -47,18 +49,29 @@ export class CommunityMembershipRequestsService {
       throw new BadRequestException('User is already a member of this community');
     }
 
-    const existingRequest = await this.requestRepository.findOne({
-      where: { userId, communityId, status: CommunityMembershipRequestStatus.PENDING },
-    });
-    if (existingRequest) {
-      throw new BadRequestException('Pending request already exists');
-    }
+    // If community is public, create membership directly
+    if (community.communityType === CommunityType.PUBLIC) {
+      const membership = this.membershipRepository.create({
+        userId,
+        communityId,
+        role: CommunityMembershipRole.MEMBER, // Default role for auto-membership
+      });
+      return this.membershipRepository.save(membership);
+    } else {
+      // For restricted or private communities, create a pending request
+      const existingRequest = await this.requestRepository.findOne({
+        where: { userId, communityId, status: CommunityMembershipRequestStatus.PENDING },
+      });
+      if (existingRequest) {
+        throw new BadRequestException('Pending request already exists');
+      }
 
-    const request = this.requestRepository.create({
-      userId,
-      communityId,
-    });
-    return this.requestRepository.save(request);
+      const request = this.requestRepository.create({
+        userId,
+        communityId,
+      });
+      return this.requestRepository.save(request);
+    }
   }
 
   async acceptMembershipRequest(requestId: number, adminId: number) {

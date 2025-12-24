@@ -49,18 +49,7 @@ export class CommunityMembershipsController {
     return new PaginatedResponseDto(data.map(CommunityMembershipResponseDto.fromEntity), paginationMeta);
   }
 
-@UseGuards(JwtAuthGuard)
-  @Post('communities/:communityId/memberships')
-  async createMembership(
-    @Param('communityId', ParseIntPipe) communityId: number,
-    @GetUser() user: User,
-  ): Promise<ResponseDto<CommunityMembershipResponseDto>> {
-    const membership = await this.communityMembershipsService.createMembership(
-     { communityId,
-     userId: user.id,}
-    );
-    return new ResponseDto(CommunityMembershipResponseDto.fromEntity(membership));
-  }
+
   
 @UseGuards(JwtAuthGuard)
   @Delete('users/me/communities/:communityId/memberships')

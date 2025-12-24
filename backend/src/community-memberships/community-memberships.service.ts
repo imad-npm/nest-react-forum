@@ -61,62 +61,7 @@ export class CommunityMembershipsService {
       where: { userId, communityId },
     });
   }
-
-  async createMembership(input: {
-    userId: number;
-    communityId: number;
-    activate?: boolean;
-  }) {
-    const { userId, communityId, activate } = input;
-
-    // Check community existence
-    const community = await this.communitiesService.findOne(communityId);
-    if (!community) {
-      throw new NotFoundException(`Community ${communityId} not found`);
-    }
-
-    const userExists = await this.usersRepository.exist({
-      where: { id: userId },
-    });
-    if (!userExists) {
-      throw new NotFoundException(`User ${userId} not found`);
-    }
-
-
-    const existingMembership = await this.membershipsRepository.findOne({
-      where: {
-        userId: userId,
-        communityId: community.id,
-      },
-    });
-
-    if (existingMembership) {
-
-      throw new ConflictException(
-        `User ${userId} is already member of to community ${community.id}`,
-      );
-    }
-
-    const communityType = community.communityType;
-
-
-    const membership = this.membershipsRepository.create({
-      userId: userId,
-      communityId: community.id,
-    });
-
-    const savedMembership = await this.membershipsRepository.save(
-      membership,
-    );
-
-    await this.communitiesService.update({
-      id: community.id,
-      membersCount: community.membersCount + 1,
-    });
-
-    return savedMembership;
-  }
-
+  
   async deleteMembership(communityId: number, userId: number) {
 
     // Check community existence
@@ -152,7 +97,7 @@ export class CommunityMembershipsService {
       membersCount: community.membersCount - 1,
     });
 
-    return { message: 'Unmember of successfully' };
+    return { message: 'Left community successfully' };
   }
 
 

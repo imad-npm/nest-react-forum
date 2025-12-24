@@ -2604,7 +2604,7 @@ export class CommunityMembershipsService {
       membersCount: community.membersCount - 1,
     });
 
-    return { message: 'Unmember of successfully' };
+    return { message: 'Left community successfully' };
   }
 
   // --- New methods for membership status checks ---
