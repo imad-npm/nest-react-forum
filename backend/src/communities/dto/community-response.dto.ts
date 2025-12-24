@@ -9,7 +9,7 @@ export class CommunityResponseDto {
   @Expose() readonly displayName: string;
   @Expose() readonly description: string;
   @Expose() readonly isPublic: boolean;
-  @Expose() readonly subscribersCount: number;
+  @Expose() readonly membersCount: number;
   @Expose() readonly createdAt: Date;
 
   static fromEntity(entity: Community): CommunityResponseDto {

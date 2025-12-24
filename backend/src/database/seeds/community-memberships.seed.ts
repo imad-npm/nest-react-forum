@@ -35,7 +35,7 @@ export async function seedCommunityMemberships(
     .createQueryBuilder()
     .update(Community)
     .set({
-      subscribersCount: () => `
+      membersCount: () => `
         (
           SELECT COUNT(*)
           FROM community_memberships cs

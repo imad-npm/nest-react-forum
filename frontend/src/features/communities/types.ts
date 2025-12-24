@@ -4,7 +4,7 @@ export interface Community {
   displayName: string;
   description: string;
   isPublic: boolean;
-  subscribersCount: number;
+  membersCount: number;
   createdAt: string;
 }
 

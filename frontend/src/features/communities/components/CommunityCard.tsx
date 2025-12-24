@@ -22,7 +22,7 @@ const CommunityCard: React.FC<CommunityCardProps> = ({ community }) => {
       </div>
       <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
         <FaUsers className="mr-1" />
-        <span>{community.subscribersCount || 0} subscribers</span>
+        <span>{community.membersCount || 0} subscribers</span>
       </div>
     </div>
   );

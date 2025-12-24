@@ -64,7 +64,7 @@ export class CommunitiesService {
     if (name) queryBuilder.andWhere('community.name LIKE :name', { name: `%${name}%` });
     if (displayName) queryBuilder.andWhere('community.displayName LIKE :displayName', { displayName: `%${displayName}%` });
     if (communityType !== undefined) queryBuilder.andWhere('community.communityType = :communityType', { communityType });
-    if (sort === 'popular') queryBuilder.orderBy('community.subscribersCount', 'DESC');
+    if (sort === 'popular') queryBuilder.orderBy('community.membersCount', 'DESC');
 
     return queryBuilder.getManyAndCount();
   }
@@ -102,7 +102,7 @@ export class CommunitiesService {
     displayName?: string;
     description?: string;
     communityType?: CommunityType;
-    subscribersCount?: number;
+    membersCount?: number;
   }) {
     const { id, name } = data;
 

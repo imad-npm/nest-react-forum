@@ -39,7 +39,7 @@ ownerId: number;
   communityType: CommunityType;
 
   @Column({ type: 'integer', default: 0 })
-  subscribersCount: number;
+  membersCount: number;
 
   @OneToMany(() => Post, (post) => post.community)
   posts: Post[];

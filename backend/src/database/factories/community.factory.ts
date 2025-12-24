@@ -8,6 +8,6 @@ export function communityFactory(): Community {
   community.displayName = faker.company.name();
   community.description = faker.lorem.paragraph();
   community.communityType = faker.helpers.arrayElement(Object.values(CommunityType));
-  community.subscribersCount = faker.number.int({ min: 0, max: 1000 });
+  community.membersCount = faker.number.int({ min: 0, max: 1000 });
   return community;
 }

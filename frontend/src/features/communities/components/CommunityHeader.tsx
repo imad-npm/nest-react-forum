@@ -53,7 +53,7 @@ export const CommunityHeader: React.FC<CommunityHeaderProps> = ({ communityId })
         <div className="mt-3 flex gap-4 text-sm text-gray-600">
           <span>
             <strong className="text-gray-900">
-              {community.subscribersCount.toLocaleString()}
+              {community.membersCount.toLocaleString()}
             </strong>{' '}
             members
           </span>

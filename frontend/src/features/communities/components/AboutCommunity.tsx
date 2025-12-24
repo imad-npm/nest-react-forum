@@ -26,7 +26,7 @@ export const AboutCommunity: React.FC<AboutCommunityProps> = ({ communityId }) =
         About <Link to={`/communities/${community.id}`} className="text-primary-600 hover:underline">r/{community.name}</Link></h2>
       {community.description && <p className="text-sm text-gray-700 mb-3">{community.description}</p>}
       <div className="flex justify-between items-center text-sm text-gray-600 mb-3">
-        <span>Members: {community.subscribersCount.toLocaleString()}</span>
+        <span>Members: {community.membersCount.toLocaleString()}</span>
         <span>Created: {new Date(community.createdAt).toLocaleDateString()}</span>
       </div>
       <SubscribeUnsubscribeButton communityId={community.id} />

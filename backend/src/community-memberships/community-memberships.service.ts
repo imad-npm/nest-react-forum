@@ -7,8 +7,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../users/entities/user.entity';
 import { CommunitiesService } from '../communities/communities.service';
-import { UsersService } from 'src/users/users.service';
-import { CommunityType } from 'src/communities/types';
+
 import { CommunityMembership } from './entities/community-memberships.entity';
 
 interface MembershipQuery {
@@ -94,7 +93,7 @@ export class CommunityMembershipsService {
     if (existingMembership) {
 
       throw new ConflictException(
-        `User ${userId} is already subscribed to community ${community.id}`,
+        `User ${userId} is already member of to community ${community.id}`,
       );
     }
 
@@ -112,7 +111,7 @@ export class CommunityMembershipsService {
 
     await this.communitiesService.update({
       id: community.id,
-      subscribersCount: community.subscribersCount + 1,
+      membersCount: community.membersCount + 1,
     });
 
     return savedMembership;
@@ -142,7 +141,7 @@ export class CommunityMembershipsService {
 
     if (!existingMembership) {
       throw new NotFoundException(
-        `User ${userId} is not subscribed to community ${community.id}`,
+        `User ${userId} is not member of to community ${community.id}`,
       );
     }
 
@@ -150,10 +149,10 @@ export class CommunityMembershipsService {
 
     await this.communitiesService.update({
       id: community.id,
-      subscribersCount: community.subscribersCount - 1,
+      membersCount: community.membersCount - 1,
     });
 
-    return { message: 'Unsubscribed successfully' };
+    return { message: 'Unmember of successfully' };
   }
 
 
