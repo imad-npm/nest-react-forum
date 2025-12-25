@@ -1,6 +1,6 @@
 import React from 'react';
 import { useGetCommunityByIdQuery } from '../services/communitiesApi';
-import { SubscribeUnsubscribeButton } from '../../community-memberships/components/SubscribeUnsubscribeButton';
+import { SubscribeLeaveButton } from '../../community-memberships/components/JoinLeaveButton';
 
 interface CommunityHeaderProps {
   communityId: number;
@@ -39,7 +39,7 @@ export const CommunityHeader: React.FC<CommunityHeaderProps> = ({ communityId })
             <p className="text-sm text-gray-500">r/{community.name}</p>
           </div>
 
-          <SubscribeUnsubscribeButton communityId={community.id} />
+          <SubscribeLeaveButton communityId={community.id} />
         </div>
 
         {/* Description */}

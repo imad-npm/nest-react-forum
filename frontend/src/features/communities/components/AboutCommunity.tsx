@@ -1,7 +1,7 @@
 import React from 'react';
 import { useGetCommunityByIdQuery } from '../services/communitiesApi';
 import { Link } from 'react-router-dom';
-import { SubscribeUnsubscribeButton } from '../../community-memberships/components/SubscribeUnsubscribeButton';
+import { SubscribeLeaveButton } from '../../community-memberships/components/JoinLeaveButton';
 
 interface AboutCommunityProps {
   communityId: number;
@@ -29,7 +29,7 @@ export const AboutCommunity: React.FC<AboutCommunityProps> = ({ communityId }) =
         <span>Members: {community.membersCount.toLocaleString()}</span>
         <span>Created: {new Date(community.createdAt).toLocaleDateString()}</span>
       </div>
-      <SubscribeUnsubscribeButton communityId={community.id} />
+      <SubscribeLeaveButton communityId={community.id} />
     </div>
   );
 };

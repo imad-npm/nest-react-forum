@@ -14,17 +14,7 @@ export const communityMembershipsApi = apiSlice.injectEndpoints({
       }),
       providesTags: ['CommunityMemberships'],
     }),
-    subscribeToCommunity: builder.mutation<
-      ResponseDto<CommunityMembership>,
-      number // communityId
-    >({
-      query: (communityId) => ({
-        url: `/communities/${communityId}/memberships`,
-        method: 'POST',
-      }),
-      invalidatesTags: ['CommunityMemberships', 'Communities'], // Invalidate communities to update subscriber count
-    }),
-    unsubscribeFromCommunity: builder.mutation<
+    deleteMembership: builder.mutation<
       ResponseDto<boolean>,
       number // communityId
     >({
@@ -39,6 +29,5 @@ export const communityMembershipsApi = apiSlice.injectEndpoints({
 
 export const {
   useGetCommunityMembershipsQuery,
-  useSubscribeToCommunityMutation,
-  useUnsubscribeFromCommunityMutation,
+  useDeleteMembershipMutation,
 } = communityMembershipsApi;
