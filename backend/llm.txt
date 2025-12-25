@@ -30,7 +30,8 @@
     "mg": "ts-node ./node_modules/typeorm/cli.js migration:generate -d ./src/data-source.ts ./src/database/migrations/$npm_config_name",
     "migration:revert": "npm run typeorm -- migration:revert -d ./src/data-source.ts",
     "seed": "ts-node src/database/seeds/index.ts",
-     "migration:refresh": "npm run db:drop && npm run migration:run && npm run seed",
+    "migration:refresh": "npm run db:drop && npm run migration:run ",
+    "migration:refreshAndSeed": "npm run db:drop && npm run migration:run && npm run seed",
     "db:drop": "npm run typeorm -- schema:drop -d ./src/data-source.ts"
   },
   "dependencies": {
@@ -108,7 +109,6 @@
     "testEnvironment": "node"
   }
 }
-
 ---
 
 ### FILE: nest-cli.json ###
@@ -164,73 +164,6 @@ export class AppController {
   getHello(): string {
     return this.appService.getHello();
   }
-}
-
----
-
-
-### FILE: src/database/seeds/community-membership.seed.ts ###
-import { AppDataSource } from '../../data-source';
-import { communityMembershipFactory } from '../factories/community-membership.factory';
-import { CommunityMembership } from '../../community-memberships/entities/community-membership.entity';
-import { User } from '../../users/entities/user.entity';
-import { Community } from '../../communities/entities/community.entity';
-
-export async function seedCommunityMemberships(
-  users: User[],
-  communities: Community[],
-): Promise<CommunityMembership[]> {
-  const membershipRepo = AppDataSource.getRepository(CommunityMembership);
-  const communityRepo = AppDataSource.getRepository(Community);
-
-  const memberships: CommunityMembership[] = [];
-
-  for (const user of users) {
-    const numMemberships = Math.floor(Math.random() * 3) + 1;
-    const shuffled = [...communities].sort(() => 0.5 - Math.random());
-    const toSubscribe = shuffled.slice(0, numMemberships);
-
-    for (const community of toSubscribe) {
-      const membership = communityMembershipFactory();
-      membership.userId = user.id;
-      membership.communityId = community.id;
-      memberships.push(membership);
-    }
-  }
-
-  await membershipRepo.save(memberships);
-
-  // ─────────────────────────────────────────────
-  // UPDATE subscribers_count (CORRECT WAY)
-  // ─────────────────────────────────────────────
-  await communityRepo
-    .createQueryBuilder()
-    .update(Community)
-    .set({
-      membersCount: () => `
-        (
-          SELECT COUNT(*)
-          FROM community_memberships cs
-          WHERE cs.communityId = communities.id
-        )
-      `,
-    })
-    .execute();
-
-  console.log(`Seeded ${memberships.length} community memberships ✅`);
-  console.log(`Updated communities.subscribers_count ✅`);
-
-  return memberships;
-}
-
-if (require.main === module) {
-  AppDataSource.initialize().then(async () => {
-    const userRepo = AppDataSource.getRepository(User);
-    const communityRepo = AppDataSource.getRepository(Community);
-    const users = await userRepo.find();
-    const communities = await communityRepo.find();
-    await seedCommunityMemberships(users, communities);
-  }).catch(error => console.error('Seeding failed ❌', error));
 }
 
 ---
@@ -508,6 +441,73 @@ if (require.main === module) seedComments([], []);
 ---
 
 
+### FILE: src/database/seeds/community-memberships.seed.ts ###
+import { AppDataSource } from '../../data-source';
+import { communityMembershipFactory } from '../factories/community-memberships.factory';
+import { CommunityMembership } from '../../community-memberships/entities/community-memberships.entity';
+import { User } from '../../users/entities/user.entity';
+import { Community } from '../../communities/entities/community.entity';
+
+export async function seedCommunityMemberships(
+  users: User[],
+  communities: Community[],
+): Promise<CommunityMembership[]> {
+  const membershipRepo = AppDataSource.getRepository(CommunityMembership);
+  const communityRepo = AppDataSource.getRepository(Community);
+
+  const memberships: CommunityMembership[] = [];
+
+  for (const user of users) {
+    const numMemberships = Math.floor(Math.random() * 3) + 1;
+    const shuffled = [...communities].sort(() => 0.5 - Math.random());
+    const toSubscribe = shuffled.slice(0, numMemberships);
+
+    for (const community of toSubscribe) {
+      const membership = communityMembershipFactory();
+      membership.userId = user.id;
+      membership.communityId = community.id;
+      memberships.push(membership);
+    }
+  }
+
+  await membershipRepo.save(memberships);
+
+  // ─────────────────────────────────────────────
+  // UPDATE subscribers_count (CORRECT WAY)
+  // ─────────────────────────────────────────────
+  await communityRepo
+    .createQueryBuilder()
+    .update(Community)
+    .set({
+      membersCount: () => `
+        (
+          SELECT COUNT(*)
+          FROM community_memberships cs
+          WHERE cs.communityId = communities.id
+        )
+      `,
+    })
+    .execute();
+
+  console.log(`Seeded ${memberships.length} community memberships ✅`);
+  console.log(`Updated communities.subscribers_count ✅`);
+
+  return memberships;
+}
+
+if (require.main === module) {
+  AppDataSource.initialize().then(async () => {
+    const userRepo = AppDataSource.getRepository(User);
+    const communityRepo = AppDataSource.getRepository(Community);
+    const users = await userRepo.find();
+    const communities = await communityRepo.find();
+    await seedCommunityMemberships(users, communities);
+  }).catch(error => console.error('Seeding failed ❌', error));
+}
+
+---
+
+
 ### FILE: src/database/seeds/community.seed.ts ###
 import { AppDataSource } from '../../data-source';
 import { communityFactory } from '../factories/community.factory';
@@ -545,7 +545,7 @@ import { seedPosts } from './post.seed';
 import { seedComments } from './comment.seed';
 import { seedReactions } from './reaction.seed';
 import { seedCommunities } from './community.seed';
-import { seedCommunityMemberships } from './community-membership.seed';
+import { seedCommunityMemberships } from './community-memberships.seed';
 import { AppDataSource } from '../../data-source';
 
 async function main() {
@@ -583,9 +583,9 @@ main();
 ---
 
 
-### FILE: src/database/factories/community-membership.factory.ts ###
+### FILE: src/database/factories/community-memberships.factory.ts ###
 import { faker } from '@faker-js/faker';
-import { CommunityMembership } from '../../community-memberships/entities/community-membership.entity';
+import { CommunityMembership } from '../../community-memberships/entities/community-memberships.entity';
 
 export function communityMembershipFactory(): CommunityMembership {
   const membership = new CommunityMembership();
@@ -1075,7 +1075,7 @@ export class Inital1764720178421 implements MigrationInterface {
 ---
 
 
-### FILE: src/database/migrations/1766320141300-AddStatusToCommunityMembership.ts ###
+### FILE: src/database/migrations/1766320141300-AddStatusToCommunitySubscription.ts ###
 import { MigrationInterface, QueryRunner } from "typeorm";
 
 export class AddStatusToCommunityMembership1766320141300 implements MigrationInterface {
@@ -1149,7 +1149,7 @@ export class AddApprovedAtToPosts1766412136598 implements MigrationInterface {
 ---
 
 
-### FILE: src/database/migrations/1765671180328-AddCommunitiesAndMemberships.ts ###
+### FILE: src/database/migrations/1765671180328-AddCommunitiesAndSubscriptions.ts ###
 import { MigrationInterface, QueryRunner } from "typeorm";
 
 export class AddCommunitiesAndMemberships1765671180328 implements MigrationInterface {
@@ -1455,6 +1455,103 @@ export class AddCommunityTypeToCommunity1766319450404 implements MigrationInterf
         await queryRunner.query(`CREATE TABLE "communities" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(50) NOT NULL, "displayName" varchar(100), "description" text, "createdById" integer, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "isPublic" boolean NOT NULL DEFAULT (1), "membersCount" integer NOT NULL DEFAULT (0), CONSTRAINT "UQ_501bb6c8f7c8e8a7d614d9435f6" UNIQUE ("name"), CONSTRAINT "FK_d035f75868bd42e56593ffa4aa7" FOREIGN KEY ("createdById") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION)`);
         await queryRunner.query(`INSERT INTO "communities"("id", "name", "displayName", "description", "createdById", "createdAt", "isPublic", "membersCount") SELECT "id", "name", "displayName", "description", "createdById", "createdAt", "communityType", "membersCount" FROM "temporary_communities"`);
         await queryRunner.query(`DROP TABLE "temporary_communities"`);
+    }
+
+}
+
+---
+
+
+### FILE: src/database/migrations/1766668524447-AddReportEntity.ts ###
+import { MigrationInterface, QueryRunner } from "typeorm";
+
+export class AddReportEntity1766668524447 implements MigrationInterface {
+    name = 'AddReportEntity1766668524447'
+
+    public async up(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`CREATE TABLE "temporary_community_memberships" ("userId" integer NOT NULL, "communityId" integer NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "status" varchar CHECK( "status" IN ('active','pending','blocked') ) NOT NULL DEFAULT ('pending'), PRIMARY KEY ("userId", "communityId"))`);
+        await queryRunner.query(`INSERT INTO "temporary_community_memberships"("userId", "communityId", "createdAt", "status") SELECT "userId", "communityId", "createdAt", "status" FROM "community_memberships"`);
+        await queryRunner.query(`DROP TABLE "community_memberships"`);
+        await queryRunner.query(`ALTER TABLE "temporary_community_memberships" RENAME TO "community_memberships"`);
+        await queryRunner.query(`CREATE TABLE "temporary_community_memberships" ("userId" integer NOT NULL, "communityId" integer NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "role" varchar CHECK( "role" IN ('active','pending','blocked') ) NOT NULL DEFAULT ('pending'), PRIMARY KEY ("userId", "communityId"))`);
+        await queryRunner.query(`INSERT INTO "temporary_community_memberships"("userId", "communityId", "createdAt", "role") SELECT "userId", "communityId", "createdAt", "status" FROM "community_memberships"`);
+        await queryRunner.query(`DROP TABLE "community_memberships"`);
+        await queryRunner.query(`ALTER TABLE "temporary_community_memberships" RENAME TO "community_memberships"`);
+        await queryRunner.query(`CREATE TABLE "community_membership_requests" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "userId" integer NOT NULL, "communityId" integer NOT NULL, "status" varchar CHECK( "status" IN ('pending','accepted','rejected') ) NOT NULL DEFAULT ('pending'), "createdAt" datetime NOT NULL DEFAULT (datetime('now')))`);
+        await queryRunner.query(`CREATE TABLE "post_reports" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "reporterId" integer NOT NULL, "reason" varchar NOT NULL, "description" text, "status" varchar CHECK( "status" IN ('pending','resolved','dismissed') ) NOT NULL DEFAULT ('pending'), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer NOT NULL, "communityId" integer NOT NULL, "isPlatformComplaint" boolean NOT NULL DEFAULT (0))`);
+        await queryRunner.query(`CREATE TABLE "comment_reports" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "reporterId" integer NOT NULL, "reason" varchar NOT NULL, "description" text, "status" varchar CHECK( "status" IN ('pending','resolved','dismissed') ) NOT NULL DEFAULT ('pending'), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "commentId" integer NOT NULL, "communityId" integer NOT NULL, "isPlatformComplaint" boolean NOT NULL DEFAULT (0))`);
+        await queryRunner.query(`CREATE TABLE "user_reports" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "reporterId" integer NOT NULL, "reason" varchar NOT NULL, "description" text, "status" varchar CHECK( "status" IN ('pending','resolved','dismissed') ) NOT NULL DEFAULT ('pending'), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "reportedUserId" integer NOT NULL, "isPlatformComplaint" boolean NOT NULL DEFAULT (0))`);
+        await queryRunner.query(`CREATE TABLE "temporary_users" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(100) NOT NULL, "email" varchar(100) NOT NULL, "password" varchar, "emailVerifiedAt" datetime, "provider" varchar CHECK( "provider" IN ('google','github') ), "providerId" varchar, "role" varchar CHECK( "role" IN ('0','1','2') ) NOT NULL DEFAULT (2), CONSTRAINT "UQ_97672ac88f789774dd47f7c8be3" UNIQUE ("email"))`);
+        await queryRunner.query(`INSERT INTO "temporary_users"("id", "name", "email", "password", "emailVerifiedAt", "provider", "providerId") SELECT "id", "name", "email", "password", "emailVerifiedAt", "provider", "providerId" FROM "users"`);
+        await queryRunner.query(`DROP TABLE "users"`);
+        await queryRunner.query(`ALTER TABLE "temporary_users" RENAME TO "users"`);
+        await queryRunner.query(`CREATE TABLE "temporary_community_memberships" ("userId" integer NOT NULL, "communityId" integer NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "role" varchar CHECK( "role" IN ('admin','moderator','member') ) NOT NULL DEFAULT ('member'), PRIMARY KEY ("userId", "communityId"))`);
+        await queryRunner.query(`INSERT INTO "temporary_community_memberships"("userId", "communityId", "createdAt", "role") SELECT "userId", "communityId", "createdAt", "role" FROM "community_memberships"`);
+        await queryRunner.query(`DROP TABLE "community_memberships"`);
+        await queryRunner.query(`ALTER TABLE "temporary_community_memberships" RENAME TO "community_memberships"`);
+        await queryRunner.query(`CREATE TABLE "temporary_community_memberships" ("userId" integer NOT NULL, "communityId" integer NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "role" varchar CHECK( "role" IN ('admin','moderator','member') ) NOT NULL DEFAULT ('member'), CONSTRAINT "FK_488d1ca96e355e11d83480a8f2c" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_6ea82875cc58f4b1b14ebe49717" FOREIGN KEY ("communityId") REFERENCES "communities" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, PRIMARY KEY ("userId", "communityId"))`);
+        await queryRunner.query(`INSERT INTO "temporary_community_memberships"("userId", "communityId", "createdAt", "role") SELECT "userId", "communityId", "createdAt", "role" FROM "community_memberships"`);
+        await queryRunner.query(`DROP TABLE "community_memberships"`);
+        await queryRunner.query(`ALTER TABLE "temporary_community_memberships" RENAME TO "community_memberships"`);
+        await queryRunner.query(`CREATE TABLE "temporary_community_membership_requests" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "userId" integer NOT NULL, "communityId" integer NOT NULL, "status" varchar CHECK( "status" IN ('pending','accepted','rejected') ) NOT NULL DEFAULT ('pending'), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), CONSTRAINT "FK_f41b77e974eb717317d0b8d6469" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_c2cdfa8ac8820dca58f4a706773" FOREIGN KEY ("communityId") REFERENCES "communities" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION)`);
+        await queryRunner.query(`INSERT INTO "temporary_community_membership_requests"("id", "userId", "communityId", "status", "createdAt") SELECT "id", "userId", "communityId", "status", "createdAt" FROM "community_membership_requests"`);
+        await queryRunner.query(`DROP TABLE "community_membership_requests"`);
+        await queryRunner.query(`ALTER TABLE "temporary_community_membership_requests" RENAME TO "community_membership_requests"`);
+        await queryRunner.query(`CREATE TABLE "temporary_post_reports" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "reporterId" integer NOT NULL, "reason" varchar NOT NULL, "description" text, "status" varchar CHECK( "status" IN ('pending','resolved','dismissed') ) NOT NULL DEFAULT ('pending'), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer NOT NULL, "communityId" integer NOT NULL, "isPlatformComplaint" boolean NOT NULL DEFAULT (0), CONSTRAINT "FK_4f4c3c25aa849390b9cb7fd6fa1" FOREIGN KEY ("reporterId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_b9b9977c4da06492b2491cea20a" FOREIGN KEY ("postId") REFERENCES "posts" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`);
+        await queryRunner.query(`INSERT INTO "temporary_post_reports"("id", "reporterId", "reason", "description", "status", "createdAt", "updatedAt", "postId", "communityId", "isPlatformComplaint") SELECT "id", "reporterId", "reason", "description", "status", "createdAt", "updatedAt", "postId", "communityId", "isPlatformComplaint" FROM "post_reports"`);
+        await queryRunner.query(`DROP TABLE "post_reports"`);
+        await queryRunner.query(`ALTER TABLE "temporary_post_reports" RENAME TO "post_reports"`);
+        await queryRunner.query(`CREATE TABLE "temporary_comment_reports" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "reporterId" integer NOT NULL, "reason" varchar NOT NULL, "description" text, "status" varchar CHECK( "status" IN ('pending','resolved','dismissed') ) NOT NULL DEFAULT ('pending'), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "commentId" integer NOT NULL, "communityId" integer NOT NULL, "isPlatformComplaint" boolean NOT NULL DEFAULT (0), CONSTRAINT "FK_36ab772754faebab9c812565988" FOREIGN KEY ("reporterId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_14ce729bcc2ec2f7c16b11b2d9e" FOREIGN KEY ("commentId") REFERENCES "comments" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`);
+        await queryRunner.query(`INSERT INTO "temporary_comment_reports"("id", "reporterId", "reason", "description", "status", "createdAt", "updatedAt", "commentId", "communityId", "isPlatformComplaint") SELECT "id", "reporterId", "reason", "description", "status", "createdAt", "updatedAt", "commentId", "communityId", "isPlatformComplaint" FROM "comment_reports"`);
+        await queryRunner.query(`DROP TABLE "comment_reports"`);
+        await queryRunner.query(`ALTER TABLE "temporary_comment_reports" RENAME TO "comment_reports"`);
+        await queryRunner.query(`CREATE TABLE "temporary_user_reports" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "reporterId" integer NOT NULL, "reason" varchar NOT NULL, "description" text, "status" varchar CHECK( "status" IN ('pending','resolved','dismissed') ) NOT NULL DEFAULT ('pending'), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "reportedUserId" integer NOT NULL, "isPlatformComplaint" boolean NOT NULL DEFAULT (0), CONSTRAINT "FK_4c8ff913a6d53469649f6941ece" FOREIGN KEY ("reporterId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_85aa921a0dfd2b7d58cd4cd9450" FOREIGN KEY ("reportedUserId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`);
+        await queryRunner.query(`INSERT INTO "temporary_user_reports"("id", "reporterId", "reason", "description", "status", "createdAt", "updatedAt", "reportedUserId", "isPlatformComplaint") SELECT "id", "reporterId", "reason", "description", "status", "createdAt", "updatedAt", "reportedUserId", "isPlatformComplaint" FROM "user_reports"`);
+        await queryRunner.query(`DROP TABLE "user_reports"`);
+        await queryRunner.query(`ALTER TABLE "temporary_user_reports" RENAME TO "user_reports"`);
+    }
+
+    public async down(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`ALTER TABLE "user_reports" RENAME TO "temporary_user_reports"`);
+        await queryRunner.query(`CREATE TABLE "user_reports" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "reporterId" integer NOT NULL, "reason" varchar NOT NULL, "description" text, "status" varchar CHECK( "status" IN ('pending','resolved','dismissed') ) NOT NULL DEFAULT ('pending'), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "reportedUserId" integer NOT NULL, "isPlatformComplaint" boolean NOT NULL DEFAULT (0))`);
+        await queryRunner.query(`INSERT INTO "user_reports"("id", "reporterId", "reason", "description", "status", "createdAt", "updatedAt", "reportedUserId", "isPlatformComplaint") SELECT "id", "reporterId", "reason", "description", "status", "createdAt", "updatedAt", "reportedUserId", "isPlatformComplaint" FROM "temporary_user_reports"`);
+        await queryRunner.query(`DROP TABLE "temporary_user_reports"`);
+        await queryRunner.query(`ALTER TABLE "comment_reports" RENAME TO "temporary_comment_reports"`);
+        await queryRunner.query(`CREATE TABLE "comment_reports" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "reporterId" integer NOT NULL, "reason" varchar NOT NULL, "description" text, "status" varchar CHECK( "status" IN ('pending','resolved','dismissed') ) NOT NULL DEFAULT ('pending'), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "commentId" integer NOT NULL, "communityId" integer NOT NULL, "isPlatformComplaint" boolean NOT NULL DEFAULT (0))`);
+        await queryRunner.query(`INSERT INTO "comment_reports"("id", "reporterId", "reason", "description", "status", "createdAt", "updatedAt", "commentId", "communityId", "isPlatformComplaint") SELECT "id", "reporterId", "reason", "description", "status", "createdAt", "updatedAt", "commentId", "communityId", "isPlatformComplaint" FROM "temporary_comment_reports"`);
+        await queryRunner.query(`DROP TABLE "temporary_comment_reports"`);
+        await queryRunner.query(`ALTER TABLE "post_reports" RENAME TO "temporary_post_reports"`);
+        await queryRunner.query(`CREATE TABLE "post_reports" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "reporterId" integer NOT NULL, "reason" varchar NOT NULL, "description" text, "status" varchar CHECK( "status" IN ('pending','resolved','dismissed') ) NOT NULL DEFAULT ('pending'), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer NOT NULL, "communityId" integer NOT NULL, "isPlatformComplaint" boolean NOT NULL DEFAULT (0))`);
+        await queryRunner.query(`INSERT INTO "post_reports"("id", "reporterId", "reason", "description", "status", "createdAt", "updatedAt", "postId", "communityId", "isPlatformComplaint") SELECT "id", "reporterId", "reason", "description", "status", "createdAt", "updatedAt", "postId", "communityId", "isPlatformComplaint" FROM "temporary_post_reports"`);
+        await queryRunner.query(`DROP TABLE "temporary_post_reports"`);
+        await queryRunner.query(`ALTER TABLE "community_membership_requests" RENAME TO "temporary_community_membership_requests"`);
+        await queryRunner.query(`CREATE TABLE "community_membership_requests" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "userId" integer NOT NULL, "communityId" integer NOT NULL, "status" varchar CHECK( "status" IN ('pending','accepted','rejected') ) NOT NULL DEFAULT ('pending'), "createdAt" datetime NOT NULL DEFAULT (datetime('now')))`);
+        await queryRunner.query(`INSERT INTO "community_membership_requests"("id", "userId", "communityId", "status", "createdAt") SELECT "id", "userId", "communityId", "status", "createdAt" FROM "temporary_community_membership_requests"`);
+        await queryRunner.query(`DROP TABLE "temporary_community_membership_requests"`);
+        await queryRunner.query(`ALTER TABLE "community_memberships" RENAME TO "temporary_community_memberships"`);
+        await queryRunner.query(`CREATE TABLE "community_memberships" ("userId" integer NOT NULL, "communityId" integer NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "role" varchar CHECK( "role" IN ('admin','moderator','member') ) NOT NULL DEFAULT ('member'), PRIMARY KEY ("userId", "communityId"))`);
+        await queryRunner.query(`INSERT INTO "community_memberships"("userId", "communityId", "createdAt", "role") SELECT "userId", "communityId", "createdAt", "role" FROM "temporary_community_memberships"`);
+        await queryRunner.query(`DROP TABLE "temporary_community_memberships"`);
+        await queryRunner.query(`ALTER TABLE "community_memberships" RENAME TO "temporary_community_memberships"`);
+        await queryRunner.query(`CREATE TABLE "community_memberships" ("userId" integer NOT NULL, "communityId" integer NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "role" varchar CHECK( "role" IN ('active','pending','blocked') ) NOT NULL DEFAULT ('pending'), PRIMARY KEY ("userId", "communityId"))`);
+        await queryRunner.query(`INSERT INTO "community_memberships"("userId", "communityId", "createdAt", "role") SELECT "userId", "communityId", "createdAt", "role" FROM "temporary_community_memberships"`);
+        await queryRunner.query(`DROP TABLE "temporary_community_memberships"`);
+        await queryRunner.query(`ALTER TABLE "users" RENAME TO "temporary_users"`);
+        await queryRunner.query(`CREATE TABLE "users" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(100) NOT NULL, "email" varchar(100) NOT NULL, "password" varchar, "emailVerifiedAt" datetime, "provider" varchar CHECK( "provider" IN ('google','github') ), "providerId" varchar, CONSTRAINT "UQ_97672ac88f789774dd47f7c8be3" UNIQUE ("email"))`);
+        await queryRunner.query(`INSERT INTO "users"("id", "name", "email", "password", "emailVerifiedAt", "provider", "providerId") SELECT "id", "name", "email", "password", "emailVerifiedAt", "provider", "providerId" FROM "temporary_users"`);
+        await queryRunner.query(`DROP TABLE "temporary_users"`);
+        await queryRunner.query(`DROP TABLE "user_reports"`);
+        await queryRunner.query(`DROP TABLE "comment_reports"`);
+        await queryRunner.query(`DROP TABLE "post_reports"`);
+        await queryRunner.query(`DROP TABLE "community_membership_requests"`);
+        await queryRunner.query(`ALTER TABLE "community_memberships" RENAME TO "temporary_community_memberships"`);
+        await queryRunner.query(`CREATE TABLE "community_memberships" ("userId" integer NOT NULL, "communityId" integer NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "status" varchar CHECK( "status" IN ('active','pending','blocked') ) NOT NULL DEFAULT ('pending'), PRIMARY KEY ("userId", "communityId"))`);
+        await queryRunner.query(`INSERT INTO "community_memberships"("userId", "communityId", "createdAt", "status") SELECT "userId", "communityId", "createdAt", "role" FROM "temporary_community_memberships"`);
+        await queryRunner.query(`DROP TABLE "temporary_community_memberships"`);
+        await queryRunner.query(`ALTER TABLE "community_memberships" RENAME TO "temporary_community_memberships"`);
+        await queryRunner.query(`CREATE TABLE "community_memberships" ("userId" integer NOT NULL, "communityId" integer NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "status" varchar CHECK( "status" IN ('active','pending','blocked') ) NOT NULL DEFAULT ('pending'), CONSTRAINT "FK_a0761971a3fcd032c682d45f8a6" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_bcf2842e0032d27fb9d1c830e09" FOREIGN KEY ("communityId") REFERENCES "communities" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, PRIMARY KEY ("userId", "communityId"))`);
+        await queryRunner.query(`INSERT INTO "community_memberships"("userId", "communityId", "createdAt", "status") SELECT "userId", "communityId", "createdAt", "status" FROM "temporary_community_memberships"`);
+        await queryRunner.query(`DROP TABLE "temporary_community_memberships"`);
     }
 
 }
@@ -1832,95 +1929,6 @@ export class RenameTablesToPlural1765929661449 implements MigrationInterface {
 ---
 
 
-### FILE: src/database/migrations/1766448730463-AddReportEntities.ts ###
-import { MigrationInterface, QueryRunner } from "typeorm";
-
-export class AddReportEntities1766448730463 implements MigrationInterface {
-    name = 'AddReportEntities1766448730463'
-
-    public async up(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`CREATE TABLE "temporary_communities" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(50) NOT NULL, "displayName" varchar(100), "description" text, "createdById" integer, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "communityType" varchar CHECK( "communityType" IN ('public','restricted','private') ) NOT NULL DEFAULT ('public'), "membersCount" integer NOT NULL DEFAULT (0), CONSTRAINT "UQ_501bb6c8f7c8e8a7d614d9435f6" UNIQUE ("name"))`);
-        await queryRunner.query(`INSERT INTO "temporary_communities"("id", "name", "displayName", "description", "createdById", "createdAt", "communityType", "membersCount") SELECT "id", "name", "displayName", "description", "createdById", "createdAt", "communityType", "membersCount" FROM "communities"`);
-        await queryRunner.query(`DROP TABLE "communities"`);
-        await queryRunner.query(`ALTER TABLE "temporary_communities" RENAME TO "communities"`);
-        await queryRunner.query(`CREATE TABLE "temporary_communities" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(50) NOT NULL, "displayName" varchar(100), "description" text, "ownerId" integer, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "communityType" varchar CHECK( "communityType" IN ('public','restricted','private') ) NOT NULL DEFAULT ('public'), "membersCount" integer NOT NULL DEFAULT (0), CONSTRAINT "UQ_501bb6c8f7c8e8a7d614d9435f6" UNIQUE ("name"))`);
-        await queryRunner.query(`INSERT INTO "temporary_communities"("id", "name", "displayName", "description", "ownerId", "createdAt", "communityType", "membersCount") SELECT "id", "name", "displayName", "description", "createdById", "createdAt", "communityType", "membersCount" FROM "communities"`);
-        await queryRunner.query(`DROP TABLE "communities"`);
-        await queryRunner.query(`ALTER TABLE "temporary_communities" RENAME TO "communities"`);
-        await queryRunner.query(`CREATE TABLE "community_moderators" ("moderatorId" integer NOT NULL, "communityId" integer NOT NULL, PRIMARY KEY ("moderatorId", "communityId"))`);
-        await queryRunner.query(`CREATE TABLE "post_reports" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "reporterId" integer NOT NULL, "reason" varchar NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer NOT NULL)`);
-        await queryRunner.query(`CREATE TABLE "comment_reports" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "reporterId" integer NOT NULL, "reason" varchar NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "commentId" integer NOT NULL)`);
-        await queryRunner.query(`CREATE TABLE "user_reports" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "reporterId" integer NOT NULL, "reason" varchar NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "reportedUserId" integer NOT NULL)`);
-        await queryRunner.query(`CREATE TABLE "temporary_posts" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "title" varchar NOT NULL, "content" varchar NOT NULL, "authorId" integer NOT NULL, "communityId" integer NOT NULL, "commentsCount" integer NOT NULL DEFAULT (0), "views" integer NOT NULL DEFAULT (0), "likesCount" integer NOT NULL DEFAULT (0), "dislikesCount" integer NOT NULL DEFAULT (0), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, "commentsLocked" boolean NOT NULL DEFAULT (0), "isApproved" boolean NOT NULL DEFAULT (0), "approvedAt" datetime, CONSTRAINT "FK_e5f99a0b3edb7e1867f44b2cf4c" FOREIGN KEY ("communityId") REFERENCES "communities" ("id") ON DELETE RESTRICT ON UPDATE NO ACTION, CONSTRAINT "FK_c5a322ad12a7bf95460c958e80e" FOREIGN KEY ("authorId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`);
-        await queryRunner.query(`INSERT INTO "temporary_posts"("id", "title", "content", "authorId", "communityId", "commentsCount", "views", "likesCount", "dislikesCount", "createdAt", "updatedAt", "deletedAt") SELECT "id", "title", "content", "authorId", "communityId", "commentsCount", "views", "likesCount", "dislikesCount", "createdAt", "updatedAt", "deletedAt" FROM "posts"`);
-        await queryRunner.query(`DROP TABLE "posts"`);
-        await queryRunner.query(`ALTER TABLE "temporary_posts" RENAME TO "posts"`);
-        await queryRunner.query(`CREATE TABLE "temporary_community_moderators" ("moderatorId" integer NOT NULL, "communityId" integer NOT NULL, CONSTRAINT "FK_d6947c03c05fca0fa035b19e73d" FOREIGN KEY ("moderatorId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_4927687e8f8ed1b2e4c849ddc82" FOREIGN KEY ("communityId") REFERENCES "communities" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, PRIMARY KEY ("moderatorId", "communityId"))`);
-        await queryRunner.query(`INSERT INTO "temporary_community_moderators"("moderatorId", "communityId") SELECT "moderatorId", "communityId" FROM "community_moderators"`);
-        await queryRunner.query(`DROP TABLE "community_moderators"`);
-        await queryRunner.query(`ALTER TABLE "temporary_community_moderators" RENAME TO "community_moderators"`);
-        await queryRunner.query(`CREATE TABLE "temporary_communities" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(50) NOT NULL, "displayName" varchar(100), "description" text, "ownerId" integer, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "communityType" varchar CHECK( "communityType" IN ('public','restricted','private') ) NOT NULL DEFAULT ('public'), "membersCount" integer NOT NULL DEFAULT (0), CONSTRAINT "UQ_501bb6c8f7c8e8a7d614d9435f6" UNIQUE ("name"), CONSTRAINT "FK_2d9086cef1ffd5148f90a9fab5d" FOREIGN KEY ("ownerId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION)`);
-        await queryRunner.query(`INSERT INTO "temporary_communities"("id", "name", "displayName", "description", "ownerId", "createdAt", "communityType", "membersCount") SELECT "id", "name", "displayName", "description", "ownerId", "createdAt", "communityType", "membersCount" FROM "communities"`);
-        await queryRunner.query(`DROP TABLE "communities"`);
-        await queryRunner.query(`ALTER TABLE "temporary_communities" RENAME TO "communities"`);
-        await queryRunner.query(`CREATE TABLE "temporary_post_reports" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "reporterId" integer NOT NULL, "reason" varchar NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer NOT NULL, CONSTRAINT "FK_4f4c3c25aa849390b9cb7fd6fa1" FOREIGN KEY ("reporterId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_b9b9977c4da06492b2491cea20a" FOREIGN KEY ("postId") REFERENCES "posts" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`);
-        await queryRunner.query(`INSERT INTO "temporary_post_reports"("id", "reporterId", "reason", "createdAt", "updatedAt", "postId") SELECT "id", "reporterId", "reason", "createdAt", "updatedAt", "postId" FROM "post_reports"`);
-        await queryRunner.query(`DROP TABLE "post_reports"`);
-        await queryRunner.query(`ALTER TABLE "temporary_post_reports" RENAME TO "post_reports"`);
-        await queryRunner.query(`CREATE TABLE "temporary_comment_reports" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "reporterId" integer NOT NULL, "reason" varchar NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "commentId" integer NOT NULL, CONSTRAINT "FK_36ab772754faebab9c812565988" FOREIGN KEY ("reporterId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_14ce729bcc2ec2f7c16b11b2d9e" FOREIGN KEY ("commentId") REFERENCES "comments" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`);
-        await queryRunner.query(`INSERT INTO "temporary_comment_reports"("id", "reporterId", "reason", "createdAt", "updatedAt", "commentId") SELECT "id", "reporterId", "reason", "createdAt", "updatedAt", "commentId" FROM "comment_reports"`);
-        await queryRunner.query(`DROP TABLE "comment_reports"`);
-        await queryRunner.query(`ALTER TABLE "temporary_comment_reports" RENAME TO "comment_reports"`);
-        await queryRunner.query(`CREATE TABLE "temporary_user_reports" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "reporterId" integer NOT NULL, "reason" varchar NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "reportedUserId" integer NOT NULL, CONSTRAINT "FK_4c8ff913a6d53469649f6941ece" FOREIGN KEY ("reporterId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_85aa921a0dfd2b7d58cd4cd9450" FOREIGN KEY ("reportedUserId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`);
-        await queryRunner.query(`INSERT INTO "temporary_user_reports"("id", "reporterId", "reason", "createdAt", "updatedAt", "reportedUserId") SELECT "id", "reporterId", "reason", "createdAt", "updatedAt", "reportedUserId" FROM "user_reports"`);
-        await queryRunner.query(`DROP TABLE "user_reports"`);
-        await queryRunner.query(`ALTER TABLE "temporary_user_reports" RENAME TO "user_reports"`);
-    }
-
-    public async down(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`ALTER TABLE "user_reports" RENAME TO "temporary_user_reports"`);
-        await queryRunner.query(`CREATE TABLE "user_reports" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "reporterId" integer NOT NULL, "reason" varchar NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "reportedUserId" integer NOT NULL)`);
-        await queryRunner.query(`INSERT INTO "user_reports"("id", "reporterId", "reason", "createdAt", "updatedAt", "reportedUserId") SELECT "id", "reporterId", "reason", "createdAt", "updatedAt", "reportedUserId" FROM "temporary_user_reports"`);
-        await queryRunner.query(`DROP TABLE "temporary_user_reports"`);
-        await queryRunner.query(`ALTER TABLE "comment_reports" RENAME TO "temporary_comment_reports"`);
-        await queryRunner.query(`CREATE TABLE "comment_reports" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "reporterId" integer NOT NULL, "reason" varchar NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "commentId" integer NOT NULL)`);
-        await queryRunner.query(`INSERT INTO "comment_reports"("id", "reporterId", "reason", "createdAt", "updatedAt", "commentId") SELECT "id", "reporterId", "reason", "createdAt", "updatedAt", "commentId" FROM "temporary_comment_reports"`);
-        await queryRunner.query(`DROP TABLE "temporary_comment_reports"`);
-        await queryRunner.query(`ALTER TABLE "post_reports" RENAME TO "temporary_post_reports"`);
-        await queryRunner.query(`CREATE TABLE "post_reports" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "reporterId" integer NOT NULL, "reason" varchar NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "postId" integer NOT NULL)`);
-        await queryRunner.query(`INSERT INTO "post_reports"("id", "reporterId", "reason", "createdAt", "updatedAt", "postId") SELECT "id", "reporterId", "reason", "createdAt", "updatedAt", "postId" FROM "temporary_post_reports"`);
-        await queryRunner.query(`DROP TABLE "temporary_post_reports"`);
-        await queryRunner.query(`ALTER TABLE "communities" RENAME TO "temporary_communities"`);
-        await queryRunner.query(`CREATE TABLE "communities" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(50) NOT NULL, "displayName" varchar(100), "description" text, "ownerId" integer, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "communityType" varchar CHECK( "communityType" IN ('public','restricted','private') ) NOT NULL DEFAULT ('public'), "membersCount" integer NOT NULL DEFAULT (0), CONSTRAINT "UQ_501bb6c8f7c8e8a7d614d9435f6" UNIQUE ("name"))`);
-        await queryRunner.query(`INSERT INTO "communities"("id", "name", "displayName", "description", "ownerId", "createdAt", "communityType", "membersCount") SELECT "id", "name", "displayName", "description", "ownerId", "createdAt", "communityType", "membersCount" FROM "temporary_communities"`);
-        await queryRunner.query(`DROP TABLE "temporary_communities"`);
-        await queryRunner.query(`ALTER TABLE "community_moderators" RENAME TO "temporary_community_moderators"`);
-        await queryRunner.query(`CREATE TABLE "community_moderators" ("moderatorId" integer NOT NULL, "communityId" integer NOT NULL, PRIMARY KEY ("moderatorId", "communityId"))`);
-        await queryRunner.query(`INSERT INTO "community_moderators"("moderatorId", "communityId") SELECT "moderatorId", "communityId" FROM "temporary_community_moderators"`);
-        await queryRunner.query(`DROP TABLE "temporary_community_moderators"`);
-        await queryRunner.query(`ALTER TABLE "posts" RENAME TO "temporary_posts"`);
-        await queryRunner.query(`CREATE TABLE "posts" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "title" varchar NOT NULL, "content" varchar NOT NULL, "authorId" integer NOT NULL, "communityId" integer NOT NULL, "commentsCount" integer NOT NULL DEFAULT (0), "views" integer NOT NULL DEFAULT (0), "likesCount" integer NOT NULL DEFAULT (0), "dislikesCount" integer NOT NULL DEFAULT (0), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, CONSTRAINT "FK_e5f99a0b3edb7e1867f44b2cf4c" FOREIGN KEY ("communityId") REFERENCES "communities" ("id") ON DELETE RESTRICT ON UPDATE NO ACTION, CONSTRAINT "FK_c5a322ad12a7bf95460c958e80e" FOREIGN KEY ("authorId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`);
-        await queryRunner.query(`INSERT INTO "posts"("id", "title", "content", "authorId", "communityId", "commentsCount", "views", "likesCount", "dislikesCount", "createdAt", "updatedAt", "deletedAt") SELECT "id", "title", "content", "authorId", "communityId", "commentsCount", "views", "likesCount", "dislikesCount", "createdAt", "updatedAt", "deletedAt" FROM "temporary_posts"`);
-        await queryRunner.query(`DROP TABLE "temporary_posts"`);
-        await queryRunner.query(`DROP TABLE "user_reports"`);
-        await queryRunner.query(`DROP TABLE "comment_reports"`);
-        await queryRunner.query(`DROP TABLE "post_reports"`);
-        await queryRunner.query(`DROP TABLE "community_moderators"`);
-        await queryRunner.query(`ALTER TABLE "communities" RENAME TO "temporary_communities"`);
-        await queryRunner.query(`CREATE TABLE "communities" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(50) NOT NULL, "displayName" varchar(100), "description" text, "createdById" integer, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "communityType" varchar CHECK( "communityType" IN ('public','restricted','private') ) NOT NULL DEFAULT ('public'), "membersCount" integer NOT NULL DEFAULT (0), CONSTRAINT "UQ_501bb6c8f7c8e8a7d614d9435f6" UNIQUE ("name"))`);
-        await queryRunner.query(`INSERT INTO "communities"("id", "name", "displayName", "description", "createdById", "createdAt", "communityType", "membersCount") SELECT "id", "name", "displayName", "description", "ownerId", "createdAt", "communityType", "membersCount" FROM "temporary_communities"`);
-        await queryRunner.query(`DROP TABLE "temporary_communities"`);
-        await queryRunner.query(`ALTER TABLE "communities" RENAME TO "temporary_communities"`);
-        await queryRunner.query(`CREATE TABLE "communities" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(50) NOT NULL, "displayName" varchar(100), "description" text, "createdById" integer, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "communityType" varchar CHECK( "communityType" IN ('public','restricted','private') ) NOT NULL DEFAULT ('public'), "membersCount" integer NOT NULL DEFAULT (0), CONSTRAINT "UQ_501bb6c8f7c8e8a7d614d9435f6" UNIQUE ("name"), CONSTRAINT "FK_d035f75868bd42e56593ffa4aa7" FOREIGN KEY ("createdById") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION)`);
-        await queryRunner.query(`INSERT INTO "communities"("id", "name", "displayName", "description", "createdById", "createdAt", "communityType", "membersCount") SELECT "id", "name", "displayName", "description", "createdById", "createdAt", "communityType", "membersCount" FROM "temporary_communities"`);
-        await queryRunner.query(`DROP TABLE "temporary_communities"`);
-    }
-
-}
-
----
-
-
 ### FILE: src/database/migrations/1765628229160-CreateUserProfileAndLinkToUser.ts ###
 import { MigrationInterface, QueryRunner } from "typeorm";
 
@@ -1951,6 +1959,323 @@ export class CreateUserProfileAndLinkToUser1765628229160 implements MigrationInt
         await queryRunner.query(`DROP TABLE "user_profiles"`);
     }
 
+}
+
+---
+
+
+### FILE: src/community-memberships/types.ts ###
+export enum CommunityMembershipRole {
+  ADMIN = 'admin',
+  MODERATOR = 'moderator',
+  MEMBER = 'member',
+}
+---
+
+
+### FILE: src/community-memberships/community-memberships.controller.ts ###
+import {
+  Controller,
+  Post,
+  Param,
+  ParseIntPipe,
+  Delete,
+  UseGuards,
+  Get,
+  Query,
+} from '@nestjs/common';
+import { CommunityMembershipsService } from './community-memberships.service';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { User } from '../users/entities/user.entity';
+import { GetUser } from 'src/decorators/user.decorator';
+import { ResponseDto } from 'src/common/dto/response.dto';
+import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
+import { PaginationMetaDto } from 'src/common/dto/pagination-meta.dto';
+import { CommunityMembershipQueryDto } from './dto/community-memberships-query.dto';
+import { CommunityMembershipResponseDto } from './dto/community-memberships-response.dto';
+
+@Controller()
+export class CommunityMembershipsController {
+  constructor(
+    private readonly communityMembershipsService: CommunityMembershipsService,
+  ) { }
+
+
+  // Unified GET endpoint
+  @Get('community-memberships')
+  async findMemberships(
+   @Query() query: CommunityMembershipQueryDto,
+  ): Promise<PaginatedResponseDto<CommunityMembershipResponseDto>> {
+    
+
+    const { data, count } = await this.communityMembershipsService.findMemberships({
+      userId:query.userId,
+      communityId:query.communityId ,
+      page:query.page ,
+      limit : query.limit
+    });
+
+    const paginationMeta = new PaginationMetaDto(
+      query.page,
+      query.limit,
+      count,
+      data.length,
+    );
+
+    return new PaginatedResponseDto(data.map(CommunityMembershipResponseDto.fromEntity), paginationMeta);
+  }
+
+
+  
+@UseGuards(JwtAuthGuard)
+  @Delete('users/me/communities/:communityId/memberships')
+  async deleteMembership(
+    @Param('communityId', ParseIntPipe) communityId: number,
+    @GetUser() user: User,
+  ): Promise<ResponseDto<boolean>> {
+    await this.communityMembershipsService.deleteMembership(communityId, user.id);
+    return new ResponseDto(true);
+  }
+}
+
+
+---
+
+
+### FILE: src/community-memberships/community-memberships.service.ts ###
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { DataSource, Repository } from 'typeorm'; // Added DataSource
+import { User } from '../users/entities/user.entity';
+// import { CommunitiesService } from '../communities/communities.service'; // This import is removed
+import { Community } from '../communities/entities/community.entity'; // Added Community entity
+
+import { CommunityMembership } from './entities/community-memberships.entity';
+
+interface MembershipQuery {
+  userId?: number;
+  communityId?: number;
+  page?: number;
+  limit?: number;
+}
+
+@Injectable()
+export class CommunityMembershipsService {
+  constructor(
+    @InjectRepository(CommunityMembership)
+    private readonly membershipsRepository: Repository<CommunityMembership>,
+    // private readonly communitiesService: CommunitiesService, // This is removed
+    @InjectRepository(User)
+    private readonly usersRepository: Repository<User>,
+    @InjectRepository(Community) // Injected Community repository
+    private readonly communityRepository: Repository<Community>,
+    private dataSource: DataSource, // Injected DataSource
+  ) { }
+
+
+  async findMemberships(query: MembershipQuery): Promise<{ data: CommunityMembership[]; count: number }> {
+    const where: any = {};
+    const relations: string[] = [];
+
+    if (query.userId) {
+      where.userId = query.userId;
+      relations.push('community');
+    }
+
+    if (query.communityId) {
+      where.communityId = query.communityId;
+      relations.push('user');
+    }
+
+    const options: any = { where, relations };
+
+    // Pagination
+    if (query.page !== undefined && query.limit !== undefined) {
+      const page = Math.max(1, query.page);
+      const limit = Math.max(1, query.limit);
+      options.skip = (page - 1) * limit;
+      options.take = limit;
+    }
+
+    const [data, count] = await this.membershipsRepository.findAndCount(options);
+    return { data, count };
+  }
+
+  async findOne(userId: number, communityId: number): Promise<CommunityMembership | null> {
+    return this.membershipsRepository.findOne({
+      where: { userId, communityId },
+    });
+  }
+  
+  async deleteMembership(communityId: number, userId: number) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      // Check community existence
+      const community = await queryRunner.manager.findOne(Community, { where: { id: communityId } });
+      if (!community) throw new NotFoundException(`Community ${communityId} not found`);
+
+      // Check user existence via UsersService
+      const userExists = await queryRunner.manager.exists(User, {
+        where: { id: userId },
+      });
+      if (!userExists) {
+        throw new NotFoundException(`User ${userId} not found`);
+      }
+
+      const existingMembership = await queryRunner.manager.findOne(CommunityMembership, {
+        where: {
+          userId: userId,
+          communityId: community.id,
+        },
+      });
+
+      if (!existingMembership) {
+        throw new NotFoundException(
+          `User ${userId} is not member of to community ${community.id}`,
+        );
+      }
+
+      await queryRunner.manager.remove(existingMembership);
+
+      // Decrement membersCount directly using the repository within the transaction
+      await queryRunner.manager.decrement(Community, { id: community.id }, 'membersCount', 1);
+
+      await queryRunner.commitTransaction();
+      return { message: 'Left community successfully' };
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+
+
+}
+
+---
+
+
+### FILE: src/community-memberships/entities/community-memberships.entity.ts ###
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  ManyToOne,
+  PrimaryColumn,
+} from 'typeorm';
+import { User } from '../../users/entities/user.entity';
+import { Community } from '../../communities/entities/community.entity';
+import { CommunityMembershipRole } from '../types';
+
+@Entity('community_memberships')
+export class CommunityMembership {
+  @PrimaryColumn()
+  userId: number;
+
+  @PrimaryColumn()
+  communityId: number;
+
+  @ManyToOne(() => User, (user) => user.communityMemberships)
+  user: User;
+
+  @ManyToOne(() => Community, (community) => community.memberships)
+  community: Community;
+
+  @Column({
+    type: 'simple-enum',
+    enum: CommunityMembershipRole,
+    default: CommunityMembershipRole.MEMBER,
+  })
+  role: CommunityMembershipRole;
+
+  @CreateDateColumn()
+  createdAt: Date;
+}
+
+---
+
+
+### FILE: src/community-memberships/community-memberships.module.ts ###
+import { Module } from '@nestjs/common';
+import { CommunityMembershipsService } from './community-memberships.service';
+import { CommunityMembershipsController } from './community-memberships.controller';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { CommunitiesModule } from '../communities/communities.module';
+import { UsersModule } from 'src/users/users.module';
+import { User } from 'src/users/entities/user.entity';
+import { Community } from '../communities/entities/community.entity';
+import { CommunityMembership } from './entities/community-memberships.entity';
+
+@Module({
+  imports: [TypeOrmModule.forFeature([CommunityMembership, User, Community]), 
+  CommunitiesModule],
+  controllers: [CommunityMembershipsController],
+  providers: [CommunityMembershipsService],
+  exports: [CommunityMembershipsService],
+})
+export class CommunityMembershipsModule {}
+
+---
+
+
+### FILE: src/community-memberships/dto/community-memberships-query.dto.ts ###
+import { IsBoolean, IsNumber, IsOptional, IsString } from 'class-validator';
+import { PaginationDto } from '../../common/dto/pagination.dto';
+import { Transform } from 'class-transformer';
+
+export class CommunityMembershipQueryDto extends PaginationDto {
+  @IsOptional()
+  @IsNumber()
+  userId?: number;
+
+  @IsOptional()
+  @IsNumber()
+  communityId?: number;
+
+ 
+}
+
+---
+
+
+### FILE: src/community-memberships/dto/community-memberships-response.dto.ts ###
+import { Expose, Type, plainToInstance } from 'class-transformer';
+import { UserResponseDto } from '../../users/dtos/user-response.dto';
+import { CommunityResponseDto } from '../../communities/dto/community-response.dto';
+import { CommunityMembership } from '../entities/community-memberships.entity';
+
+export class CommunityMembershipResponseDto {
+  @Expose()
+  userId: number;
+
+  @Expose()
+  communityId: number;
+
+  @Expose()
+  @Type(() => UserResponseDto)
+  user: UserResponseDto;
+
+  @Expose()
+  @Type(() => CommunityResponseDto)
+  community: CommunityResponseDto;
+
+  @Expose()
+  createdAt: Date;
+
+  static fromEntity(
+    entity: CommunityMembership,
+  ): CommunityMembershipResponseDto {
+    return plainToInstance(CommunityMembershipResponseDto, entity);
+  }
 }
 
 ---
@@ -2275,8 +2600,8 @@ import { PostReaction } from '../../reactions/entities/post-reaction.entity';
 import { CommentReaction } from '../../reactions/entities/comment-reaction.entity';
 import { Profile } from '../../profile/entities/profile.entity'; // Import Profile
 import { Community } from '../../communities/entities/community.entity';
-import { CommunityMembership } from '../../community-memberships/entities/community-membership.entity';
-import { CommunityModerator } from '../../community-moderators/entities/community-moderator.entity'; // Import CommunityModerator
+import { CommunityMembership } from '../../community-memberships/entities/community-memberships.entity';
+import { CommunityMembershipRequest } from '../../community-membership-requests/entities/community-membership-request.entity';
 import { PostReport } from '../../reports/entities/post-report.entity';
 import { CommentReport } from '../../reports/entities/comment-report.entity'; // NEW IMPORT
 import { UserReport } from '../../reports/entities/user-report.entity'; // NEW IMPORT
@@ -2320,7 +2645,7 @@ export class User {
   @OneToOne(() => Profile, (profile) => profile.user)
   profile: Profile;
 
-    @Column({
+  @Column({
     type: 'simple-enum', // sqlite compatible
     enum: UserRole,
     default: UserRole.USER,
@@ -2349,8 +2674,11 @@ export class User {
   )
   communityMemberships: CommunityMembership[];
 
-  @OneToMany(() => CommunityModerator, (communityModerator) => communityModerator.moderator)
-  moderatedCommunities: CommunityModerator[];
+  @OneToMany(
+    () => CommunityMembershipRequest,
+    (request) => request.user,
+  )
+  communityMembershipRequests: CommunityMembershipRequest[];
 
   @OneToMany(() => PostReport, (postReport) => postReport.reporter)
   postReports: PostReport[];
@@ -2402,280 +2730,339 @@ export class UsersController {
 ---
 
 
-### FILE: src/community-memberships/types.ts ###
+### FILE: src/community-membership-requests/community-membership-requests.controller.ts ###
+import {
+  Controller,
+  Post,
+  Param,
+  ParseIntPipe,
+  UseGuards,
+  Delete,
+  Get,
+} from '@nestjs/common';
+import { CommunityMembershipRequestsService } from './community-membership-requests.service';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { GetUser } from '../decorators/user.decorator';
+import { User } from '../users/entities/user.entity';
 
-export enum CommunityMembershipStatus {
-  ACTIVE = 'active',
-  PENDING = 'pending',
-  BLOCKED = 'blocked',
+@UseGuards(JwtAuthGuard)
+@Controller('community-membership-requests')
+export class CommunityMembershipRequestsController {
+  constructor(
+    private readonly communityMembershipRequestsService: CommunityMembershipRequestsService,
+  ) {}
+
+  @Post(':communityId')
+  async create(
+    @Param('communityId', ParseIntPipe) communityId: number,
+    @GetUser() user: User,
+  ) {
+    return this.communityMembershipRequestsService.createMembershipRequest(
+      user.id,
+      communityId,
+    );
+  }
+
+  @Post(':requestId/accept')
+  async accept(
+    @Param('requestId', ParseIntPipe) requestId: number,
+    @GetUser() user: User,
+  ) {
+    return this.communityMembershipRequestsService.acceptMembershipRequest(
+      requestId,
+      user.id,
+    );
+  }
+
+  @Delete(':requestId/reject')
+  async reject(
+    @Param('requestId', ParseIntPipe) requestId: number,
+    @GetUser() user: User,
+  ) {
+    return this.communityMembershipRequestsService.rejectMembershipRequest(
+      requestId,
+      user.id,
+    );
+  }
+
+  @Get('community/:communityId')
+  async getCommunityRequests(
+    @Param('communityId', ParseIntPipe) communityId: number,
+  ) {
+    return this.communityMembershipRequestsService.getCommunityMembershipRequests(
+      communityId,
+    );
+  }
 }
+
 ---
 
 
-### FILE: src/community-memberships/community-memberships.module.ts ###
+### FILE: src/community-membership-requests/community-membership-requests.module.ts ###
 import { Module } from '@nestjs/common';
-import { CommunityMembershipsService } from './community-memberships.service';
-import { CommunityMembershipsController } from './community-memberships.controller';
+import { CommunityMembershipRequestsService } from './community-membership-requests.service';
+import { CommunityMembershipRequestsController } from './community-membership-requests.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { CommunityMembership } from './entities/community-membership.entity';
-import { CommunitiesModule } from '../communities/communities.module';
-import { UsersModule } from 'src/users/users.module';
-import { User } from 'src/users/entities/user.entity';
+import { CommunityMembershipRequest } from './entities/community-membership-request.entity';
+import { CommunityMembership } from '../community-memberships/entities/community-memberships.entity';
+import { User } from '../users/entities/user.entity';
+import { Community } from '../communities/entities/community.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([CommunityMembership,User]), 
-  CommunitiesModule],
-  controllers: [CommunityMembershipsController],
-  providers: [CommunityMembershipsService],
-  exports: [CommunityMembershipsService],
+  imports: [
+    TypeOrmModule.forFeature([
+      CommunityMembershipRequest,
+      CommunityMembership,
+      User,
+      Community,
+    ]),
+  ],
+  controllers: [CommunityMembershipRequestsController],
+  providers: [CommunityMembershipRequestsService],
 })
-export class CommunityMembershipsModule {}
+export class CommunityMembershipRequestsModule {}
 
 ---
 
 
-### FILE: src/community-memberships/community-memberships.service.ts ###
+### FILE: src/community-membership-requests/community-membership-requests.service.ts ###
 import {
-  ConflictException,
+  BadRequestException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { CommunityMembership } from './entities/community-membership.entity';
+import {
+  CommunityMembershipRequest,
+  CommunityMembershipRequestStatus,
+} from './entities/community-membership-request.entity';
+import { DataSource, Repository } from 'typeorm'; // Added DataSource
+import { CommunityMembership } from '../community-memberships/entities/community-memberships.entity';
 import { User } from '../users/entities/user.entity';
-import { CommunitiesService } from '../communities/communities.service';
-import { UsersService } from 'src/users/users.service';
-import { CommunityType } from 'src/communities/types';
-import { CommunityMembershipStatus } from './types';
-
-interface MembershipQuery {
-  userId?: number;
-  communityId?: number;
-  page?: number;
-  limit?: number;
-}
+import { Community } from '../communities/entities/community.entity';
+import { CommunityMembershipRole } from '../community-memberships/types';
+import { CommunityType } from '../communities/types';
 
 @Injectable()
-export class CommunityMembershipsService {
+export class CommunityMembershipRequestsService {
   constructor(
+    @InjectRepository(CommunityMembershipRequest)
+    private readonly requestRepository: Repository<CommunityMembershipRequest>,
     @InjectRepository(CommunityMembership)
-    private readonly membershipsRepository: Repository<CommunityMembership>,
-    private readonly communitiesService: CommunitiesService,
+    private readonly membershipRepository: Repository<CommunityMembership>,
     @InjectRepository(User)
-    private readonly usersRepository: Repository<User>,
-  ) { }
+    private readonly userRepository: Repository<User>,
+    @InjectRepository(Community)
+    private readonly communityRepository: Repository<Community>,
+    private dataSource: DataSource, // Injected DataSource
+  ) {}
 
+  async createMembershipRequest(userId: number, communityId: number) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-  async findMemberships(query: MembershipQuery): Promise<{ data: CommunityMembership[]; count: number }> {
-    const where: any = {};
-    const relations: string[] = [];
-
-    if (query.userId) {
-      where.userId = query.userId;
-      relations.push('community');
-    }
-
-    if (query.communityId) {
-      where.communityId = query.communityId;
-      relations.push('user');
-    }
-
-    const options: any = { where, relations };
-
-    // Pagination
-    if (query.page !== undefined && query.limit !== undefined) {
-      const page = Math.max(1, query.page);
-      const limit = Math.max(1, query.limit);
-      options.skip = (page - 1) * limit;
-      options.take = limit;
-    }
-
-    const [data, count] = await this.membershipsRepository.findAndCount(options);
-    return { data, count };
-  }
-
-  async findOne(userId: number, communityId: number): Promise<CommunityMembership | null> {
-    return this.membershipsRepository.findOne({
-      where: { userId, communityId },
-    });
-  }
-
-  async createMembership(input: {
-    userId: number;
-    communityId: number;
-    activate?: boolean;
-  }) {
-    const { userId, communityId, activate } = input;
-
-    // Check community existence
-    const community = await this.communitiesService.findOne(communityId);
-    if (!community) {
-      throw new NotFoundException(`Community ${communityId} not found`);
-    }
-
-    const userExists = await this.usersRepository.exist({
-      where: { id: userId },
-    });
-    if (!userExists) {
-      throw new NotFoundException(`User ${userId} not found`);
-    }
-
-
-    const existingMembership = await this.membershipsRepository.findOne({
-      where: {
-        userId: userId,
-        communityId: community.id,
-      },
-    });
-
-    if (existingMembership) {
-      if (existingMembership.status === CommunityMembershipStatus.BLOCKED) {
-        throw new ConflictException(
-          `User ${userId} is blocked from community ${community.id}`,
-        );
+    try {
+      const user = await queryRunner.manager.findOne(User, { where: { id: userId } });
+      if (!user) {
+        throw new NotFoundException('User not found');
       }
-      throw new ConflictException(
-        `User ${userId} is already member of to community ${community.id}`,
-      );
+
+      const community = await queryRunner.manager.findOne(Community, {
+        where: { id: communityId },
+        select: ['id', 'ownerId', 'communityType'], // Select communityType
+      });
+      if (!community) {
+        throw new NotFoundException('Community not found');
+      }
+
+      const existingMembership = await queryRunner.manager.findOne(CommunityMembership, {
+        where: { userId, communityId },
+      });
+      if (existingMembership) {
+        throw new BadRequestException('User is already a member of this community');
+      }
+
+      // If community is public, create membership directly
+      if (community.communityType === CommunityType.PUBLIC) {
+        const membership = queryRunner.manager.create(CommunityMembership, {
+          userId,
+          communityId,
+          role: CommunityMembershipRole.MEMBER, // Default role for auto-membership
+        });
+        await queryRunner.manager.save(membership);
+        await queryRunner.manager.increment(Community, { id: community.id }, 'membersCount', 1);
+        await queryRunner.commitTransaction();
+        return membership;
+      } else {
+        // For restricted or private communities, create a pending request
+        const existingRequest = await queryRunner.manager.findOne(CommunityMembershipRequest, {
+          where: { userId, communityId, status: CommunityMembershipRequestStatus.PENDING },
+        });
+        if (existingRequest) {
+          throw new BadRequestException('Pending request already exists');
+        }
+
+        const request = queryRunner.manager.create(CommunityMembershipRequest, {
+          userId,
+          communityId,
+        });
+        await queryRunner.manager.save(request);
+        await queryRunner.commitTransaction();
+        return request;
+      }
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
     }
-
-    const communityType = community.communityType;
-    let membershipStatus: CommunityMembershipStatus;
-
-    if (activate) {
-      membershipStatus = CommunityMembershipStatus.ACTIVE;
-    } else if (communityType === CommunityType.PUBLIC) {
-      membershipStatus = CommunityMembershipStatus.ACTIVE;
-    } else {
-      membershipStatus = CommunityMembershipStatus.PENDING;
-    }
-
-    const membership = this.membershipsRepository.create({
-      userId: userId,
-      communityId: community.id,
-      status: membershipStatus,
-    });
-
-    const savedMembership = await this.membershipsRepository.save(
-      membership,
-    );
-
-    await this.communitiesService.update({
-      id: community.id,
-      membersCount: community.membersCount + 1,
-    });
-
-    return savedMembership;
   }
 
-  async deleteMembership(communityId: number, userId: number) {
+  async acceptMembershipRequest(requestId: number, adminId: number) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    // Check community existence
-    const community = await this.communitiesService.findOne(communityId);
-    if (!community) throw new NotFoundException(`Community ${communityId} not found`);
+    try {
+      const request = await queryRunner.manager.findOne(CommunityMembershipRequest, {
+        where: { id: requestId },
+        relations: ['community'],
+      });
+      if (!request) {
+        throw new NotFoundException('Membership request not found');
+      }
+      if (request.status !== CommunityMembershipRequestStatus.PENDING) {
+        throw new BadRequestException('Request is not pending');
+      }
 
-    // Check user existence via UsersService
-    const userExists = await this.usersRepository.exist({
-      where: { id: userId },
+      // Check if adminId is an admin or moderator of the community
+      const adminMembership = await queryRunner.manager.findOne(CommunityMembership, {
+        where: {
+          userId: adminId,
+          communityId: request.community.id,
+          role: CommunityMembershipRole.ADMIN, // Only admin can accept for now
+        },
+      });
+
+      // Currently only the community owner can accept requests
+      if (request.community.ownerId !== adminId) {
+          throw new BadRequestException('Only the community owner can accept membership requests');
+      }
+
+      if (!adminMembership && request.community.ownerId !== adminId) {
+        throw new BadRequestException('Admin is not authorized to accept this request');
+      }
+
+      const membership = queryRunner.manager.create(CommunityMembership, {
+        userId: request.userId,
+        communityId: request.communityId,
+        role: CommunityMembershipRole.MEMBER, // Default role for new members
+      });
+
+      await queryRunner.manager.save(membership);
+
+      request.status = CommunityMembershipRequestStatus.ACCEPTED;
+      await queryRunner.manager.save(request); // Save the updated request status
+      await queryRunner.manager.increment(Community, { id: request.community.id }, 'membersCount', 1); // Increment membersCount
+
+      await queryRunner.commitTransaction();
+      return membership; // Return the created membership
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+  async rejectMembershipRequest(requestId: number, adminId: number) {
+    const request = await this.requestRepository.findOne({
+      where: { id: requestId },
+      relations: ['community'],
     });
-    if (!userExists) {
-      throw new NotFoundException(`User ${userId} not found`);
+    if (!request) {
+      throw new NotFoundException('Membership request not found');
+    }
+    if (request.status !== CommunityMembershipRequestStatus.PENDING) {
+      throw new BadRequestException('Request is not pending');
     }
 
-
-    const existingMembership = await this.membershipsRepository.findOne({
+    // Check if adminId is an admin or moderator of the community
+    const adminMembership = await this.membershipRepository.findOne({
       where: {
-        userId: userId,
-        communityId: community.id,
+        userId: adminId,
+        communityId: request.community.id,
+        role: CommunityMembershipRole.ADMIN, // Only admin can reject for now
       },
     });
 
-    if (!existingMembership) {
-      throw new NotFoundException(
-        `User ${userId} is not member of to community ${community.id}`,
-      );
+    // Currently only the community owner can accept requests
+    if (request.community.ownerId !== adminId) {
+        throw new BadRequestException('Only the community owner can reject membership requests');
     }
 
-    await this.membershipsRepository.remove(existingMembership);
+    if (!adminMembership && request.community.ownerId !== adminId) {
+      throw new BadRequestException('Admin is not authorized to reject this request');
+    }
 
-    await this.communitiesService.update({
-      id: community.id,
-      membersCount: community.membersCount - 1,
+    request.status = CommunityMembershipRequestStatus.REJECTED;
+    return this.requestRepository.save(request);
+  }
+
+  async getCommunityMembershipRequests(communityId: number) {
+    return this.requestRepository.find({
+      where: { communityId, status: CommunityMembershipRequestStatus.PENDING },
+      relations: ['user', 'community'],
     });
-
-    return { message: 'Left community successfully' };
-  }
-
-  // --- New methods for membership status checks ---
-  async getMembershipStatus(userId: number, communityId: number): Promise<CommunityMembershipStatus | null> {
-    const membership = await this.membershipsRepository.findOne({
-      where: { userId, communityId },
-      select: ['status'],
-    });
-    return membership ? membership.status : null;
-  }
-
-  async isActiveMember(userId: number, communityId: number): Promise<boolean> {
-    const status = await this.getMembershipStatus(userId, communityId);
-    return status === CommunityMembershipStatus.ACTIVE;
-  }
-
-  async isBlocked(userId: number, communityId: number): Promise<boolean> {
-    const status = await this.getMembershipStatus(userId, communityId);
-    return status === CommunityMembershipStatus.BLOCKED;
-  }
-
-  async activateMembership(
-    userId: number,
-    communityId: number,
-  ): Promise<CommunityMembership> {
-    const membership = await this.findOne(userId, communityId);
-    if (!membership) {
-      throw new NotFoundException('Membership not found.');
-    }
-    if (membership.status === CommunityMembershipStatus.BLOCKED) {
-      throw new ConflictException('User is blocked from this community');
-    }
-    if (membership.status === CommunityMembershipStatus.ACTIVE) {
-      return membership;
-    }
-    membership.status = CommunityMembershipStatus.ACTIVE;
-    return this.membershipsRepository.save(membership);
   }
 }
 
 ---
 
 
-### FILE: src/community-memberships/entities/community-membership.entity.ts ###
+### FILE: src/community-membership-requests/entities/community-membership-request.entity.ts ###
 import {
-  Column,
   CreateDateColumn,
   Entity,
   ManyToOne,
-  PrimaryColumn,
+  PrimaryGeneratedColumn,
+  Column,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Community } from '../../communities/entities/community.entity';
-import { CommunityMembershipStatus } from '../types';
 
-@Entity('community_memberships')
-export class CommunityMembership {
-  @PrimaryColumn()
-  userId: number;
+export enum CommunityMembershipRequestStatus {
+  PENDING = 'pending',
+  ACCEPTED = 'accepted',
+  REJECTED = 'rejected',
+}
 
-  @PrimaryColumn()
-  communityId: number;
+@Entity('community_membership_requests')
+export class CommunityMembershipRequest {
+  @PrimaryGeneratedColumn()
+  id: number;
 
-  @ManyToOne(() => User, (user) => user.communityMemberships)
+  @ManyToOne(() => User, (user) => user.communityMembershipRequests)
   user: User;
 
-  @ManyToOne(() => Community, (community) => community.memberships)
+  @Column()
+  userId: number;
+
+  @ManyToOne(
+    () => Community,
+    (community) => community.membershipRequests,
+  )
   community: Community;
 
-  @Column({ type: "simple-enum", enum:CommunityMembershipStatus, default: CommunityMembershipStatus.PENDING })
-  status: CommunityMembershipStatus;
+  @Column()
+  communityId: number;
+
+  @Column({
+    type: 'simple-enum',
+    enum: CommunityMembershipRequestStatus,
+    default: CommunityMembershipRequestStatus.PENDING,
+  })
+  status: CommunityMembershipRequestStatus;
 
   @CreateDateColumn()
   createdAt: Date;
@@ -2684,149 +3071,10 @@ export class CommunityMembership {
 ---
 
 
-### FILE: src/community-memberships/community-memberships.controller.ts ###
-import {
-  Controller,
-  Post,
-  Param,
-  ParseIntPipe,
-  Delete,
-  UseGuards,
-  Get,
-  Query,
-} from '@nestjs/common';
-import { CommunityMembershipsService } from './community-memberships.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { User } from '../users/entities/user.entity';
-import { CommunityMembershipResponseDto } from './dto/community-membership-response.dto';
-import { GetUser } from 'src/decorators/user.decorator';
-import { CommunityMembership } from './entities/community-membership.entity';
-import { CommunityMembershipQueryDto } from './dto/community-membership-query.dto';
-import { ResponseDto } from 'src/common/dto/response.dto';
-import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
-import { PaginationMetaDto } from 'src/common/dto/pagination-meta.dto';
-
-@Controller()
-export class CommunityMembershipsController {
-  constructor(
-    private readonly communityMembershipsService: CommunityMembershipsService,
-  ) { }
-
-
-  // Unified GET endpoint
-  @Get('community-memberships')
-  async findMemberships(
-   @Query() query: CommunityMembershipQueryDto,
-  ): Promise<PaginatedResponseDto<CommunityMembershipResponseDto>> {
-    
-
-    const { data, count } = await this.communityMembershipsService.findMemberships({
-      userId:query.userId,
-      communityId:query.communityId ,
-      page:query.page ,
-      limit : query.limit
-    });
-
-    const paginationMeta = new PaginationMetaDto(
-      query.page,
-      query.limit,
-      count,
-      data.length,
-    );
-
-    return new PaginatedResponseDto(data.map(CommunityMembershipResponseDto.fromEntity), paginationMeta);
-  }
-
-@UseGuards(JwtAuthGuard)
-  @Post('communities/:communityId/memberships')
-  async createMembership(
-    @Param('communityId', ParseIntPipe) communityId: number,
-    @GetUser() user: User,
-  ): Promise<ResponseDto<CommunityMembershipResponseDto>> {
-    const membership = await this.communityMembershipsService.createMembership(
-      communityId,
-      user.id,
-    );
-    return new ResponseDto(CommunityMembershipResponseDto.fromEntity(membership));
-  }
-  
-@UseGuards(JwtAuthGuard)
-  @Delete('users/me/communities/:communityId/memberships')
-  async deleteMembership(
-    @Param('communityId', ParseIntPipe) communityId: number,
-    @GetUser() user: User,
-  ): Promise<ResponseDto<boolean>> {
-    await this.communityMembershipsService.deleteMembership(communityId, user.id);
-    return new ResponseDto(true);
-  }
-}
-
-
----
-
-
-### FILE: src/community-memberships/dto/community-membership-query.dto.ts ###
-import { IsBoolean, IsNumber, IsOptional, IsString } from 'class-validator';
-import { PaginationDto } from '../../common/dto/pagination.dto';
-import { Transform } from 'class-transformer';
-
-export class CommunityMembershipQueryDto extends PaginationDto {
-  @IsOptional()
-  @IsNumber()
-  userId?: number;
-
-  @IsOptional()
-  @IsNumber()
-  communityId?: number;
-
- 
-}
-
----
-
-
-### FILE: src/community-memberships/dto/community-membership-response.dto.ts ###
-import { Expose, Type, plainToInstance } from 'class-transformer';
-import { UserResponseDto } from '../../users/dtos/user-response.dto';
-import { CommunityResponseDto } from '../../communities/dto/community-response.dto';
-import { CommunityMembership } from '../entities/community-membership.entity';
-import { CommunityMembershipStatus } from '../types';
-
-export class CommunityMembershipResponseDto {
-  @Expose()
-  userId: number;
-
-  @Expose()
-  communityId: number;
-
-  @Expose()
-  @Type(() => UserResponseDto)
-  user: UserResponseDto;
-
-  @Expose()
-  @Type(() => CommunityResponseDto)
-  community: CommunityResponseDto;
-
-  @Expose()
-  status: CommunityMembershipStatus;
-
-  @Expose()
-  createdAt: Date;
-
-  static fromEntity(
-    entity: CommunityMembership,
-  ): CommunityMembershipResponseDto {
-    return plainToInstance(CommunityMembershipResponseDto, entity);
-  }
-}
-
----
-
-
-### FILE: src/community-memberships/dto/create-community-membership.dto.ts ###
+### FILE: src/community-membership-requests/dto/create-community-membership-request.dto.ts ###
 import { IsNumber } from 'class-validator';
 
-export class CreateCommunityMembershipDto {
+export class CreateCommunityMembershipRequestDto {
   @IsNumber()
   communityId: number;
 }
@@ -3049,14 +3297,16 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm'; // Added DataSource
 
 import { PostReaction } from './entities/post-reaction.entity';
 import { CommentReaction } from './entities/comment-reaction.entity';
 import { ReactionType } from './reactions.types';
-import { PostsService } from 'src/posts/posts.service';
-import { CommentsService } from 'src/comments/comments.service';
+// import { PostsService } from 'src/posts/posts.service'; // Removed
+// import { CommentsService } from 'src/comments/comments.service'; // Removed
 import { UpdateReactionDto } from './dto/update-reaction.dto';
+import { Post } from 'src/posts/entities/post.entity'; // Added Post entity
+import { Comment } from 'src/comments/entities/comment.entity'; // Added Comment entity
 
 @Injectable()
 export class ReactionsService {
@@ -3067,8 +3317,13 @@ export class ReactionsService {
     @InjectRepository(CommentReaction)
     private readonly commentReactionRepo: Repository<CommentReaction>,
 
-    private readonly postsService: PostsService,
-    private readonly commentsService: CommentsService,
+    // private readonly postsService: PostsService, // Removed
+    // private readonly commentsService: CommentsService, // Removed
+    @InjectRepository(Post) // Injected Post repository
+    private readonly postRepo: Repository<Post>,
+    @InjectRepository(Comment) // Injected Comment repository
+    private readonly commentRepo: Repository<Comment>,
+    private dataSource: DataSource, // Injected DataSource
   ) { }
 
   // ─────────────────────────────────────────────
@@ -3095,62 +3350,71 @@ export class ReactionsService {
       );
     }
 
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    if (postId) {
-      const post = await this.postsService.findOne(postId);
-      if (!post) throw new NotFoundException(`Post with ID ${postId} not found`);
+    try {
+      if (postId) {
+        const post = await queryRunner.manager.findOne(Post, { where: { id: postId } });
+        if (!post) throw new NotFoundException(`Post with ID ${postId} not found`);
 
-      const existing = await this.postReactionRepo.findOne({
-        where: { userId, postId },
-      });
-      console.log(existing);
-      
-      if (existing) {
-        throw new ForbiddenException(
-          'You already reacted to this post',
-        );
+        const existing = await queryRunner.manager.findOne(PostReaction, {
+          where: { userId, postId },
+        });
+        
+        if (existing) {
+          throw new ForbiddenException(
+            'You already reacted to this post',
+          );
+        }
+
+        const newReaction = queryRunner.manager.create(PostReaction, { type, userId, postId });
+        await queryRunner.manager.save(newReaction);
+
+        if (newReaction.type === ReactionType.LIKE) {
+          await queryRunner.manager.increment(Post, { id: postId }, 'likesCount', 1);
+        } else {
+          await queryRunner.manager.increment(Post, { id: postId }, 'dislikesCount', 1);
+        }
+        await queryRunner.commitTransaction();
+        return newReaction;
       }
+      else if (commentId) {
+        const comment = await queryRunner.manager.findOne(Comment, { where: { id: commentId } });
+        if (!comment) throw new NotFoundException(`Comment with ID ${commentId} not found`);
 
-      const newReaction = await this.postReactionRepo.save(
-        this.postReactionRepo.create({ type, userId, postId }),
+        const existing = await queryRunner.manager.findOne(CommentReaction, {
+          where: { userId, commentId },
+        });
+
+        if (existing) {
+          throw new ForbiddenException(
+            'You already reacted to this comment',
+          );
+        }
+
+        const newReaction = queryRunner.manager.create(CommentReaction, { type, userId, commentId });
+        await queryRunner.manager.save(newReaction);
+
+        if (newReaction.type === ReactionType.LIKE) {
+          await queryRunner.manager.increment(Comment, { id: commentId }, 'likesCount', 1);
+        } else {
+          await queryRunner.manager.increment(Comment, { id: commentId }, 'dislikesCount', 1);
+        }
+        await queryRunner.commitTransaction();
+        return newReaction;
+      }
+      throw new BadRequestException(
+        'Reaction must target either a post or a comment',
       );
-      if (newReaction.type === ReactionType.LIKE) {
-        await this.postsService.incrementLikesCount(postId);
-      } else {
-        await this.postsService.incrementDislikesCount(postId);
-      }
-      return newReaction;
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
     }
-    else if (commentId) {
-      const comment = await this.commentsService.findOne(commentId);
-      if (!comment) throw new NotFoundException(`Comment with ID ${commentId} not found`);
-
-      const existing = await this.commentReactionRepo.findOne({
-        where: { userId, commentId },
-      });
-
-      if (existing) {
-        throw new ForbiddenException(
-          'You already reacted to this comment',
-        );
-      }
-
-      const newReaction = await this.commentReactionRepo.save(
-        this.commentReactionRepo.create({ type, userId, commentId }),
-      );
-      if (newReaction.type === ReactionType.LIKE) {
-        await this.commentsService.incrementLikesCount(commentId);
-      } else {
-        await this.commentsService.incrementDislikesCount(commentId);
-      }
-      return newReaction;
-    }
-    throw new BadRequestException(
-      'Reaction must target either a post or a comment',
-    );
-
-  }
-  async findByPost({
+  }  async findByPost({
     postId,
     page = 1,
     limit = 10,
@@ -3237,32 +3501,49 @@ export class ReactionsService {
   id: number;
   type: ReactionType;
 }) {
-  const reaction = await this.postReactionRepo.findOneBy({ id });
-  if (!reaction) throw new NotFoundException('Post reaction not found');
-  
-  // Return early if no change
-  if (reaction.type === type) return reaction;
+  const queryRunner = this.dataSource.createQueryRunner();
+  await queryRunner.connect();
+  await queryRunner.startTransaction();
 
-  const oldType = reaction.type;
-  const newType = type;
-  const postId = reaction.postId;
+  try {
+    const reaction = await queryRunner.manager.findOne(PostReaction, { where: { id } });
+    if (!reaction) throw new NotFoundException('Post reaction not found');
+    
+    // Return early if no change
+    if (reaction.type === type) {
+      await queryRunner.commitTransaction();
+      return reaction;
+    }
 
-  // Update counters based on change
-  if (oldType === ReactionType.LIKE) {
-    await this.postsService.decrementLikesCount(postId);
-  } else if (oldType === ReactionType.DISLIKE) {
-    await this.postsService.decrementDislikesCount(postId);
+    const oldType = reaction.type;
+    const newType = type;
+    const postId = reaction.postId;
+
+    // Update counters based on change
+    if (oldType === ReactionType.LIKE) {
+      await queryRunner.manager.decrement(Post, { id: postId }, 'likesCount', 1);
+    } else if (oldType === ReactionType.DISLIKE) {
+      await queryRunner.manager.decrement(Post, { id: postId }, 'dislikesCount', 1);
+    }
+
+    if (newType === ReactionType.LIKE) {
+      await queryRunner.manager.increment(Post, { id: postId }, 'likesCount', 1);
+    } else if (newType === ReactionType.DISLIKE) {
+      await queryRunner.manager.increment(Post, { id: postId }, 'dislikesCount', 1);
+    }
+
+    // Update reaction type
+    reaction.type = newType;
+    await queryRunner.manager.save(reaction);
+
+    await queryRunner.commitTransaction();
+    return reaction;
+  } catch (err) {
+    await queryRunner.rollbackTransaction();
+    throw err;
+  } finally {
+    await queryRunner.release();
   }
-
-  if (newType === ReactionType.LIKE) {
-    await this.postsService.incrementLikesCount(postId);
-  } else if (newType === ReactionType.DISLIKE) {
-    await this.postsService.incrementDislikesCount(postId);
-  }
-
-  // Update reaction type
-  reaction.type = newType;
-  return this.postReactionRepo.save(reaction);
 }
 
 async updateCommentReaction({
@@ -3272,76 +3553,109 @@ async updateCommentReaction({
   id: number;
   type: ReactionType;
 }) {
-  const reaction = await this.commentReactionRepo.findOneBy({ id });
-  if (!reaction) throw new NotFoundException('Comment reaction not found');
+  const queryRunner = this.dataSource.createQueryRunner();
+  await queryRunner.connect();
+  await queryRunner.startTransaction();
 
-  // Return early if no change
-  if (reaction.type === type) return reaction;
+  try {
+    const reaction = await queryRunner.manager.findOne(CommentReaction, { where: { id } });
+    if (!reaction) throw new NotFoundException('Comment reaction not found');
 
-  const oldType = reaction.type;
-  const newType = type;
-  const commentId = reaction.commentId;
+    // Return early if no change
+    if (reaction.type === type) {
+      await queryRunner.commitTransaction();
+      return reaction;
+    }
 
-  // Update counters based on change
-  if (oldType === ReactionType.LIKE) {
-    await this.commentsService.decrementLikesCount(commentId);
-  } else if (oldType === ReactionType.DISLIKE) {
-    await this.commentsService.decrementDislikesCount(commentId);
+    const oldType = reaction.type;
+    const newType = type;
+    const commentId = reaction.commentId;
+
+    // Update counters based on change
+    if (oldType === ReactionType.LIKE) {
+      await queryRunner.manager.decrement(Comment, { id: commentId }, 'likesCount', 1);
+    } else if (oldType === ReactionType.DISLIKE) {
+      await queryRunner.manager.decrement(Comment, { id: commentId }, 'dislikesCount', 1);
+    }
+
+    if (newType === ReactionType.LIKE) {
+      await queryRunner.manager.increment(Comment, { id: commentId }, 'likesCount', 1);
+    } else if (newType === ReactionType.DISLIKE) {
+      await queryRunner.manager.increment(Comment, { id: commentId }, 'dislikesCount', 1);
+    }
+
+    // Update reaction type
+    reaction.type = newType;
+    await queryRunner.manager.save(reaction);
+
+    await queryRunner.commitTransaction();
+    return reaction;
+  } catch (err) {
+    await queryRunner.rollbackTransaction();
+    throw err;
+  } finally {
+    await queryRunner.release();
   }
-
-  if (newType === ReactionType.LIKE) {
-    await this.commentsService.incrementLikesCount(commentId);
-  } else if (newType === ReactionType.DISLIKE) {
-    await this.commentsService.incrementDislikesCount(commentId);
-  }
-
-  // Update reaction type
-  reaction.type = newType;
-  return this.commentReactionRepo.save(reaction);
 }
   // ─────────────────────────────────────────────
   // DELETE
   // ─────────────────────────────────────────────
   async deletePostReaction(id: number) {
-    const reaction = await this.postReactionRepo.findOneBy({ id });
-    if (!reaction) {
-      throw new NotFoundException('Post reaction not found');
-    }
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    const result = await this.postReactionRepo.delete(id);
-    if (result.affected) {
-      const post = await this.postsService.findOne(reaction.postId);
-      if (!post) throw new NotFoundException(`Post with ID               
-     ${reaction.postId} not found`);
-
-      if (reaction.type === ReactionType.LIKE) {
-        await this.postsService.decrementLikesCount(reaction.postId);
-      } else {
-        await this.postsService.decrementDislikesCount(reaction.postId);
+    try {
+      const reaction = await queryRunner.manager.findOne(PostReaction, { where: { id } });
+      if (!reaction) {
+        throw new NotFoundException('Post reaction not found');
       }
+
+      const result = await queryRunner.manager.delete(PostReaction, id);
+      if (result.affected) {
+        // No need to fetch post explicitly, can directly decrement
+        if (reaction.type === ReactionType.LIKE) {
+          await queryRunner.manager.decrement(Post, { id: reaction.postId }, 'likesCount', 1);
+        } else {
+          await queryRunner.manager.decrement(Post, { id: reaction.postId }, 'dislikesCount', 1);
+        }
+      }
+      await queryRunner.commitTransaction();
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
     }
   }
-
   async deleteCommentReaction(id: number) {
-    const reaction = await this.commentReactionRepo.findOneBy({ id });
-    if (!reaction) {
-      throw new NotFoundException('Comment reaction not found');
-    }
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    const result = await this.commentReactionRepo.delete(id);
-    if (result.affected) {
-      const comment = await this.commentsService.findOne(reaction.commentId);
-      if (!comment) throw new NotFoundException(`Comment with ID               
-     ${reaction.commentId} not found`);
-
-      if (reaction.type === ReactionType.LIKE) {
-        await this.commentsService.decrementLikesCount(reaction.commentId);
-      } else {
-        await this.commentsService.decrementDislikesCount(reaction.commentId);
+    try {
+      const reaction = await queryRunner.manager.findOne(CommentReaction, { where: { id } });
+      if (!reaction) {
+        throw new NotFoundException('Comment reaction not found');
       }
+
+      const result = await queryRunner.manager.delete(CommentReaction, id);
+      if (result.affected) {
+        // No need to fetch comment explicitly, can directly decrement
+        if (reaction.type === ReactionType.LIKE) {
+          await queryRunner.manager.decrement(Comment, { id: reaction.commentId }, 'likesCount', 1);
+        } else {
+          await queryRunner.manager.decrement(Comment, { id: reaction.commentId }, 'dislikesCount', 1);
+        }
+      }
+      await queryRunner.commitTransaction();
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
     }
-  }
-}
+  }}
 
 ---
 
@@ -3357,11 +3671,14 @@ import { CaslModule } from 'src/casl/casl.module';
 import { PostsModule } from 'src/posts/posts.module';
 import { CommentsModule } from 'src/comments/comments.module';
 
+import { Post } from 'src/posts/entities/post.entity';
+import { Comment } from 'src/comments/entities/comment.entity';
+
 @Module({
   providers: [ReactionsService],
   controllers: [ReactionsController],
   imports: [
-    TypeOrmModule.forFeature([PostReaction, CommentReaction]),
+    TypeOrmModule.forFeature([PostReaction, CommentReaction, Post, Comment]),
     CaslModule,
     PostsModule,
     CommentsModule,
@@ -3663,8 +3980,6 @@ import { Post } from 'src/posts/entities/post.entity';
 import { User } from 'src/users/entities/user.entity';
 import { Comment } from 'src/comments/entities/comment.entity';
 import { CaslModule } from 'src/casl/casl.module';
-import { CommunityModerator } from 'src/community-moderators/entities/community-moderator.entity';
-
 @Module({
   imports: [
     TypeOrmModule.forFeature([
@@ -3674,7 +3989,6 @@ import { CommunityModerator } from 'src/community-moderators/entities/community-
       Post,
       User,
       Comment,
-      CommunityModerator,
     ]),
     CaslModule,
   ],
@@ -3866,7 +4180,7 @@ export abstract class BaseReport {
   description: string;
 
   @Column({
-    type: 'enum',
+    type: 'simple-enum',
     enum: ReportStatus,
     default: ReportStatus.PENDING,
   })
@@ -3898,7 +4212,7 @@ import { CommentReport } from './entities/comment-report.entity';
 import { PostReport } from './entities/post-report.entity';
 import { UserReport } from './entities/user-report.entity';
 import { ReportStatus } from './entities/base-report.entity';
-import { CommunityModerator } from 'src/community-moderators/entities/community-moderator.entity';
+
 
 const PLATFORM_COMPLAINT_REASONS = [
   'HARASSMENT',
@@ -3938,8 +4252,7 @@ export class ReportsService {
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
 
-    @InjectRepository(CommunityModerator)
-    private readonly communityModeratorRepository: Repository<CommunityModerator>,
+
   ) { }
 
   async create(
@@ -4062,11 +4375,7 @@ export class ReportsService {
     if (!user) {
       throw new NotFoundException(`User ${userId} not found`);
     }
-    const isModerator =
-      communityId &&
-      (await this.communityModeratorRepository.findOne({
-        where: { moderatorId: userId, communityId },
-      }));
+
 
     const parameters: any[] = [];
     let paramIndex = 1;
@@ -4090,9 +4399,6 @@ export class ReportsService {
 
       if (user.role == UserRole.ADMIN) {
         whereClauses.push(`"isPlatformComplaint" = TRUE`);
-      } else if (isModerator && communityId) {
-        whereClauses.push(`"communityId" = $${paramIndex++}`);
-        parameters.push(communityId);
       } else {
         whereClauses.push(`"isPlatformComplaint" = FALSE`);
       }
@@ -4719,7 +5025,7 @@ import { PostReaction } from '../reactions/entities/post-reaction.entity';
 import { CommentReaction } from '../reactions/entities/comment-reaction.entity';
 import { Action } from './casl.types';
 import { Community } from 'src/communities/entities/community.entity';
-import { CommunityMembershipStatus } from 'src/community-memberships/types';
+import { CommunityMembershipRole } from 'src/community-memberships/types';
 import { CommunityType } from 'src/communities/types';
 
 export type Subjects =
@@ -4862,7 +5168,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Post } from './entities/post.entity';
 import { CaslModule } from 'src/casl/casl.module';
 import { Community } from 'src/communities/entities/community.entity';
-import { CommunityMembership } from 'src/community-memberships/entities/community-membership.entity';
+import { CommunityMembership } from 'src/community-memberships/entities/community-memberships.entity';
 
 @Module({
   imports: [TypeOrmModule.forFeature(
@@ -4887,8 +5193,8 @@ import { Post } from './entities/post.entity';
 import { PostSort } from './dto/post-query.dto';
 import { CommunityType } from 'src/communities/types';
 import { Community } from 'src/communities/entities/community.entity';
-import { CommunityMembership } from 'src/community-memberships/entities/community-membership.entity';
-import { CommunityMembershipStatus } from 'src/community-memberships/types';
+import { CommunityMembership } from 'src/community-memberships/entities/community-memberships.entity';
+import { CommunityMembershipRole } from 'src/community-memberships/types';
 
 @Injectable()
 export class PostsService {
@@ -4899,8 +5205,8 @@ export class PostsService {
     private readonly communityRepository: Repository<Community>,
 
     @InjectRepository(CommunityMembership)
-    private readonly membershipRepository: Repository<CommunityMembership>,) { }
-
+    private readonly membershipRepository: Repository<CommunityMembership>) 
+    { }
   async findAll(
     options: {
       page?: number;
@@ -5004,7 +5310,6 @@ export class PostsService {
           FROM community_memberships cs
           WHERE cs.communityId = community.id
           AND cs.userId = :currentUserId
-          AND cs.status = 'approved'
         )`,
           );
         }),
@@ -5103,11 +5408,12 @@ export class PostsService {
   }
 
 
-  async updatePostApprovalStatus(postId: number, isApproved: boolean): Promise<Post> {
+  async updatePostApprovalStatus(postId: number, isApproved: boolean,userId:number): Promise<Post> {
     const post = await this.postsRepository.findOneBy({ id: postId });
     if (!post) {
       throw new NotFoundException('Post not found');
     }
+
     post.isApproved = isApproved;
     post.approvedAt = isApproved ? new Date() : null;
     return this.postsRepository.save(post);
@@ -5123,29 +5429,9 @@ export class PostsService {
   }
 
 
-  async incrementCommentsCount(postId: number): Promise<void> {
-    await this.postsRepository.increment({ id: postId }, 'commentsCount', 1);
-  }
 
-  async decrementCommentsCount(postId: number): Promise<void> {
-    await this.postsRepository.decrement({ id: postId }, 'commentsCount', 1);
-  }
 
-  async incrementLikesCount(postId: number): Promise<void> {
-    await this.postsRepository.increment({ id: postId }, 'likesCount', 1);
-  }
 
-  async decrementLikesCount(postId: number): Promise<void> {
-    await this.postsRepository.decrement({ id: postId }, 'likesCount', 1);
-  }
-
-  async incrementDislikesCount(postId: number): Promise<void> {
-    await this.postsRepository.increment({ id: postId }, 'dislikesCount', 1);
-  }
-
-  async decrementDislikesCount(postId: number): Promise<void> {
-    await this.postsRepository.decrement({ id: postId }, 'dislikesCount', 1);
-  }
 
   async incrementViews(postId: number): Promise<void> {
     await this.postsRepository.increment({ id: postId }, 'views', 1);
@@ -5165,7 +5451,6 @@ export class PostsService {
           where: {
             userId,
             communityId: community.id,
-            status: CommunityMembershipStatus.ACTIVE,
           },
         });
 
@@ -5310,8 +5595,7 @@ import { PaginationMetaDto } from 'src/common/dto/pagination-meta.dto';
 import { OptionalJwtAuthGuard } from 'src/auth/guards/optional-jwt-auth.guard';
 import type { Request } from 'express';
 import { CommunityType } from 'src/communities/types';
-import { Membership } from 'rxjs';
-import { CommunityMembershipStatus } from 'src/community-memberships/types';
+import { CommunityMembershipRole } from 'src/community-memberships/types';
 
 @Controller('posts')
 export class PostsController {
@@ -5413,9 +5697,7 @@ export class PostsController {
     @Body() dto: UpdatePostApprovalDto, // Use the new DTO
     @GetUser() user: User, // For potential admin check
   ): Promise<ResponseDto<PostResponseDto>> {
-    // Implement admin role check using caslService.enforce here
-    // For now, let's assume `user` is an admin or has the right permissions
-    const updatedPost = await this.postsService.updatePostApprovalStatus(post.id, dto.isApproved);
+    const updatedPost = await this.postsService.updatePostApprovalStatus(post.id, dto.isApproved,user.id);
     return new ResponseDto(PostResponseDto.fromEntity(updatedPost));
   }
 
@@ -6387,8 +6669,8 @@ import { Not, Repository } from 'typeorm';
 import { Community } from './entities/community.entity';
 import { CommunityType } from './types';
 import { User } from '../users/entities/user.entity';
-import { CommunityMembership } from 'src/community-memberships/entities/community-membership.entity';
-import { CommunityMembershipStatus } from 'src/community-memberships/types';
+import { CommunityMembership } from 'src/community-memberships/entities/community-memberships.entity';
+import { CommunityMembershipRole } from 'src/community-memberships/types';
 
 @Injectable()
 export class CommunitiesService {
@@ -6519,7 +6801,6 @@ export class CommunitiesService {
           where: {
             userId,
             communityId: community.id,
-            status: CommunityMembershipStatus.ACTIVE,
           },
         });
 
@@ -6549,9 +6830,9 @@ import {
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Post } from '../../posts/entities/post.entity';
-import { CommunityMembership } from '../../community-memberships/entities/community-membership.entity';
+import { CommunityMembership } from '../../community-memberships/entities/community-memberships.entity';
+import { CommunityMembershipRequest } from '../../community-membership-requests/entities/community-membership-request.entity';
 import { CommunityType } from '../types';
-import { CommunityModerator } from '../../community-moderators/entities/community-moderator.entity'; // Import CommunityModerator
 
 @Entity('communities')
 export class Community {
@@ -6591,8 +6872,11 @@ ownerId: number;
   )
   memberships: CommunityMembership[];
 
-  @OneToMany(() => CommunityModerator, (communityModerator) => communityModerator.community)
-  moderators: CommunityModerator[];
+  @OneToMany(
+    () => CommunityMembershipRequest,
+    (request) => request.community,
+  )
+  membershipRequests: CommunityMembershipRequest[];
 }
 
 ---
@@ -6703,11 +6987,10 @@ import { CommunitiesService } from './communities.service';
 import { CommunitiesController } from './communities.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Community } from './entities/community.entity';
-import { CommunityMembership } from 'src/community-memberships/entities/community-membership.entity';
+import { CommunityMembership } from 'src/community-memberships/entities/community-memberships.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Community]),
-CommunityMembership],
+  imports: [TypeOrmModule.forFeature([Community, CommunityMembership])],
   controllers: [CommunitiesController],
   providers: [CommunitiesService],
   exports: [CommunitiesService],
@@ -6763,7 +7046,7 @@ export class CommunityResponseDto {
   @Expose() readonly name: string;
   @Expose() readonly displayName: string;
   @Expose() readonly description: string;
-  @Expose() readonly isPublic: boolean;
+  @Expose() isPublic: boolean;
   @Expose() readonly membersCount: number;
   @Expose() readonly createdAt: Date;
 
@@ -7254,12 +7537,13 @@ import { PostReaction } from './reactions/entities/post-reaction.entity';
 import { Profile } from './profile/entities/profile.entity';
 import { ProfileModule } from './profile/profile.module';
 import { Community } from './communities/entities/community.entity';
-import { CommunityMembership } from './community-memberships/entities/community-membership.entity';
-import { CommunityModeratorsModule } from './community-moderators/community-moderators.module';
+import { CommunityMembership } from './community-memberships/entities/community-memberships.entity';
 import { ReportsModule } from './reports/reports.module';
 import { CommentReport } from './reports/entities/comment-report.entity';
 import { PostReport } from './reports/entities/post-report.entity';
 import { UserReport } from './reports/entities/user-report.entity';
+import { CommunityMembershipRequest } from './community-membership-requests/entities/community-membership-request.entity';
+import { CommunityMembershipRequestsModule } from './community-membership-requests/community-membership-requests.module';
 
 @Module({
   imports: [
@@ -7282,6 +7566,7 @@ import { UserReport } from './reports/entities/user-report.entity';
           Profile,
           Community,
           CommunityMembership,
+          CommunityMembershipRequest, // NEW ENTITY
           CommentReport,
           PostReport,
           UserReport,
@@ -7301,398 +7586,13 @@ import { UserReport } from './reports/entities/user-report.entity';
     ProfileModule,
     CommunitiesModule,
     CommunityMembershipsModule,
-    CommunityModeratorsModule,
+    CommunityMembershipRequestsModule, // NEW MODULE
     ReportsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
 export class AppModule {}
-
----
-
-
-### FILE: src/community-moderators/community-moderators.controller.ts ###
-import {
-  Controller,
-  Post,
-  Get,
-  Param,
-  Delete,
-  Body,
-  ParseIntPipe,
-  HttpCode,
-  HttpStatus,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
-import { CommunityModeratorsService } from './community-moderators.service';
-import { CommunityModeratorResponseDto } from './dto/community-moderator-response.dto';
-import { CommunityModeratorQueryDto } from './dto/community-moderator-query.dto';
-import { ResponseDto } from 'src/common/dto/response.dto';
-import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
-import { PaginationMetaDto } from 'src/common/dto/pagination-meta.dto';
-import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
-import { GetUser } from 'src/decorators/user.decorator';
-import { User } from 'src/users/entities/user.entity';
-
-@Controller('communities/:communityId/moderators')
-export class CommunityModeratorsController {
-  constructor(private readonly service: CommunityModeratorsService) {}
-
-  @Post()
-  @UseGuards(JwtAuthGuard)
-  async create(
-    @Param('communityId', ParseIntPipe) communityId: number,
-    @Body('userId', ParseIntPipe) userId: number,
-    @GetUser() currentUser: User,
-  ): Promise<ResponseDto<CommunityModeratorResponseDto>> {
-    const communityModerator = await this.service.create({
-      userId,
-      communityId,
-      currentUser,
-    });
-    return new ResponseDto(
-      CommunityModeratorResponseDto.fromEntity(communityModerator),
-    );
-  }
-
-  @Get()
-  async findAll(
-    @Param('communityId', ParseIntPipe) communityId: number,
-    @Query() queryDto: CommunityModeratorQueryDto,
-  ): Promise<PaginatedResponseDto<CommunityModeratorResponseDto>> {
-    const { data, count } = await this.service.findAll({
-      communityId,
-      page: queryDto.page,
-      limit: queryDto.limit,
-    });
-
-    const paginationMeta = new PaginationMetaDto(
-      queryDto.page,
-      queryDto.limit,
-      count,
-      data.length,
-    );
-
-    return new PaginatedResponseDto(
-      data.map(CommunityModeratorResponseDto.fromEntity),
-      paginationMeta,
-    );
-  }
-
-  @Get(':moderatorId')
-  async findOne(
-    @Param('communityId', ParseIntPipe) communityId: number,
-    @Param('moderatorId', ParseIntPipe) moderatorId: number,
-  ): Promise<ResponseDto<CommunityModeratorResponseDto>> {
-    const communityModerator = await this.service.findOne({
-      moderatorId,
-      communityId,
-    });
-    return new ResponseDto(
-      CommunityModeratorResponseDto.fromEntity(communityModerator),
-    );
-  }
-
-  @Delete(':moderatorId')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @UseGuards(JwtAuthGuard)
-  async remove(
-    @Param('communityId', ParseIntPipe) communityId: number,
-    @Param('moderatorId', ParseIntPipe) moderatorId: number,
-    @GetUser() currentUser: User,
-  ): Promise<void> {
-    await this.service.remove({ moderatorId, communityId, currentUser });
-  }
-}
-
----
-
-
-### FILE: src/community-moderators/community-moderators.service.ts ###
-import {
-  Injectable,
-  NotFoundException,
-  ConflictException,
-  BadRequestException,
-  ForbiddenException,
-} from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { CommunityModerator } from './entities/community-moderator.entity';
-import { UsersService } from '../users/users.service';
-import { CommunitiesService } from '../communities/communities.service';
-import { CommunityMembershipsService } from '../community-memberships/community-memberships.service';
-import { User } from 'src/users/entities/user.entity';
-import { CommunityMembershipStatus } from 'src/community-memberships/types';
-
-@Injectable()
-export class CommunityModeratorsService {
-  constructor(
-    @InjectRepository(CommunityModerator)
-    private readonly communityModeratorRepository: Repository<CommunityModerator>,
-    private readonly usersService: UsersService,
-    private readonly communitiesService: CommunitiesService,
-    private readonly membershipsService: CommunityMembershipsService,
-  ) {}
-
-  async create(options: {
-    userId: number;
-    communityId: number;
-    currentUser: User;
-  }): Promise<CommunityModerator> {
-    const { userId, communityId, currentUser } = options;
-
-    const community = await this.communitiesService.findOne(communityId);
-    if (!community) {
-      throw new NotFoundException(`Community with ID ${communityId} not found`);
-    }
-
-    if (community.ownerId !== currentUser.id) {
-      throw new ForbiddenException('You are not the owner of this community');
-    }
-
-    const user = await this.usersService.findOneById(userId);
-    if (!user) {
-      throw new NotFoundException(`User with ID ${userId} not found`);
-    }
-
-    if (!user.emailVerifiedAt) {
-      throw new BadRequestException('User is not active');
-    }
-
-    const isModerator = await this.communityModeratorRepository.exist({
-      where: { moderatorId: userId, communityId },
-    });
-
-    if (isModerator) {
-      throw new ConflictException('User is already a moderator');
-    }
-
-    const membership = await this.membershipsService.findOne(
-      userId,
-      communityId,
-    );
-
-    if (membership) {
-      if (membership.status === CommunityMembershipStatus.BLOCKED) {
-        throw new BadRequestException(
-          'Blocked users cannot be made moderators.',
-        );
-      }
-      if (membership.status === CommunityMembershipStatus.PENDING) {
-        await this.membershipsService.activateMembership(
-          userId,
-          communityId,
-        );
-      }
-    } else {
-      await this.membershipsService.createMembership({
-        userId,
-        communityId,
-        activate: true,
-      });
-    }
-
-    const moderatorEntity = this.communityModeratorRepository.create({
-      moderator: user,
-      community,
-    });
-    return this.communityModeratorRepository.save(moderatorEntity);
-  }
-
-  async findAll(options: {
-    communityId: number;
-    page?: number;
-    limit?: number;
-  }): Promise<{ data: CommunityModerator[]; count: number }> {
-    const { communityId, page = 1, limit = 10 } = options;
-    const [data, count] = await this.communityModeratorRepository
-      .createQueryBuilder('moderator')
-      .where('moderator.communityId = :communityId', { communityId })
-      .leftJoinAndSelect('moderator.moderator', 'user')
-      .take(limit)
-      .skip((page - 1) * limit)
-      .getManyAndCount();
-
-    return { data, count };
-  }
-
-  async findOne(options: {
-    moderatorId: number;
-    communityId: number;
-  }): Promise<CommunityModerator> {
-    const { moderatorId, communityId } = options;
-    const communityModerator = await this.communityModeratorRepository.findOne({
-      where: { moderatorId, communityId },
-      relations: ['moderator', 'community'],
-    });
-    if (!communityModerator) {
-      throw new NotFoundException(
-        `CommunityModerator with moderator ID ${moderatorId} and community ID ${communityId} not found`,
-      );
-    }
-    return communityModerator;
-  }
-
-  async remove(options: {
-    moderatorId: number;
-    communityId: number;
-    currentUser: User;
-  }): Promise<void> {
-    const { moderatorId, communityId, currentUser } = options;
-
-    const community = await this.communitiesService.findOne(communityId);
-    if (!community) {
-      throw new NotFoundException(`Community with ID ${communityId} not found`);
-    }
-
-    if (community.ownerId !== currentUser.id) {
-      throw new ForbiddenException('You are not the owner of this community');
-    }
-
-    const moderator = await this.communityModeratorRepository.findOne({
-      where: { moderatorId, communityId },
-    });
-
-    if (!moderator) {
-      throw new NotFoundException('Moderator not found');
-    }
-
-    await this.communityModeratorRepository.delete({ moderatorId, communityId });
-  }
-}
-
----
-
-
-### FILE: src/community-moderators/entities/community-moderator.entity.ts ###
-// backend/src/community-moderators/entities/community-moderator.entity.ts
-import { Entity, PrimaryGeneratedColumn, ManyToOne, PrimaryColumn } from 'typeorm';
-import { User } from '../../users/entities/user.entity';
-import { Community } from '../../communities/entities/community.entity';
-
-@Entity('community_moderators')
-export class CommunityModerator {
-  @PrimaryColumn()
-  moderatorId: number;
-
-  @PrimaryColumn()
-  communityId: number;
-
-  @ManyToOne(() => User, (user) => user.moderatedCommunities)
-  moderator: User;
-
-  @ManyToOne(() => Community, (community) => community.moderators)
-  community: Community;
-}
-
----
-
-
-### FILE: src/community-moderators/community-moderators.module.ts ###
-// backend/src/community-moderators/community-moderators.module.ts
-import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { CommunityModerator } from './entities/community-moderator.entity';
-import { CommunityModeratorsService } from './community-moderators.service';
-import { CommunityModeratorsController } from './community-moderators.controller';
-import { UsersModule } from '../users/users.module'; // Import UsersModule
-import { CommunitiesModule } from '../communities/communities.module'; // Import CommunitiesModule
-
-@Module({
-  imports: [
-    TypeOrmModule.forFeature([CommunityModerator]),
-    UsersModule, // Add UsersModule
-    CommunitiesModule, // Add CommunitiesModule
-  ],
-  providers: [CommunityModeratorsService],
-  controllers: [CommunityModeratorsController],
-  exports: [CommunityModeratorsService],
-})
-export class CommunityModeratorsModule {}
-
----
-
-
-### FILE: src/community-moderators/dto/update-moderator.dto.ts ###
-// backend/src/moderators/dto/update-moderator.dto.ts
-import { PartialType } from '@nestjs/mapped-types';
-import { CreateModeratorDto } from './create-moderator.dto';
-
-export class UpdateModeratorDto extends PartialType(CreateModeratorDto) {}
-
----
-
-
-### FILE: src/community-moderators/dto/create-community-moderator.dto.ts ###
-// backend/src/community-moderators/dto/create-community-moderator.dto.ts
-export class CreateCommunityModeratorDto {
-  userId: number;
-  communityId: number;
-}
-
----
-
-
-### FILE: src/community-moderators/dto/community-moderator-paginated-response.dto.ts ###
-// backend/src/community-moderators/dto/community-moderator-paginated-response.dto.ts
-import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
-import { CommunityModeratorResponseDto } from './community-moderator-response.dto';
-
-export class CommunityModeratorPaginatedResponseDto extends PaginatedResponseDto<CommunityModeratorResponseDto> {
-  data: CommunityModeratorResponseDto[];
-}
-
----
-
-
-### FILE: src/community-moderators/dto/community-moderator-response.dto.ts ###
-// backend/src/community-moderators/dto/community-moderator-response.dto.ts
-import { Expose, Type } from 'class-transformer';
-import { UserResponseDto } from '../../users/dtos/user-response.dto';
-import { CommunityResponseDto } from '../../communities/dto/community-response.dto';
-import { CommunityModerator } from '../entities/community-moderator.entity'; // Import CommunityModerator
-
-export class CommunityModeratorResponseDto {
-  @Expose()
-  moderatorId: number;
-
-  @Expose()
-  communityId: number;
-
-  @Expose()
-  @Type(() => UserResponseDto)
-  moderator: UserResponseDto;
-
-  @Expose()
-  @Type(() => CommunityResponseDto)
-  community: CommunityResponseDto;
-
-  static fromEntity(entity: CommunityModerator): CommunityModeratorResponseDto {
-    const dto = new CommunityModeratorResponseDto();
-    dto.moderatorId = entity.moderatorId;
-    dto.communityId = entity.communityId;
-    dto.moderator = entity.moderator;
-    dto.community = CommunityResponseDto.fromEntity(entity.community);
-    return dto;
-  }
-}
-
----
-
-
-### FILE: src/community-moderators/dto/community-moderator-query.dto.ts ###
-// backend/src/community-moderators/dto/community-moderator-query.dto.ts
-import { IsOptional, IsNumberString } from 'class-validator';
-import { PaginationDto } from '../../common/dto/pagination.dto';
-
-export class CommunityModeratorQueryDto extends PaginationDto {
-  @IsOptional()
-  @IsNumberString()
-  userId?: number;
-}
 
 ---
 
@@ -7709,11 +7609,12 @@ import { EmailVerificationToken } from './email-verification/entities/email-veri
 import { PasswordResetToken } from './reset-password/entities/password-reset-token.entity';
 import { Profile } from './profile/entities/profile.entity';
 import { Community } from './communities/entities/community.entity'; // Import Community
-import { CommunityMembership } from './community-memberships/entities/community-membership.entity'; // Import CommunityMembership
-import { CommunityModerator } from './community-moderators/entities/community-moderator.entity'; // Import CommunityModerator
+import { CommunityMembership } from './community-memberships/entities/community-memberships.entity'; // Import CommunityMembership
 import { PostReport } from './reports/entities/post-report.entity';
 import { CommentReport } from './reports/entities/comment-report.entity';
 import { UserReport } from './reports/entities/user-report.entity';
+
+import { CommunityMembershipRequest } from './community-membership-requests/entities/community-membership-request.entity';
 
 config(); // load .env manually
 
@@ -7736,7 +7637,7 @@ export const AppDataSource = new DataSource({
     Profile,
     Community, // Add Community
     CommunityMembership, // Add CommunityMembership
-    CommunityModerator, // Add Moderator
+    CommunityMembershipRequest, // Add CommunityMembershipRequest
     PostReport,
     CommentReport,
     UserReport,
@@ -7775,17 +7676,21 @@ export class CommentPipe implements PipeTransform<string, Promise<Comment>> {
 ### FILE: src/comments/comments.service.ts ###
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm'; // Added DataSource
 import { Comment } from './entities/comment.entity';
+import { Post } from 'src/posts/entities/post.entity'; // Added Post entity
 
-import { PostsService } from 'src/posts/posts.service';
+// import { PostsService } from 'src/posts/posts.service'; // Removed PostsService
 
 @Injectable()
 export class CommentsService {
   constructor(
     @InjectRepository(Comment)
     private readonly commentRepo: Repository<Comment>,
-    private readonly postsService: PostsService, // Inject PostsService
+    // private readonly postsService: PostsService, // Removed PostsService
+    @InjectRepository(Post) // Injected Post repository
+    private readonly postRepo: Repository<Post>,
+    private dataSource: DataSource, // Injected DataSource
   ) { }
 
   async findAll(options: {
@@ -7940,45 +7845,57 @@ export class CommentsService {
     userId: number,
     parentId?: number,
   ) {
-    // We get the post via postsService.findOne to ensure consistency and proper typeorm relations loading
-    const post = await this.postsService.findOne(postId);
-    if (!post) {
-      throw new NotFoundException('Post not found');
-    }
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    if (post.commentsLocked) {
-      throw new BadRequestException('Comments are locked for this post.');
-    }
-
-    
-    const comment = this.commentRepo.create({
-      content,
-      authorId: userId,
-      post: post,
-    });
-
-    if (parentId) {
-      const parent = await this.commentRepo.findOne({
-        where: { id: parentId },
-        relations: ['post'],
-      });
-      if (!parent)
-        throw new NotFoundException('Parent comment not found');
-      if (parent.post.id !== postId) {
-        throw new BadRequestException(
-          'Parent comment does not belong to this post',
-        );
+    try {
+      // Get the post directly
+      const post = await queryRunner.manager.findOne(Post, { where: { id: postId } });
+      if (!post) {
+        throw new NotFoundException('Post not found');
       }
-      comment.parent = parent;
-      await this.incrementRepliesCount(parentId);
+
+      if (post.commentsLocked) {
+        throw new BadRequestException('Comments are locked for this post.');
+      }
+
+      
+      const comment = queryRunner.manager.create(Comment, {
+        content,
+        authorId: userId,
+        post: post,
+      });
+
+      if (parentId) {
+        const parent = await queryRunner.manager.findOne(Comment, {
+          where: { id: parentId },
+          relations: ['post'],
+        });
+        if (!parent)
+          throw new NotFoundException('Parent comment not found');
+        if (parent.post.id !== postId) {
+          throw new BadRequestException(
+            'Parent comment does not belong to this post',
+          );
+        }
+        comment.parent = parent;
+        await queryRunner.manager.increment(Comment, { id: parentId }, 'repliesCount', 1); // Increment repliesCount directly
+      }
+
+      const savedComment = await queryRunner.manager.save(comment);
+
+      // Increment commentsCount on the post directly
+      await queryRunner.manager.increment(Post, { id: postId }, 'commentsCount', 1);
+
+      await queryRunner.commitTransaction();
+      return savedComment;
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
     }
-
-    const savedComment = await this.commentRepo.save(comment);
-
-    // Increment commentsCount on the post using PostsService
-    await this.postsService.incrementCommentsCount(post.id);
-
-    return savedComment;
   }
 
   async update(
@@ -8001,51 +7918,42 @@ export class CommentsService {
   }
 
   async remove(id: number): Promise<boolean> {
-    const comment = await this.commentRepo.findOne({
-      where: { id },
-      relations: ['post', 'parent'], // Load post and parent relation to update counts
-    });
-    if (!comment) {
-      throw new NotFoundException('Comment not found');
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const comment = await queryRunner.manager.findOne(Comment, {
+        where: { id },
+        relations: ['post', 'parent'], // Load post and parent relation to update counts
+      });
+      if (!comment) {
+        throw new NotFoundException('Comment not found');
+      }
+
+      // Decrement commentsCount on the post directly
+      if (comment.post) {
+        await queryRunner.manager.decrement(Post, { id: comment.post.id }, 'commentsCount', 1);
+      }
+
+      // Decrement repliesCount on the parent comment directly
+      if (comment.parent) {
+        await queryRunner.manager.decrement(Comment, { id: comment.parent.id }, 'repliesCount', 1);
+      }
+
+      await queryRunner.manager.remove(comment);
+      await queryRunner.commitTransaction();
+      return true;
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
     }
-
-    // Decrement commentsCount on the post using PostsService
-    if (comment.post) {
-      await this.postsService.decrementCommentsCount(comment.post.id);
-    }
-
-    // Decrement repliesCount on the parent comment
-    if (comment.parent) {
-      await this.decrementRepliesCount(comment.parent.id);
-    }
-
-    await this.commentRepo.remove(comment);
-    return true;
   }
 
-  async incrementLikesCount(commentId: number): Promise<void> {
-    await this.commentRepo.increment({ id: commentId }, 'likesCount', 1);
-  }
 
-  async decrementLikesCount(commentId: number): Promise<void> {
-    await this.commentRepo.decrement({ id: commentId }, 'likesCount', 1);
-  }
 
-  async incrementDislikesCount(commentId: number): Promise<void> {
-    await this.commentRepo.increment({ id: commentId }, 'dislikesCount', 1);
-  }
-
-  async decrementDislikesCount(commentId: number): Promise<void> {
-    await this.commentRepo.decrement({ id: commentId }, 'dislikesCount', 1);
-  }
-
-  async incrementRepliesCount(commentId: number): Promise<void> {
-    await this.commentRepo.increment({ id: commentId }, 'repliesCount', 1);
-  }
-
-  async decrementRepliesCount(commentId: number): Promise<void> {
-    await this.commentRepo.decrement({ id: commentId }, 'repliesCount', 1);
-  }
 }
 
 ---
@@ -8291,17 +8199,14 @@ import { CommentsController } from './comments.controller';
 import { PostsModule } from 'src/posts/posts.module';
 import { CaslModule } from 'src/casl/casl.module';
 import { CommunitiesModule } from 'src/communities/communities.module';
-import { CommunityMembership } from 'src/community-memberships/entities/community-membership.entity';
-import { CommunityAccessModule } from 'src/community-access/community-access.module';
+import { Post } from 'src/posts/entities/post.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Comment]),
+    TypeOrmModule.forFeature([Comment, Post]),
     PostsModule,
     CaslModule,
     CommunitiesModule,
-    CommunityAccessModule
-    
   ],
   providers: [CommentsService],
   controllers: [CommentsController],

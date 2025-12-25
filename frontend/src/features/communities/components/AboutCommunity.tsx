@@ -48,7 +48,7 @@ export const AboutCommunity: React.FC<AboutCommunityProps> = ({ communityId }) =
     }
 
     const isMember = membershipData && membershipData.data.length > 0;
-    const pendingRequest = requestData && requestData.data.find(req => req.userId === currentUserId && req.status === 'pending');
+    const pendingRequest = requestData?.data?.find(req => req.userId === currentUserId && req.status === 'pending');
 
     if (isMember) {
       return <LeaveCommunityButton communityId={community.id} />;

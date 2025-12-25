@@ -58,6 +58,132 @@
 
 ---
 
+### FILE: src/features/community-memberships/types.ts ###
+export interface CommunityMembership {
+    userId: number;
+    communityId: number;
+    // user: UserResponseDto; // Assuming UserResponseDto exists
+    // community: CommunityResponseDto; // Assuming CommunityResponseDto exists
+    createdAt: string;
+  }
+  
+  export interface CommunityMembershipQueryDto {
+    userId?: number;
+    communityId?: number;
+    page?: number;
+    limit?: number;
+  }
+---
+
+
+### FILE: src/features/community-memberships/services/communityMembershipsApi.ts ###
+import { apiSlice } from '../../../shared/services/apiSlice';
+import type { CommunityMembership, CommunityMembershipQueryDto } from '../types';
+import type { PaginatedResponse, ResponseDto } from '../../../shared/types';
+
+export const communityMembershipsApi = apiSlice.injectEndpoints({
+  endpoints: (builder) => ({
+    getCommunityMemberships: builder.query<
+      PaginatedResponse<CommunityMembership>,
+      CommunityMembershipQueryDto
+    >({
+      query: (params) => ({
+        url: '/community-memberships',
+        params,
+      }),
+      providesTags: ['CommunityMemberships'],
+    }),
+    deleteMembership: builder.mutation<
+      ResponseDto<boolean>,
+      number // communityId
+    >({
+      query: (communityId) => ({
+        url: `/users/me/communities/${communityId}/memberships`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['CommunityMemberships', 'Communities'], // Invalidate communities to update subscriber count
+    }),
+  }),
+});
+
+export const {
+  useGetCommunityMembershipsQuery,
+  useDeleteMembershipMutation,
+} = communityMembershipsApi;
+
+---
+
+
+### FILE: src/features/community-membership-requests/types.ts ###
+export interface CommunityMembershipRequest {
+    id: number;
+    userId: number;
+    communityId: number;
+    status: 'pending' | 'accepted' | 'rejected';
+    createdAt: string;
+    updatedAt: string;
+  }
+  
+---
+
+
+### FILE: src/features/community-membership-requests/services/communityMembershipRequestsApi.ts ###
+import { apiSlice } from "../../../shared/services/apiSlice";
+import type { ResponseDto } from "../../auth/types";
+import type { CommunityMembershipRequest } from "../types";
+
+export const communityMembershipRequestsApi = apiSlice.injectEndpoints({
+  endpoints: (builder) => ({
+    createMembershipRequest: builder.mutation<
+      ResponseDto<CommunityMembershipRequest>,
+      number // communityId
+    >({
+      query: (communityId) => ({
+        url: `/community-membership-requests/${communityId}`,
+        method: 'POST',
+      }),
+      invalidatesTags: ['CommunityMembershipRequests'],
+    }),
+    acceptMembershipRequest: builder.mutation<
+      ResponseDto<CommunityMembershipRequest>,
+      number // requestId
+    >({
+      query: (requestId) => ({
+        url: `/community-membership-requests/${requestId}/accept`,
+        method: 'POST',
+      }),
+      invalidatesTags: ['CommunityMembershipRequests', 'CommunityMemberships'],
+    }),
+    rejectMembershipRequest: builder.mutation<
+      ResponseDto<boolean>,
+      number // requestId
+    >({
+      query: (requestId) => ({
+        url: `/community-membership-requests/${requestId}/reject`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['CommunityMembershipRequests'],
+    }),
+    getCommunityMembershipRequests: builder.query<
+      ResponseDto<CommunityMembershipRequest[]>,
+      number // communityId
+    >({
+      query: (communityId) => `/community-membership-requests/community/${communityId}`,
+      providesTags: ['CommunityMembershipRequests'],
+    }),
+  }),
+});
+
+export const {
+  useCreateMembershipRequestMutation,
+  useAcceptMembershipRequestMutation,
+  useRejectMembershipRequestMutation,
+  useGetCommunityMembershipRequestsQuery,
+} = communityMembershipRequestsApi;
+
+---
+
+
 ### FILE: src/features/reactions/services/reactionApi.ts ###
 import { apiSlice } from '../../../shared/services/apiSlice';
 import type {
@@ -218,6 +344,8 @@ export interface Post {
   dislikesCount: number;
   commentsCount: number; // Added commentsCount
   userReaction?: { id: number; type: ReactionType };
+    userSaved?: any;
+
   createdAt: string;
   updatedAt: string;
 }
@@ -241,6 +369,7 @@ export interface PostQueryDto {
   sort?: string;
   startDate?: string;
   endDate?: string;
+  communityId?: number;
 }
 
 ---
@@ -434,6 +563,26 @@ export const { useRegisterMutation, useLoginMutation, useRefreshMutation, useRes
 ---
 
 
+### FILE: src/features/auth/hooks/useAuth.ts ###
+import { useSelector } from 'react-redux';
+import type { RootState } from '../../../store'; // Adjust path to your root reducer if necessary
+
+export const useAuth = () => {
+  const user = useSelector((state: RootState) => state.auth.user);
+  const accessToken = useSelector((state: RootState) => state.auth.accessToken);
+  const refreshToken = useSelector((state: RootState) => state.auth.refreshToken);
+
+  return {
+    user,
+    accessToken,
+    refreshToken,
+    isAuthenticated: !!user && !!accessToken,
+  };
+};
+
+---
+
+
 ### FILE: src/features/communities/types.ts ###
 export interface Community {
   id: number;
@@ -615,7 +764,7 @@ export const commentsApi = apiSlice.injectEndpoints({
                 method: 'POST',
                 body: data,
             }),
-            invalidatesTags: (result, error, { postId }) => [{ type: 'Comments', id: postId }],
+            invalidatesTags: ['Comments',"Posts"],
         }),
         updateComment: builder.mutation<ResponseDto<Comment>, { id: number; data: UpdateCommentDto }>({
             query: ({ id, data }) => ({
@@ -623,14 +772,14 @@ export const commentsApi = apiSlice.injectEndpoints({
                 method: 'PATCH',
                 body: data,
             }),
-            invalidatesTags: (result, error, { id }) => [{ type: 'Comments', id }],
+            invalidatesTags: ['Comments',"Posts"],
         }),
         deleteComment: builder.mutation<ResponseDto<boolean>, number>({
             query: (id) => ({
                 url: `/comments/${id}`,
                 method: 'DELETE',
             }),
-            invalidatesTags: (result, error, id) => [{ type: 'Comments', id }],
+            invalidatesTags: ['Comments',"Posts"],
         }),
     }),
 });
@@ -679,6 +828,39 @@ export type AppDispatch = typeof store.dispatch;
 ---
 
 
+### FILE: src/shared/utils/date.ts ###
+// frontend/src/shared/utils/date.ts
+
+export const timeAgo = (dateString: string): string => {
+  if (!dateString) return 'just now'; // Handle cases where dateString might be empty or null
+
+  const now = new Date();
+  const postDate = new Date(dateString);
+  const seconds = Math.floor((now.getTime() - postDate.getTime()) / 1000);
+
+  const intervals = [
+    { label: 'year', seconds: 31536000 },
+    { label: 'month', seconds: 2592000 },
+    { label: 'week', seconds: 604800 },
+    { label: 'day', seconds: 86400 },
+    { label: 'hour', seconds: 3600 },
+    { label: 'minute', seconds: 60 },
+    { label: 'second', seconds: 1 },
+  ];
+
+  for (const interval of intervals) {
+    const count = Math.floor(seconds / interval.seconds);
+    if (count >= 1) {
+      return `${count} ${interval.label}${count > 1 ? 's' : ''} ago`;
+    }
+  }
+
+  return 'just now';
+};
+
+---
+
+
 ### FILE: src/shared/services/apiSlice.ts ###
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react'
 
@@ -691,6 +873,7 @@ const baseQuery = fetchBaseQuery({
     if (token) {
       headers.set('Authorization', `Bearer ${token}`);
     }
+    
     return headers;
   },
 });
@@ -700,7 +883,11 @@ export const apiSlice = createApi({
   reducerPath: 'api',
   baseQuery,
   // Define common tag types here if any, otherwise leave empty
-  tagTypes: ['Posts', 'Comments', 'Users', 'Reactions', 'Auth', 'Communities', 'CommunityMemberships', 'EmailVerification', 'Profile', 'ResetPassword', 'PostReaction', 'CommentReaction', 'PostStats', 'CommentStats'],
+  tagTypes: ['Posts', 'Comments', 'Users', 'Reactions',
+     'Auth', 'Communities', 'CommunityMemberships',
+      'EmailVerification', 'Profile', 'ResetPassword',
+       'PostReaction', 'CommentReaction', 'PostStats',
+        'CommentStats',"CommunityMembershipRequests"],
   endpoints: () => ({}), // Empty endpoints as this is a base slice
 });
 

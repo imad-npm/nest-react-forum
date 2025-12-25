@@ -12,8 +12,7 @@ export const communityMembershipRequestsApi = apiSlice.injectEndpoints({
         url: `/community-membership-requests/${communityId}`,
         method: 'POST',
       }),
-      invalidatesTags: ['CommunityMembershipRequests'],
-    }),
+invalidatesTags: ['CommunityMembershipRequests', 'Communities'],    }),
     acceptMembershipRequest: builder.mutation<
       ResponseDto<CommunityMembershipRequest>,
       number // requestId
@@ -32,8 +31,7 @@ export const communityMembershipRequestsApi = apiSlice.injectEndpoints({
         url: `/community-membership-requests/${requestId}/reject`,
         method: 'DELETE',
       }),
-      invalidatesTags: ['CommunityMembershipRequests'],
-    }),
+invalidatesTags: ['CommunityMembershipRequests', 'Communities'],    }),
     getCommunityMembershipRequests: builder.query<
       ResponseDto<CommunityMembershipRequest[]>,
       number // communityId
