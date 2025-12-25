@@ -97,7 +97,7 @@ export class CommunitiesService {
       if (isMember) {
         community.userMembershipStatus = 'member';
       } else {
-        const pendingRequest = await this.membershipRequestRepository.exist({
+        const pendingRequest = await this.membershipRequestRepository.findOne({
           where: {
             userId: user.id,
             communityId: community.id,
@@ -107,6 +107,7 @@ export class CommunitiesService {
 
         if (pendingRequest) {
           community.userMembershipStatus = 'pending';
+          community.pendingRequestId = pendingRequest.id;
         } else {
           community.userMembershipStatus = 'none';
         }

@@ -147,39 +147,24 @@ export class CommunityMembershipRequestsService {
       await queryRunner.release();
     }
   }
-  async rejectMembershipRequest(requestId: number, adminId: number) {
-    const request = await this.requestRepository.findOne({
-      where: { id: requestId },
-      relations: ['community'],
-    });
-    if (!request) {
-      throw new NotFoundException('Membership request not found');
-    }
-    if (request.status !== CommunityMembershipRequestStatus.PENDING) {
-      throw new BadRequestException('Request is not pending');
-    }
+ async removeMembershipRequest(userId: number, communityId: number) {
+  const request = await this.requestRepository.findOne({
+    where: {
+      userId,
+      communityId,
+      status: CommunityMembershipRequestStatus.PENDING,
+    },
+  });
 
-    // Check if adminId is an admin or moderator of the community
-    const adminMembership = await this.membershipRepository.findOne({
-      where: {
-        userId: adminId,
-        communityId: request.community.id,
-        role: CommunityMembershipRole.ADMIN, // Only admin can reject for now
-      },
-    });
-
-    // Currently only the community owner can accept requests
-    if (request.community.ownerId !== adminId) {
-        throw new BadRequestException('Only the community owner can reject membership requests');
-    }
-
-    if (!adminMembership && request.community.ownerId !== adminId) {
-      throw new BadRequestException('Admin is not authorized to reject this request');
-    }
-
-    request.status = CommunityMembershipRequestStatus.REJECTED;
-    return this.requestRepository.save(request);
+  if (!request) {
+    throw new NotFoundException('Pending membership request not found');
   }
+
+  // Delete the request
+  await this.requestRepository.delete({ id: request.id });
+
+}
+
 
   async getCommunityMembershipRequests(communityId: number) {
     return this.requestRepository.find({

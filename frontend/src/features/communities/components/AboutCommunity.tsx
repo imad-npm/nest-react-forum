@@ -36,9 +36,11 @@ export const AboutCommunity: React.FC<AboutCommunityProps> = ({ communityId }) =
       case 'member':
         return <LeaveCommunityButton communityId={community.id} />;
       case 'pending':
-        // Assuming you can get the requestId from the community object if status is pending
-        // For now, we'll just show a disabled button. You might need to adjust API to return requestId
-        return <Button disabled>Pending</Button>; 
+        return community.pendingRequestId ? (
+          <CancelRequestButton requestId={community.pendingRequestId} />
+        ) : (
+          <Button disabled>Pending</Button>
+        );
       case 'none':
       default:
         return <JoinCommunityButton communityId={community.id} />;

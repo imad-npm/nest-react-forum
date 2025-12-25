@@ -11,53 +11,38 @@ import { CommunityMembershipRequestsService } from './community-membership-reque
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GetUser } from '../decorators/user.decorator';
 import { User } from '../users/entities/user.entity';
+import { ResponseDto } from 'src/common/dto/response.dto';
 
 @UseGuards(JwtAuthGuard)
-@Controller('community-membership-requests')
+@Controller('communities/:communityId/membership-requests')
 export class CommunityMembershipRequestsController {
   constructor(
-    private readonly communityMembershipRequestsService: CommunityMembershipRequestsService,
+    private readonly requestsService: CommunityMembershipRequestsService,
   ) {}
 
-  @Post(':communityId')
-  async create(
+  /** List all pending requests for a community (for admins/mods) */
+  @Get()
+  async listRequests(
+    @Param('communityId', ParseIntPipe) communityId: number,
+  ) {
+    return this.requestsService.getCommunityMembershipRequests(communityId);
+  }
+
+  /** Create a join request (or auto-join if public) for the logged-in user */
+  @Post()
+  async createRequest(
     @Param('communityId', ParseIntPipe) communityId: number,
     @GetUser() user: User,
   ) {
-    return this.communityMembershipRequestsService.createMembershipRequest(
-      user.id,
-      communityId,
-    );
+    return this.requestsService.createMembershipRequest(user.id, communityId);
   }
 
-  @Post(':requestId/accept')
-  async accept(
-    @Param('requestId', ParseIntPipe) requestId: number,
-    @GetUser() user: User,
-  ) {
-    return this.communityMembershipRequestsService.acceptMembershipRequest(
-      requestId,
-      user.id,
-    );
-  }
-
-  @Delete(':requestId/reject')
-  async reject(
-    @Param('requestId', ParseIntPipe) requestId: number,
-    @GetUser() user: User,
-  ) {
-    return this.communityMembershipRequestsService.rejectMembershipRequest(
-      requestId,
-      user.id,
-    );
-  }
-
-  @Get('community/:communityId')
-  async getCommunityRequests(
+  @Delete()
+  async removeRequest(
     @Param('communityId', ParseIntPipe) communityId: number,
+    @GetUser() user: User,
   ) {
-    return this.communityMembershipRequestsService.getCommunityMembershipRequests(
-      communityId,
-    );
-  }
+    const success=await this.requestsService.removeMembershipRequest(user.id, communityId);
+    return new ResponseDto(success);
+      }
 }
