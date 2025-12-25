@@ -38,7 +38,7 @@ export const CommunityHeader: React.FC<CommunityHeaderProps> = ({ communityId })
         return <LeaveCommunityButton communityId={community.id} />;
       case 'pending':
         return community.pendingRequestId ? (
-          <CancelRequestButton requestId={community.pendingRequestId} />
+          <CancelRequestButton communityId={community.id} />
         ) : (
           <Button disabled>Pending</Button>
         );

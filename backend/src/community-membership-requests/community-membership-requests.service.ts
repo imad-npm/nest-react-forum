@@ -8,12 +8,16 @@ import {
   CommunityMembershipRequest,
   CommunityMembershipRequestStatus,
 } from './entities/community-membership-request.entity';
-import { DataSource, Repository } from 'typeorm'; // Added DataSource
+import { Brackets, DataSource, Repository } from 'typeorm';
 import { CommunityMembership } from '../community-memberships/entities/community-memberships.entity';
 import { User } from '../users/entities/user.entity';
 import { Community } from '../communities/entities/community.entity';
 import { CommunityMembershipRole } from '../community-memberships/types';
 import { CommunityType } from '../communities/types';
+import {
+  CommunityMembershipRequestQueryDto,
+  CommunityMembershipRequestSort,
+} from './dto/community-membership-request-query.dto';
 
 @Injectable()
 export class CommunityMembershipRequestsService {
@@ -26,8 +30,46 @@ export class CommunityMembershipRequestsService {
     private readonly userRepository: Repository<User>,
     @InjectRepository(Community)
     private readonly communityRepository: Repository<Community>,
-    private dataSource: DataSource, // Injected DataSource
+    private dataSource: DataSource,
   ) {}
+
+  async findMany(
+    queryDto: CommunityMembershipRequestQueryDto,
+  ): Promise<{ data: CommunityMembershipRequest[]; count: number }> {
+    const { page, limit, userId, communityId, status, sort } = queryDto;
+
+    const queryBuilder = this.requestRepository
+      .createQueryBuilder('request')
+      .leftJoinAndSelect('request.user', 'user')
+      .leftJoinAndSelect('request.community', 'community');
+
+    if (userId) {
+      queryBuilder.andWhere('request.userId = :userId', { userId });
+    }
+
+    if (communityId) {
+      queryBuilder.andWhere('request.communityId = :communityId', { communityId });
+    }
+
+    if (status) {
+      queryBuilder.andWhere('request.status = :status', { status });
+    }
+
+    if (sort === CommunityMembershipRequestSort.NEWEST) {
+      queryBuilder.orderBy('request.createdAt', 'DESC');
+    } else if (sort === CommunityMembershipRequestSort.OLDEST) {
+      queryBuilder.orderBy('request.createdAt', 'ASC');
+    } else {
+      queryBuilder.orderBy('request.createdAt', 'DESC'); // Default sort
+    }
+
+    const [data, count] = await queryBuilder
+      .take(limit)
+      .skip((page - 1) * limit)
+      .getManyAndCount();
+
+    return { data, count };
+  }
 
   async createMembershipRequest(userId: number, communityId: number) {
     const queryRunner = this.dataSource.createQueryRunner();
@@ -147,29 +189,21 @@ export class CommunityMembershipRequestsService {
       await queryRunner.release();
     }
   }
- async removeMembershipRequest(userId: number, communityId: number) {
-  const request = await this.requestRepository.findOne({
-    where: {
-      userId,
-      communityId,
-      status: CommunityMembershipRequestStatus.PENDING,
-    },
-  });
-
-  if (!request) {
-    throw new NotFoundException('Pending membership request not found');
-  }
-
-  // Delete the request
-  await this.requestRepository.delete({ id: request.id });
-
-}
-
-
-  async getCommunityMembershipRequests(communityId: number) {
-    return this.requestRepository.find({
-      where: { communityId, status: CommunityMembershipRequestStatus.PENDING },
-      relations: ['user', 'community'],
-    });
-  }
-}
+   async removeMembershipRequest(userId: number, communityId: number) {
+   const request = await this.requestRepository.findOne({
+     where: {
+       userId,
+       communityId,
+       status: CommunityMembershipRequestStatus.PENDING,
+     },
+   });
+ 
+   if (!request) {
+     throw new NotFoundException('Pending membership request not found');
+   }
+ 
+   // Delete the request
+   await this.requestRepository.delete({ id: request.id });
+ 
+ }
+ }

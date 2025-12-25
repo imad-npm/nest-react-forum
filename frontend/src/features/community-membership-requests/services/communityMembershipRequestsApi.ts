@@ -4,41 +4,48 @@ import type { CommunityMembershipRequest } from "../types";
 
 export const communityMembershipRequestsApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
+    // Create a join request (or auto-join if public)
     createMembershipRequest: builder.mutation<
       ResponseDto<CommunityMembershipRequest>,
       number // communityId
     >({
       query: (communityId) => ({
-        url: `/community-membership-requests/${communityId}`,
+        url: `/communities/${communityId}/membership-requests`,
         method: 'POST',
       }),
-      invalidatesTags: ['CommunityMembershipRequests', 'Communities',"CommunityMemberships"],
+      invalidatesTags: ['CommunityMembershipRequests', 'Communities', 'CommunityMemberships'],
     }),
+
+    // Accept a pending request (admin/mod action, keep requestId for now)
     acceptMembershipRequest: builder.mutation<
       ResponseDto<CommunityMembershipRequest>,
       number // requestId
     >({
       query: (requestId) => ({
-        url: `/community-membership-requests/${requestId}/accept`,
+        url: `/communities/membership-requests/${requestId}/accept`,
         method: 'POST',
       }),
-      invalidatesTags: ['CommunityMembershipRequests', 'Communities',"CommunityMemberships"],
+      invalidatesTags: ['CommunityMembershipRequests', 'Communities', 'CommunityMemberships'],
     }),
+
+    // Cancel (reject) your own pending request — user-centric, no requestId
     rejectMembershipRequest: builder.mutation<
       ResponseDto<boolean>,
-      number // requestId
+      number // communityId
     >({
-      query: (requestId) => ({
-        url: `/community-membership-requests/${requestId}/reject`,
+      query: (communityId) => ({
+        url: `/communities/${communityId}/membership-requests`,
         method: 'DELETE',
       }),
-      invalidatesTags: ['CommunityMembershipRequests', 'Communities',"CommunityMemberships"],
+      invalidatesTags: ['CommunityMembershipRequests', 'Communities', 'CommunityMemberships'],
     }),
+
+    // Get all pending requests for a community (admin/mod)
     getCommunityMembershipRequests: builder.query<
       ResponseDto<CommunityMembershipRequest[]>,
       number // communityId
     >({
-      query: (communityId) => `/community-membership-requests/community/${communityId}`,
+      query: (communityId) => `/communities/${communityId}/membership-requests`,
       providesTags: ['CommunityMembershipRequests'],
     }),
   }),

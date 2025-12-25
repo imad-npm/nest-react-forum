@@ -5,16 +5,16 @@ import { useRejectMembershipRequestMutation } from '../services/communityMembers
 import { Button } from '../../../shared/components/ui/Button';
 
 interface CancelRequestButtonProps {
-  requestId: number;
+  communityId: number;
 }
 
-export const CancelRequestButton: React.FC<CancelRequestButtonProps> = ({ requestId }) => {
+export const CancelRequestButton: React.FC<CancelRequestButtonProps> = ({ communityId }) => {
   const currentUserId = useSelector((state: RootState) => state.auth.user?.id);
   const [rejectMembershipRequest, { isLoading }] = useRejectMembershipRequestMutation();
 
   const handleCancel = () => {
     if (currentUserId) {
-      rejectMembershipRequest(requestId);
+      rejectMembershipRequest(communityId);
     } else {
       // Handle user not logged in
       console.log('Please log in to cancel the request.');
@@ -23,7 +23,7 @@ export const CancelRequestButton: React.FC<CancelRequestButtonProps> = ({ reques
 
   return (
     <Button onClick={handleCancel} disabled={isLoading}>
-      {isLoading ? 'Cancelling...' : 'Pending'}
+      {isLoading ? 'Cancelling...' : 'Cancel Request'}
     </Button>
   );
 };
