@@ -11,6 +11,9 @@ import { CommunityType } from './types';
 import { User } from '../users/entities/user.entity';
 import { CommunityMembership } from 'src/community-memberships/entities/community-memberships.entity';
 import { CommunityMembershipRole } from 'src/community-memberships/types';
+import { CommunityMembershipRequest } from 'src/community-membership-requests/entities/community-membership-request.entity';
+import { CommunityMembershipRequestStatus } from 'src/community-membership-requests/entities/community-membership-request.entity';
+
 
 @Injectable()
 export class CommunitiesService {
@@ -20,7 +23,9 @@ export class CommunitiesService {
     @InjectRepository(Community)
     private readonly communityRepository: Repository<Community>,
     @InjectRepository(CommunityMembership)
-    private readonly membershipRepository: Repository<CommunityMembership>
+    private readonly membershipRepository: Repository<CommunityMembership>,
+    @InjectRepository(CommunityMembershipRequest)
+    private readonly membershipRequestRepository: Repository<CommunityMembershipRequest>,
   ) { }
 
   async create(data: {
@@ -69,7 +74,7 @@ export class CommunitiesService {
     return queryBuilder.getManyAndCount();
   }
 
-  async findOne(id: number, user?: User) {
+  async findOne(id: number, user?: User): Promise<Community> {
     const community = await this.communitiesRepository.findOne({
       where: { id },
       relations: ['owner'],
@@ -78,23 +83,41 @@ export class CommunitiesService {
     if (!community) throw new NotFoundException(`Community with ID ${id} not found.`);
 
     await this.assertUserCanViewCommunity(user?.id, community);
+
+    if (user) {
+      const isMember = await this.membershipRepository.exist({
+        where: {
+          userId: user.id,
+          communityId: community.id,
+        },
+      });
+      console.log(isMember);
+      
+
+      if (isMember) {
+        community.userMembershipStatus = 'member';
+      } else {
+        const pendingRequest = await this.membershipRequestRepository.exist({
+          where: {
+            userId: user.id,
+            communityId: community.id,
+            status: CommunityMembershipRequestStatus.PENDING,
+          },
+        });
+
+        if (pendingRequest) {
+          community.userMembershipStatus = 'pending';
+        } else {
+          community.userMembershipStatus = 'none';
+        }
+      }
+    } else {
+      community.userMembershipStatus = 'none';
+    }
+
     return community;
-
-
   }
 
-  async findByName(name: string, user?: User) {
-    const community = await this.communitiesRepository.findOne({
-      where: { name },
-      relations: ['owner'],
-    });
-
-    if (!community) throw new NotFoundException(`Community with name "${name}" not found.`);
-
-    await this.assertUserCanViewCommunity(user?.id, community);
-    return community;
-
-  }
 
   async update(data: {
     id: number;
@@ -123,6 +146,8 @@ export class CommunitiesService {
     const community = await this.findOne(id);
     await this.communitiesRepository.remove(community);
   }
+
+
   async assertUserCanViewCommunity(
     userId: number | undefined,
     community: Community,

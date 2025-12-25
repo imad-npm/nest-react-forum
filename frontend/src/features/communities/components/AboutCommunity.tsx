@@ -3,8 +3,6 @@ import { useSelector } from 'react-redux';
 import type { RootState } from '../../../shared/stores/store';
 import { useGetCommunityByIdQuery } from '../services/communitiesApi';
 import { Link } from 'react-router-dom';
-import { useGetCommunityMembershipsQuery } from '../../community-memberships/services/communityMembershipsApi';
-import { useGetCommunityMembershipRequestsQuery } from '../../community-membership-requests/services/communityMembershipRequestsApi';
 import { JoinCommunityButton } from '../../community-membership-requests/components/JoinCommunityButton';
 import { LeaveCommunityButton } from '../../community-memberships/components/LeaveCommunityButton';
 import { CancelRequestButton } from '../../community-membership-requests/components/CancelRequestButton';
@@ -18,15 +16,6 @@ export const AboutCommunity: React.FC<AboutCommunityProps> = ({ communityId }) =
   const currentUserId = useSelector((state: RootState) => state.auth.user?.id);
   const { data: communityData, error: communityError, isLoading: communityLoading } = useGetCommunityByIdQuery(communityId);
 
-  const { data: membershipData, isLoading: membershipLoading } = useGetCommunityMembershipsQuery(
-    { communityId, userId: +currentUserId },
-    { skip: !currentUserId }
-  );
-
-  const { data: requestData, isLoading: requestLoading } = useGetCommunityMembershipRequestsQuery(
-    communityId,
-    { skip: !currentUserId || (membershipData && membershipData.data.length > 0) }
-  );
 
   if (communityLoading) {
     return <div className="p-4 bg-white rounded-lg shadow">Loading community info...</div>;
@@ -43,22 +32,17 @@ export const AboutCommunity: React.FC<AboutCommunityProps> = ({ communityId }) =
       return null; // Or a login button
     }
 
-    if (membershipLoading || requestLoading) {
-      return <Button disabled>Loading...</Button>;
+    switch (community.userMembershipStatus) {
+      case 'member':
+        return <LeaveCommunityButton communityId={community.id} />;
+      case 'pending':
+        // Assuming you can get the requestId from the community object if status is pending
+        // For now, we'll just show a disabled button. You might need to adjust API to return requestId
+        return <Button disabled>Pending</Button>; 
+      case 'none':
+      default:
+        return <JoinCommunityButton communityId={community.id} />;
     }
-
-    const isMember = membershipData && membershipData.data.length > 0;
-    const pendingRequest = requestData?.data?.find(req => req.userId === currentUserId && req.status === 'pending');
-
-    if (isMember) {
-      return <LeaveCommunityButton communityId={community.id} />;
-    }
-
-    if (pendingRequest) {
-      return <CancelRequestButton requestId={pendingRequest.id} />;
-    }
-
-    return <JoinCommunityButton communityId={community.id} />;
   };
 
   return (

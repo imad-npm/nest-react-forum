@@ -11,12 +11,14 @@ export class CommunityResponseDto {
   @Expose() isPublic: boolean;
   @Expose() readonly membersCount: number;
   @Expose() readonly createdAt: Date;
+  @Expose() userMembershipStatus?: 'member' | 'pending' | 'none';
 
   static fromEntity(entity: Community): CommunityResponseDto {
     const dto = plainToInstance(CommunityResponseDto, entity, {
       excludeExtraneousValues: true,
     });
     dto.isPublic = entity.communityType === CommunityType.PUBLIC;
+    dto.userMembershipStatus = entity.userMembershipStatus;
     return dto;
   }
 }

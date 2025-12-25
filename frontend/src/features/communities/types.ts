@@ -6,6 +6,7 @@ export interface Community {
   isPublic: boolean;
   membersCount: number;
   createdAt: string;
+  userMembershipStatus?: 'member' | 'pending' | 'none';
 }
 
 export interface CreateCommunityDto {

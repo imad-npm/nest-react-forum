@@ -12,7 +12,8 @@ export const communityMembershipRequestsApi = apiSlice.injectEndpoints({
         url: `/community-membership-requests/${communityId}`,
         method: 'POST',
       }),
-invalidatesTags: ['CommunityMembershipRequests', 'Communities'],    }),
+      invalidatesTags: ['CommunityMembershipRequests', 'Communities',"CommunityMemberships"],
+    }),
     acceptMembershipRequest: builder.mutation<
       ResponseDto<CommunityMembershipRequest>,
       number // requestId
@@ -21,7 +22,7 @@ invalidatesTags: ['CommunityMembershipRequests', 'Communities'],    }),
         url: `/community-membership-requests/${requestId}/accept`,
         method: 'POST',
       }),
-      invalidatesTags: ['CommunityMembershipRequests', 'CommunityMemberships'],
+      invalidatesTags: ['CommunityMembershipRequests', 'Communities',"CommunityMemberships"],
     }),
     rejectMembershipRequest: builder.mutation<
       ResponseDto<boolean>,
@@ -31,7 +32,8 @@ invalidatesTags: ['CommunityMembershipRequests', 'Communities'],    }),
         url: `/community-membership-requests/${requestId}/reject`,
         method: 'DELETE',
       }),
-invalidatesTags: ['CommunityMembershipRequests', 'Communities'],    }),
+      invalidatesTags: ['CommunityMembershipRequests', 'Communities',"CommunityMemberships"],
+    }),
     getCommunityMembershipRequests: builder.query<
       ResponseDto<CommunityMembershipRequest[]>,
       number // communityId

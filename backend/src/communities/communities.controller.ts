@@ -21,6 +21,7 @@ import { GetUser } from 'src/decorators/user.decorator';
 import { ResponseDto } from 'src/common/dto/response.dto';
 import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
 import { PaginationMetaDto } from 'src/common/dto/pagination-meta.dto';
+import { OptionalJwtAuthGuard } from 'src/auth/guards/optional-jwt-auth.guard';
 
 @Controller('communities')
 export class CommunitiesController {
@@ -64,8 +65,11 @@ export class CommunitiesController {
   }
 
   @Get(':id')
-  async findOne(@Param('id', ParseIntPipe) id: number): Promise<ResponseDto<CommunityResponseDto>> {
-    const community = await this.communitiesService.findOne(id);
+  @UseGuards(OptionalJwtAuthGuard)
+  async findOne(@Param('id', ParseIntPipe) id: number ,
+  @GetUser() user :User)
+  : Promise<ResponseDto<CommunityResponseDto>> {
+    const community = await this.communitiesService.findOne(id,user);
     return new ResponseDto(CommunityResponseDto.fromEntity(community));
   }
 

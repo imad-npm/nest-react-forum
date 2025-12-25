@@ -41,6 +41,8 @@ ownerId: number;
   @Column({ type: 'integer', default: 0 })
   membersCount: number;
 
+  userMembershipStatus?: 'member' | 'pending' | 'none';
+
   @OneToMany(() => Post, (post) => post.community)
   posts: Post[];
 
