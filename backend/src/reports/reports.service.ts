@@ -12,7 +12,7 @@ import { CommentReport } from './entities/comment-report.entity';
 import { PostReport } from './entities/post-report.entity';
 import { UserReport } from './entities/user-report.entity';
 import { ReportStatus } from './entities/base-report.entity';
-import { CommunityModerator } from 'src/community-moderators/entities/community-moderator.entity';
+
 
 const PLATFORM_COMPLAINT_REASONS = [
   'HARASSMENT',
@@ -52,8 +52,7 @@ export class ReportsService {
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
 
-    @InjectRepository(CommunityModerator)
-    private readonly communityModeratorRepository: Repository<CommunityModerator>,
+
   ) { }
 
   async create(
@@ -176,11 +175,7 @@ export class ReportsService {
     if (!user) {
       throw new NotFoundException(`User ${userId} not found`);
     }
-    const isModerator =
-      communityId &&
-      (await this.communityModeratorRepository.findOne({
-        where: { moderatorId: userId, communityId },
-      }));
+
 
     const parameters: any[] = [];
     let paramIndex = 1;
@@ -204,9 +199,6 @@ export class ReportsService {
 
       if (user.role == UserRole.ADMIN) {
         whereClauses.push(`"isPlatformComplaint" = TRUE`);
-      } else if (isModerator && communityId) {
-        whereClauses.push(`"communityId" = $${paramIndex++}`);
-        parameters.push(communityId);
       } else {
         whereClauses.push(`"isPlatformComplaint" = FALSE`);
       }

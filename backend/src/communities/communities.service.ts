@@ -9,8 +9,8 @@ import { Not, Repository } from 'typeorm';
 import { Community } from './entities/community.entity';
 import { CommunityType } from './types';
 import { User } from '../users/entities/user.entity';
-import { CommunityMembership } from 'src/community-memberships/entities/community-membership.entity';
-import { CommunityMembershipStatus } from 'src/community-memberships/types';
+import { CommunityMembership } from 'src/community-memberships/entities/community-memberships.entity';
+import { CommunityMembershipRole } from 'src/community-memberships/types';
 
 @Injectable()
 export class CommunitiesService {
@@ -141,7 +141,6 @@ export class CommunitiesService {
           where: {
             userId,
             communityId: community.id,
-            status: CommunityMembershipStatus.ACTIVE,
           },
         });
 

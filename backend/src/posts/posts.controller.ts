@@ -31,8 +31,7 @@ import { PaginationMetaDto } from 'src/common/dto/pagination-meta.dto';
 import { OptionalJwtAuthGuard } from 'src/auth/guards/optional-jwt-auth.guard';
 import type { Request } from 'express';
 import { CommunityType } from 'src/communities/types';
-import { Membership } from 'rxjs';
-import { CommunityMembershipStatus } from 'src/community-memberships/types';
+import { CommunityMembershipRole } from 'src/community-memberships/types';
 
 @Controller('posts')
 export class PostsController {

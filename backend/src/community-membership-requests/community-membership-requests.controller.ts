@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { CommunityMembershipRequestsService } from './community-membership-requests.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { User as CurrentUser } from '../decorators/user.decorator';
+import { GetUser } from '../decorators/user.decorator';
 import { User } from '../users/entities/user.entity';
 
 @UseGuards(JwtAuthGuard)
@@ -22,7 +22,7 @@ export class CommunityMembershipRequestsController {
   @Post(':communityId')
   async create(
     @Param('communityId', ParseIntPipe) communityId: number,
-    @CurrentUser() user: User,
+    @GetUser() user: User,
   ) {
     return this.communityMembershipRequestsService.createMembershipRequest(
       user.id,
@@ -33,7 +33,7 @@ export class CommunityMembershipRequestsController {
   @Post(':requestId/accept')
   async accept(
     @Param('requestId', ParseIntPipe) requestId: number,
-    @CurrentUser() user: User,
+    @GetUser() user: User,
   ) {
     return this.communityMembershipRequestsService.acceptMembershipRequest(
       requestId,
@@ -44,7 +44,7 @@ export class CommunityMembershipRequestsController {
   @Delete(':requestId/reject')
   async reject(
     @Param('requestId', ParseIntPipe) requestId: number,
-    @CurrentUser() user: User,
+    @GetUser() user: User,
   ) {
     return this.communityMembershipRequestsService.rejectMembershipRequest(
       requestId,

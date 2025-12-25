@@ -5,7 +5,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Post } from './entities/post.entity';
 import { CaslModule } from 'src/casl/casl.module';
 import { Community } from 'src/communities/entities/community.entity';
-import { CommunityMembership } from 'src/community-memberships/entities/community-membership.entity';
+import { CommunityMembership } from 'src/community-memberships/entities/community-memberships.entity';
 
 @Module({
   imports: [TypeOrmModule.forFeature(

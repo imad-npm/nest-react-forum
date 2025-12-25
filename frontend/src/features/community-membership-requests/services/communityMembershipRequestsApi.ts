@@ -1,6 +1,6 @@
-import { apiSlice } from '../../shared/services/apiSlice';
-import type { CommunityMembershipRequest } from './types';
-import type { ResponseDto } from '../../shared/types';
+import { apiSlice } from "../../../shared/services/apiSlice";
+import type { ResponseDto } from "../../auth/types";
+import type { CommunityMembershipRequest } from "../types";
 
 export const communityMembershipRequestsApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({

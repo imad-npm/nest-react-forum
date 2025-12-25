@@ -26,7 +26,7 @@ import { PostReaction } from './reactions/entities/post-reaction.entity';
 import { Profile } from './profile/entities/profile.entity';
 import { ProfileModule } from './profile/profile.module';
 import { Community } from './communities/entities/community.entity';
-import { CommunityMembership } from './community-memberships/entities/community-membership.entity';
+import { CommunityMembership } from './community-memberships/entities/community-memberships.entity';
 import { ReportsModule } from './reports/reports.module';
 import { CommentReport } from './reports/entities/comment-report.entity';
 import { PostReport } from './reports/entities/post-report.entity';

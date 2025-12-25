@@ -19,6 +19,10 @@ export const apiSlice = createApi({
   reducerPath: 'api',
   baseQuery,
   // Define common tag types here if any, otherwise leave empty
-  tagTypes: ['Posts', 'Comments', 'Users', 'Reactions', 'Auth', 'Communities', 'CommunityMemberships', 'EmailVerification', 'Profile', 'ResetPassword', 'PostReaction', 'CommentReaction', 'PostStats', 'CommentStats'],
+  tagTypes: ['Posts', 'Comments', 'Users', 'Reactions',
+     'Auth', 'Communities', 'CommunityMemberships',
+      'EmailVerification', 'Profile', 'ResetPassword',
+       'PostReaction', 'CommentReaction', 'PostStats',
+        'CommentStats',"CommunityMembershipRequests"],
   endpoints: () => ({}), // Empty endpoints as this is a base slice
 });

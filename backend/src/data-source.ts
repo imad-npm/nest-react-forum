@@ -14,6 +14,8 @@ import { PostReport } from './reports/entities/post-report.entity';
 import { CommentReport } from './reports/entities/comment-report.entity';
 import { UserReport } from './reports/entities/user-report.entity';
 
+import { CommunityMembershipRequest } from './community-membership-requests/entities/community-membership-request.entity';
+
 config(); // load .env manually
 
 const dbName = process.env.DB_NAME;
@@ -35,6 +37,7 @@ export const AppDataSource = new DataSource({
     Profile,
     Community, // Add Community
     CommunityMembership, // Add CommunityMembership
+    CommunityMembershipRequest, // Add CommunityMembershipRequest
     PostReport,
     CommentReport,
     UserReport,

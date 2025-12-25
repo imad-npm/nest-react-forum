@@ -5,9 +5,8 @@ import { Post } from './entities/post.entity';
 import { PostSort } from './dto/post-query.dto';
 import { CommunityType } from 'src/communities/types';
 import { Community } from 'src/communities/entities/community.entity';
-import { CommunityMembership } from 'src/community-memberships/entities/community-membership.entity';
-import { CommunityMembershipStatus } from 'src/community-memberships/types';
-import { CommunityModerator } from 'src/community-moderators/entities/community-moderator.entity';
+import { CommunityMembership } from 'src/community-memberships/entities/community-memberships.entity';
+import { CommunityMembershipRole } from 'src/community-memberships/types';
 
 @Injectable()
 export class PostsService {
@@ -18,9 +17,7 @@ export class PostsService {
     private readonly communityRepository: Repository<Community>,
 
     @InjectRepository(CommunityMembership)
-    private readonly membershipRepository: Repository<CommunityMembership>,
-    @InjectRepository(CommunityModerator)
-    private readonly communityModeratorRepository) 
+    private readonly membershipRepository: Repository<CommunityMembership>) 
     { }
   async findAll(
     options: {
@@ -125,7 +122,6 @@ export class PostsService {
           FROM community_memberships cs
           WHERE cs.communityId = community.id
           AND cs.userId = :currentUserId
-          AND cs.status = 'approved'
         )`,
           );
         }),
@@ -229,17 +225,7 @@ export class PostsService {
     if (!post) {
       throw new NotFoundException('Post not found');
     }
-    const isModerator = await this.communityModeratorRepository.exist({
-    where: { 
-      moderatorId: userId, 
-      communityId: post.communityId 
-    },
-  });
 
-  // 4. If neither, deny access [cite: 594, 610]
-  if (!isModerator) {
-    throw new ForbiddenException('Only moderators or the owner can approve posts');
-  }
     post.isApproved = isApproved;
     post.approvedAt = isApproved ? new Date() : null;
     return this.postsRepository.save(post);
@@ -277,7 +263,6 @@ export class PostsService {
           where: {
             userId,
             communityId: community.id,
-            status: CommunityMembershipStatus.ACTIVE,
           },
         });
 

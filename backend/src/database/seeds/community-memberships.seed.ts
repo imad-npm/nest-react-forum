@@ -1,6 +1,6 @@
 import { AppDataSource } from '../../data-source';
-import { communityMembershipFactory } from '../factories/community-membership.factory';
-import { CommunityMembership } from '../../community-memberships/entities/community-membership.entity';
+import { communityMembershipFactory } from '../factories/community-memberships.factory';
+import { CommunityMembership } from '../../community-memberships/entities/community-memberships.entity';
 import { User } from '../../users/entities/user.entity';
 import { Community } from '../../communities/entities/community.entity';
 

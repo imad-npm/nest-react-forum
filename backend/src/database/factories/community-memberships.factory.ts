@@ -1,5 +1,5 @@
 import { faker } from '@faker-js/faker';
-import { CommunityMembership } from '../../community-memberships/entities/community-membership.entity';
+import { CommunityMembership } from '../../community-memberships/entities/community-memberships.entity';
 
 export function communityMembershipFactory(): CommunityMembership {
   const membership = new CommunityMembership();

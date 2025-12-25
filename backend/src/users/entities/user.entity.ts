@@ -58,7 +58,7 @@ export class User {
   @OneToOne(() => Profile, (profile) => profile.user)
   profile: Profile;
 
-    @Column({
+  @Column({
     type: 'simple-enum', // sqlite compatible
     enum: UserRole,
     default: UserRole.USER,

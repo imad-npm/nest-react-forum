@@ -8,7 +8,7 @@ export class CommunityResponseDto {
   @Expose() readonly name: string;
   @Expose() readonly displayName: string;
   @Expose() readonly description: string;
-  @Expose() readonly isPublic: boolean;
+  @Expose() isPublic: boolean;
   @Expose() readonly membersCount: number;
   @Expose() readonly createdAt: Date;
 

@@ -9,8 +9,6 @@ import { Post } from 'src/posts/entities/post.entity';
 import { User } from 'src/users/entities/user.entity';
 import { Comment } from 'src/comments/entities/comment.entity';
 import { CaslModule } from 'src/casl/casl.module';
-import { CommunityModerator } from 'src/community-moderators/entities/community-moderator.entity';
-
 @Module({
   imports: [
     TypeOrmModule.forFeature([
@@ -20,7 +18,6 @@ import { CommunityModerator } from 'src/community-moderators/entities/community-
       Post,
       User,
       Comment,
-      CommunityModerator,
     ]),
     CaslModule,
   ],
