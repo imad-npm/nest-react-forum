@@ -8,7 +8,8 @@ export class CommunityResponseDto {
   @Expose() readonly name: string;
   @Expose() readonly displayName: string;
   @Expose() readonly description: string;
-  @Expose() isPublic: boolean;
+  @Expose() readonly communityType: CommunityType;
+
   @Expose() readonly membersCount: number;
   @Expose() readonly createdAt: Date;
   @Expose() userMembershipStatus?: 'member' | 'pending' | 'none';
@@ -17,7 +18,6 @@ export class CommunityResponseDto {
     const dto = plainToInstance(CommunityResponseDto, entity, {
       excludeExtraneousValues: true,
     });
-    dto.isPublic = entity.communityType === CommunityType.PUBLIC;
     dto.userMembershipStatus = entity.userMembershipStatus;
     return dto;
   }

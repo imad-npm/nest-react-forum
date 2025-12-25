@@ -63,7 +63,7 @@ export const CommunityHeader: React.FC<CommunityHeaderProps> = ({ communityId })
             <h1 className="text-xl font-semibold leading-tight">
               {community.displayName}
             </h1>
-            <p className="text-sm text-gray-500">r/{community.name}</p>
+            <p className="text-sm text-gray-500">r/{community.name} ({community.communityType})</p>
           </div>
 
           {renderMembershipButton()}
