@@ -2,17 +2,14 @@ import React from 'react';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../../../shared/stores/store';
 import { useGetCommunityByIdQuery } from '../services/communitiesApi';
-import { JoinCommunityButton } from '../../community-membership-requests/components/JoinCommunityButton';
-import { LeaveCommunityButton } from '../../community-memberships/components/LeaveCommunityButton';
-import { CancelRequestButton } from '../../community-membership-requests/components/CancelRequestButton';
-import { Button } from '../../../shared/components/ui/Button';
+import { CommunityMembershipActionButton } from './CommunityMembershipActionButton';
 
 interface CommunityHeaderProps {
   communityId: number;
 }
 
 export const CommunityHeader: React.FC<CommunityHeaderProps> = ({ communityId }) => {
-  const currentUserId = useSelector((state: RootState) => state.auth.user?.id);
+  const currentUser = useSelector((state: RootState) => state.auth.user);
   const { data, error, isLoading } = useGetCommunityByIdQuery(communityId);
 
 
@@ -27,26 +24,6 @@ export const CommunityHeader: React.FC<CommunityHeaderProps> = ({ communityId })
   const community = data.data;
   console.log(community);
   
-
-  const renderMembershipButton = () => {
-    if (!currentUserId) {
-      return null; // Or a login button
-    }
-
-    switch (community.userMembershipStatus) {
-      case 'member':
-        return <LeaveCommunityButton communityId={community.id} />;
-      case 'pending':
-        return community.pendingRequestId ? (
-          <CancelRequestButton communityId={community.id} />
-        ) : (
-          <Button disabled>Pending</Button>
-        );
-      case 'none':
-      default:
-        return <JoinCommunityButton communityId={community.id} />;
-    }
-  };
 
   return (
     <div className="overflow-hidden rounded-lg border border-gray-300 bg-white">
@@ -68,7 +45,7 @@ export const CommunityHeader: React.FC<CommunityHeaderProps> = ({ communityId })
             <p className="text-sm text-gray-500">r/{community.name} ({community.communityType})</p>
           </div>
 
-          {renderMembershipButton()}
+          <CommunityMembershipActionButton community={community} currentUser={currentUser} />
         </div>
 
         {/* Description */}

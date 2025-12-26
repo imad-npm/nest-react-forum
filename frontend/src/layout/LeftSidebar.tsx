@@ -1,8 +1,21 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FaHome, FaCompass, FaUsers, FaPlusSquare } from 'react-icons/fa'; // Example icons
+import { FaHome, FaCompass, FaUsers, FaPlusSquare, FaRocket } from 'react-icons/fa'; // Example icons
+import {Modal} from '../shared/components/ui/Modal'; // Assuming this path
+import CreateCommunityForm from '../features/communities/components/CreateCommunityForm';
 
 const LeftSidebar: React.FC = () => {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const handleOpenModal = (event: React.MouseEvent) => {
+    event.preventDefault(); // Prevent navigation
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+  };
+
   return (
     <aside className="w-64 bg-white p-4 border-r border-gray-300 h-screen sticky top-0 hidden md:block">
       <nav className="space-y-4">
@@ -39,11 +52,21 @@ const LeftSidebar: React.FC = () => {
                 <FaPlusSquare /> <span>Create Post</span>
               </Link>
             </li>
+            <li>
+              <a href="#" onClick={handleOpenModal} className="flex items-center space-x-2 p-2 rounded-md hover:bg-gray-100 text-gray-700">
+                <FaRocket /> <span>Start Community</span>
+              </a>
+            </li>
           </ul>
         </div>
       </nav>
+
+      <Modal open={isModalOpen} size='lg' onClose={handleCloseModal} >
+        <CreateCommunityForm onClose={handleCloseModal} />
+      </Modal>
     </aside>
-  );
+  
+);
 };
 
 export default LeftSidebar;

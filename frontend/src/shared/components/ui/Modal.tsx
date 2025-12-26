@@ -1,6 +1,6 @@
 import React from 'react';
-
-export type ModalSize = 'sm' | 'md' | 'lg';
+import { createPortal } from 'react-dom';
+export type ModalSize = 'sm' | 'md' | 'lg' | 'xl'; // added xl
 
 export interface ModalClasses {
   backdrop?: string;
@@ -18,15 +18,17 @@ export interface ModalProps {
 
 const DEFAULT_CLASSES: Required<ModalClasses> = {
   backdrop:
-    'fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm',
+    'fixed inset-0 z-[999] flex items-center justify-center bg-black/40',
   container:
     'bg-white rounded-xl shadow-xl w-full mx-4',
   size: {
     sm: 'max-w-sm p-4',
     md: 'max-w-lg p-6',
     lg: 'max-w-2xl p-8',
+    xl: 'max-w-4xl p-10', // added xl size
   },
 };
+
 
 export const Modal: React.FC<ModalProps> = ({
   open,
@@ -53,7 +55,7 @@ export const Modal: React.FC<ModalProps> = ({
     .filter(Boolean)
     .join(' ');
 
-  return (
+  return createPortal(
     <div
       className={backdropClass}
       onClick={onClose}
@@ -64,6 +66,6 @@ export const Modal: React.FC<ModalProps> = ({
       >
         {children}
       </div>
-    </div>
+    </div>,document.body
   );
 };

@@ -3,17 +3,14 @@ import { useSelector } from 'react-redux';
 import type { RootState } from '../../../shared/stores/store';
 import { useGetCommunityByIdQuery } from '../services/communitiesApi';
 import { Link } from 'react-router-dom';
-import { JoinCommunityButton } from '../../community-membership-requests/components/JoinCommunityButton';
-import { LeaveCommunityButton } from '../../community-memberships/components/LeaveCommunityButton';
-import { CancelRequestButton } from '../../community-membership-requests/components/CancelRequestButton';
-import { Button } from '../../../shared/components/ui/Button';
+import { CommunityMembershipActionButton } from './CommunityMembershipActionButton';
 
 interface AboutCommunityProps {
   communityId: number;
 }
 
 export const AboutCommunity: React.FC<AboutCommunityProps> = ({ communityId }) => {
-  const currentUserId = useSelector((state: RootState) => state.auth.user?.id);
+  const currentUser = useSelector((state: RootState) => state.auth.user);
   const { data: communityData, error: communityError, isLoading: communityLoading } = useGetCommunityByIdQuery(communityId);
 
 
@@ -27,26 +24,6 @@ export const AboutCommunity: React.FC<AboutCommunityProps> = ({ communityId }) =
 
   const community = communityData.data;
 
-  const renderMembershipButton = () => {
-    if (!currentUserId) {
-      return null; // Or a login button
-    }
-
-    switch (community.userMembershipStatus) {
-      case 'member':
-        return <LeaveCommunityButton communityId={community.id} />;
-      case 'pending':
-        return community.pendingRequestId ? (
-          <CancelRequestButton requestId={community.pendingRequestId} />
-        ) : (
-          <Button disabled>Pending</Button>
-        );
-      case 'none':
-      default:
-        return <JoinCommunityButton communityId={community.id} />;
-    }
-  };
-
   return (
     <div className="bg-white rounded-lg border border-gray-300 p-4">
       <h2 className="text-lg font-semibold mb-2">
@@ -56,7 +33,7 @@ export const AboutCommunity: React.FC<AboutCommunityProps> = ({ communityId }) =
         <span>Members: {community.membersCount.toLocaleString()}</span>
         <span>Created: {new Date(community.createdAt).toLocaleDateString()}</span>
       </div>
-      {renderMembershipButton()}
+      <CommunityMembershipActionButton community={community} currentUser={currentUser} />
     </div>
   );
 };
