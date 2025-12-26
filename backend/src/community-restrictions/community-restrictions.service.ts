@@ -50,19 +50,8 @@ export class CommunityRestrictionsService {
       throw new NotFoundException('User to restrict not found');
     }
 
-    const membership = await this.communityMembershipRepository.findOne({
-      where: { communityId: community.id, userId: user.id },
-    });
+     await this.canManageRestrictions(user.id ,community.id)
 
-    if (
-      !membership ||
-      (membership.role !== CommunityMembershipRole.OWNER &&
-        membership.role !== CommunityMembershipRole.MODERATOR)
-    ) {
-      throw new ForbiddenException(
-        'You do not have permission to restrict users in this community.',
-      );
-    }
 
     const existingRestriction = await this.communityRestrictionsRepository.findOne({
       where: {
@@ -135,19 +124,9 @@ export class CommunityRestrictionsService {
       throw new NotFoundException('Restriction not found');
     }
 
-    const membership = await this.communityMembershipRepository.findOne({
-      where: { communityId: restriction.community.id, userId: user.id },
-    });
+   
+      await this.canManageRestrictions(user.id ,restriction.community.id)
 
-    if (
-      !membership ||
-      (membership.role !== CommunityMembershipRole.OWNER &&
-        membership.role !== CommunityMembershipRole.MODERATOR)
-    ) {
-      throw new ForbiddenException(
-        'You do not have permission to view this restriction.',
-      );
-    }
 
     return restriction;
   }
@@ -166,19 +145,8 @@ export class CommunityRestrictionsService {
       throw new NotFoundException('Restriction not found');
     }
 
-    const membership = await this.communityMembershipRepository.findOne({
-      where: { communityId: restriction.community.id, userId: user.id },
-    });
+    await this.canManageRestrictions(user.id ,restriction.community.id)
 
-    if (
-      !membership ||
-      (membership.role !== CommunityMembershipRole.OWNER &&
-        membership.role !== CommunityMembershipRole.MODERATOR)
-    ) {
-      throw new ForbiddenException(
-        'You do not have permission to update restrictions in this community.',
-      );
-    }
 
     if (data.restrictionType) {
       restriction.restrictionType = data.restrictionType;
@@ -204,21 +172,24 @@ export class CommunityRestrictionsService {
       throw new NotFoundException('Restriction not found');
     }
 
-    const membership = await this.communityMembershipRepository.findOne({
-      where: { communityId: restriction.community.id, userId: user.id },
-    });
-
-    if (
-      !membership ||
-      (membership.role !== CommunityMembershipRole.OWNER &&
-        membership.role !== CommunityMembershipRole.MODERATOR)
-    ) {
-      throw new ForbiddenException(
-        'You do not have permission to remove restrictions in this community.',
-      );
-    }
-
+   await this.canManageRestrictions(user.id ,restriction.community.id)
     await this.communityRestrictionsRepository.remove(restriction);
     return true;
   }
+
+  private async canManageRestrictions(userId: number, communityId: number) {
+  const membership = await this.communityMembershipRepository.findOne({
+    where: { communityId, userId },
+  });
+
+  if (
+    !membership ||
+    ![CommunityMembershipRole.OWNER, CommunityMembershipRole.MODERATOR].includes(membership.role)
+  ) {
+    throw new ForbiddenException('You do not have permission in this community.');
+  }
+
+  return membership;
+}
+
 }
