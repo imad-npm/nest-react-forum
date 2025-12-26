@@ -12,6 +12,7 @@ import { Community } from './communities/entities/community.entity'; // Import C
 import { CommunityMembership } from './community-memberships/entities/community-memberships.entity'; // Import CommunityMembership
 import { PostReport } from './reports/entities/post-report.entity';
 import { CommentReport } from './reports/entities/comment-report.entity';
+import { CommunityRestriction } from './community-restrictions/entities/community-restriction.entity';
 import { UserReport } from './reports/entities/user-report.entity';
 
 import { CommunityMembershipRequest } from './community-membership-requests/entities/community-membership-request.entity';
@@ -41,6 +42,7 @@ export const AppDataSource = new DataSource({
     PostReport,
     CommentReport,
     UserReport,
+    CommunityRestriction,
   ],
   synchronize: false,
   migrations: ['src/database/migrations/*.ts'],

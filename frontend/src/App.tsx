@@ -12,6 +12,9 @@ import CreatePostPage from './features/posts/pages/CreatePostPage';
 import PostDetailPage from './features/posts/pages/PostDetailPage';
 import MainLayout from './layout/MainLayout';
 import ModLayout from './layout/ModLayout';
+import { ModQueuesPage } from './features/communities/pages/QueuesPage';
+import { ModMembersPage } from './features/communities/pages/MembersPage';
+import { ModModeratorsPage } from './features/communities/pages/ModeratorsPage';
 // ... other imports
 
 export default function App() {
@@ -37,9 +40,9 @@ export default function App() {
         {/* --- Moderation Routes (with ModSidebar) --- */}
         <Route path="/mod/community/:communityId" element={<AuthGuard><ModLayout /></AuthGuard>}>
           <Route index element={<Navigate to="queues" replace />} />
-          <Route path="queues" element={<div>Queues Content</div>} />
-          <Route path="members" element={<div>Members Management</div>} />
-          <Route path="moderators" element={<div>Moderator Settings</div>} />
+          <Route path="queues" element={<ModQueuesPage />} />
+          <Route path="members" element={<ModMembersPage />} />
+          <Route path="moderators" element={<ModModeratorsPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

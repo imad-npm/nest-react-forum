@@ -16,6 +16,7 @@ import { Community } from '../../communities/entities/community.entity';
 import { CommunityMembership } from '../../community-memberships/entities/community-memberships.entity';
 import { CommunityMembershipRequest } from '../../community-membership-requests/entities/community-membership-request.entity';
 import { PostReport } from '../../reports/entities/post-report.entity';
+import { CommunityRestriction } from '../../community-restrictions/entities/community-restriction.entity';
 import { CommentReport } from '../../reports/entities/comment-report.entity'; // NEW IMPORT
 import { UserReport } from '../../reports/entities/user-report.entity'; // NEW IMPORT
 
@@ -104,4 +105,10 @@ export class User {
 
   @OneToMany(() => UserReport, (userReport) => userReport.reportedUser)
   userReports: UserReport[];
+
+  @OneToMany(
+    () => CommunityRestriction,
+    (restriction) => restriction.user,
+  )
+  communityRestrictions: CommunityRestriction[];
 }

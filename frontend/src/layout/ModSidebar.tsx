@@ -13,7 +13,7 @@ export const ModSidebar = () => {
   ];
 
   return (
-    <aside className="w-64 bg-gray-50 h-full border-r border-gray-200 p-4">
+    <aside className="w-64 bg-gray-50 h-screen border-r border-gray-200 p-4">
       <div className="flex items-center gap-2 mb-6 px-2 text-gray-700 font-bold">
         <FaShieldAlt className="text-orange-600" />
         <span>Mod Tools</span>

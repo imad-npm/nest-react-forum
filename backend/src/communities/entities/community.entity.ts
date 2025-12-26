@@ -10,6 +10,7 @@ import { User } from '../../users/entities/user.entity';
 import { Post } from '../../posts/entities/post.entity';
 import { CommunityMembership } from '../../community-memberships/entities/community-memberships.entity';
 import { CommunityMembershipRequest } from '../../community-membership-requests/entities/community-membership-request.entity';
+import { CommunityRestriction } from '../../community-restrictions/entities/community-restriction.entity';
 import { CommunityType } from '../types';
 
 @Entity('communities')
@@ -26,11 +27,11 @@ export class Community {
   @Column({ type: 'text', nullable: true })
   description: string;
 
-@ManyToOne(() => User, (user) => user.createdCommunities)
-owner: User;
+  @ManyToOne(() => User, (user) => user.createdCommunities)
+  owner: User;
 
-@Column({ nullable: true })
-ownerId: number;
+  @Column({ nullable: true })
+  ownerId: number;
 
   @CreateDateColumn()
   createdAt: Date;
@@ -57,4 +58,10 @@ ownerId: number;
     (request) => request.community,
   )
   membershipRequests: CommunityMembershipRequest[];
+
+  @OneToMany(
+    () => CommunityRestriction,
+    (restriction) => restriction.community,
+  )
+  restrictions: CommunityRestriction[];
 }

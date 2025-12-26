@@ -33,6 +33,8 @@ import { PostReport } from './reports/entities/post-report.entity';
 import { UserReport } from './reports/entities/user-report.entity';
 import { CommunityMembershipRequest } from './community-membership-requests/entities/community-membership-request.entity';
 import { CommunityMembershipRequestsModule } from './community-membership-requests/community-membership-requests.module';
+import { CommunityRestriction } from './community-restrictions/entities/community-restriction.entity';
+import { CommunityRestrictionsModule } from './community-restrictions/community-restrictions.module';
 
 @Module({
   imports: [
@@ -59,6 +61,7 @@ import { CommunityMembershipRequestsModule } from './community-membership-reques
           CommentReport,
           PostReport,
           UserReport,
+          CommunityRestriction,
         ],
         migrations: ['./src/migrations/*.ts'],
         synchronize: false,
@@ -77,6 +80,7 @@ import { CommunityMembershipRequestsModule } from './community-membership-reques
     CommunityMembershipsModule,
     CommunityMembershipRequestsModule, // NEW MODULE
     ReportsModule,
+    CommunityRestrictionsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
