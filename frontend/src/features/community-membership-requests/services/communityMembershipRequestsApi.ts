@@ -29,13 +29,26 @@ export const communityMembershipRequestsApi = apiSlice.injectEndpoints({
     }),
 
     // Cancel (reject) your own pending request — user-centric, no requestId
-    rejectMembershipRequest: builder.mutation<
+    cancelMembershipRequest: builder.mutation<
       ResponseDto<boolean>,
       number // communityId
     >({
       query: (communityId) => ({
+        url: `/communities/${communityId}/membership-requests/own`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['CommunityMembershipRequests', 'Communities', 'CommunityMemberships'],
+    }),
+
+    // 2️⃣ Reject any pending membership request (admin/mod)
+    rejectMembershipRequest: builder.mutation<
+      ResponseDto<boolean>,
+      { communityId: number; userId: number } // target user
+    >({
+      query: ({ communityId, userId }) => ({
         url: `/communities/${communityId}/membership-requests`,
         method: 'DELETE',
+        body: { userId }, // pass target userId in body
       }),
       invalidatesTags: ['CommunityMembershipRequests', 'Communities', 'CommunityMemberships'],
     }),
@@ -55,5 +68,6 @@ export const {
   useCreateMembershipRequestMutation,
   useAcceptMembershipRequestMutation,
   useRejectMembershipRequestMutation,
+  useCancelMembershipRequestMutation ,
   useGetCommunityMembershipRequestsQuery,
 } = communityMembershipRequestsApi;

@@ -13,11 +13,12 @@ import { CommunityMembership } from 'src/community-memberships/entities/communit
 import { CommunityMembershipRole } from 'src/community-memberships/types';
 import { CommunityMembershipRequest } from 'src/community-membership-requests/entities/community-membership-request.entity';
 import { CommunityMembershipRequestStatus } from 'src/community-membership-requests/entities/community-membership-request.entity';
-
+import { DataSource } from 'typeorm';
 
 @Injectable()
 export class CommunitiesService {
-  constructor(
+  constructor(    
+    private dataSource: DataSource,
     @InjectRepository(Community)
     private readonly communitiesRepository: Repository<Community>,
     @InjectRepository(Community)
@@ -27,29 +28,6 @@ export class CommunitiesService {
     @InjectRepository(CommunityMembershipRequest)
     private readonly membershipRequestRepository: Repository<CommunityMembershipRequest>,
   ) { }
-
-  async create(data: {
-    userId: number;
-    name: string;
-    displayName?: string;
-    description?: string;
-    communityType?: CommunityType;
-  }) {
-    const existingCommunity = await this.communitiesRepository.findOne({
-      where: { name: data.name },
-    });
-
-    if (existingCommunity) {
-      throw new ConflictException('Community with this name already exists.');
-    }
-
-    const community = this.communitiesRepository.create({
-      ...data,
-      owner: { id: data.userId },
-    });
-
-    return this.communitiesRepository.save(community);
-  }
 
   findAll(query: {
     limit?: number;
@@ -72,6 +50,39 @@ export class CommunitiesService {
     if (sort === 'popular') queryBuilder.orderBy('community.membersCount', 'DESC');
 
     return queryBuilder.getManyAndCount();
+  }
+  async create(data: {
+    userId: number;
+    name: string;
+    displayName?: string;
+    description?: string;
+    communityType?: CommunityType;
+  }) {
+    return this.dataSource.transaction(async (manager) => {
+      const existingCommunity = await manager.findOne(Community, {
+        where: { name: data.name },
+      });
+      if (existingCommunity) {
+        throw new ConflictException('Community with this name already exists.');
+      }
+
+      if (!data.displayName) data.displayName = data.name;
+
+      const community = manager.create(Community, {
+        ...data,
+        owner: { id: data.userId },
+      });
+      const savedCommunity = await manager.save(community);
+
+      const membership = manager.create(CommunityMembership, {
+        userId: data.userId,
+        communityId: savedCommunity.id,
+        role: CommunityMembershipRole.OWNER,
+      });
+      await manager.save(membership);
+
+      return savedCommunity;
+    });
   }
 
   async findOne(id: number, user?: User): Promise<Community> {
@@ -107,7 +118,6 @@ export class CommunitiesService {
 
         if (pendingRequest) {
           community.userMembershipStatus = 'pending';
-          community.pendingRequestId = pendingRequest.id;
         } else {
           community.userMembershipStatus = 'none';
         }

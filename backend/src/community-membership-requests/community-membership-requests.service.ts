@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -8,7 +9,7 @@ import {
   CommunityMembershipRequest,
   CommunityMembershipRequestStatus,
 } from './entities/community-membership-request.entity';
-import { Brackets, DataSource, Repository } from 'typeorm';
+import { Brackets, DataSource, In, Repository } from 'typeorm';
 import { CommunityMembership } from '../community-memberships/entities/community-memberships.entity';
 import { User } from '../users/entities/user.entity';
 import { Community } from '../communities/entities/community.entity';
@@ -132,78 +133,131 @@ export class CommunityMembershipRequestsService {
       await queryRunner.release();
     }
   }
+async acceptMembershipRequest(
+  actorId: number,
+  userId: number,
+  communityId: number,
+) {
+  const queryRunner = this.dataSource.createQueryRunner();
+  await queryRunner.connect();
+  await queryRunner.startTransaction();
 
-  async acceptMembershipRequest(requestId: number, adminId: number) {
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-
-    try {
-      const request = await queryRunner.manager.findOne(CommunityMembershipRequest, {
-        where: { id: requestId },
-        relations: ['community'],
-      });
-      if (!request) {
-        throw new NotFoundException('Membership request not found');
-      }
-      if (request.status !== CommunityMembershipRequestStatus.PENDING) {
-        throw new BadRequestException('Request is not pending');
-      }
-
-      // Check if adminId is an admin or moderator of the community
-      const adminMembership = await queryRunner.manager.findOne(CommunityMembership, {
+  try {
+    // 1. Fetch pending request
+    const request = await queryRunner.manager.findOne(
+      CommunityMembershipRequest,
+      {
         where: {
-          userId: adminId,
-          communityId: request.community.id,
-          role: CommunityMembershipRole.ADMIN, // Only admin can accept for now
+          userId,
+          communityId,
+          status: CommunityMembershipRequestStatus.PENDING,
         },
-      });
+      },
+    );
 
-      // Currently only the community owner can accept requests
-      if (request.community.ownerId !== adminId) {
-          throw new BadRequestException('Only the community owner can accept membership requests');
-      }
-
-      if (!adminMembership && request.community.ownerId !== adminId) {
-        throw new BadRequestException('Admin is not authorized to accept this request');
-      }
-
-      const membership = queryRunner.manager.create(CommunityMembership, {
-        userId: request.userId,
-        communityId: request.communityId,
-        role: CommunityMembershipRole.MEMBER, // Default role for new members
-      });
-
-      await queryRunner.manager.save(membership);
-
-      request.status = CommunityMembershipRequestStatus.ACCEPTED;
-      await queryRunner.manager.save(request); // Save the updated request status
-      await queryRunner.manager.increment(Community, { id: request.community.id }, 'membersCount', 1); // Increment membersCount
-
-      await queryRunner.commitTransaction();
-      return membership; // Return the created membership
-    } catch (err) {
-      await queryRunner.rollbackTransaction();
-      throw err;
-    } finally {
-      await queryRunner.release();
+    if (!request) {
+      throw new NotFoundException('Pending membership request not found');
     }
+
+    // 2. Authorization: owner OR admin
+  await this.canManageMembershipRequests(actorId,communityId)
+
+
+    // 3. Create membership (idempotent-safe)
+    await queryRunner.manager.insert(CommunityMembership, {
+      userId,
+      communityId,
+      role: CommunityMembershipRole.MEMBER,
+    });
+
+    // 4. Mark request accepted
+    await queryRunner.manager.update(
+      CommunityMembershipRequest,
+      { userId, communityId },
+      { status: CommunityMembershipRequestStatus.ACCEPTED },
+    );
+
+    // 5. Increment members count
+    await queryRunner.manager.increment(
+      Community,
+      { id: communityId },
+      'membersCount',
+      1,
+    );
+
+    await queryRunner.commitTransaction();
+    return true;
+  } catch (err) {
+    await queryRunner.rollbackTransaction();
+    throw err;
+  } finally {
+    await queryRunner.release();
   }
-   async removeMembershipRequest(userId: number, communityId: number) {
-   const request = await this.requestRepository.findOne({
-     where: {
-       userId,
-       communityId,
-       status: CommunityMembershipRequestStatus.PENDING,
-     },
-   });
- 
-   if (!request) {
-     throw new NotFoundException('Pending membership request not found');
-   }
- 
-   // Delete the request
-   await this.requestRepository.delete({ id: request.id });
- 
- }
+}
+
+async removeMembershipRequest(
+  actorId: number,
+  userId: number,
+  communityId: number,
+) {
+  // 1️⃣ Check pending request exists
+  const request = await this.requestRepository.findOne({
+    where: {
+      userId,
+      communityId,
+      status: CommunityMembershipRequestStatus.PENDING,
+    },
+  });
+
+  if (!request) {
+    throw new NotFoundException('Pending membership request not found');
+  }
+
+  // 2️⃣ Check actor role in THIS community
+ await this.canManageMembershipRequests(actorId,communityId)
+
+  // 3️⃣ Delete request
+   await this.requestRepository.delete({ userId: request.userId,communityId:communityId });
+
+  return true;
+}
+async removeOwnRequest(
+  userId: number,
+  communityId: number,
+): Promise<boolean> {
+  const request = await this.requestRepository.findOne({
+    where: {
+      userId,
+      communityId,
+      status: CommunityMembershipRequestStatus.PENDING,
+    },
+  });
+
+  if (!request) {
+    throw new NotFoundException('Pending membership request not found');
+  }
+
+  await this.requestRepository.delete({
+    userId,
+    communityId,
+    status: CommunityMembershipRequestStatus.PENDING,
+  });
+
+  return true;
+}
+  private async canManageMembershipRequests(actorId: number, communityId: number) {
+    const membership = await this.membershipRepository.findOne({
+      where: {
+        userId: actorId,
+        communityId,
+        role: In([CommunityMembershipRole.OWNER, CommunityMembershipRole.ADMIN,CommunityMembershipRole.MODERATOR]),
+      },
+    });
+
+    if (!membership) {
+      throw new ForbiddenException('You are not allowed to manage membership requests for this community');
+    }
+
+    return membership; // optional, in case you want actor info
+  }
  }

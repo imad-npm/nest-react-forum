@@ -1,84 +1,47 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import AuthGuard from './features/auth/components/AuthGard';
+import EmailVerification from './features/auth/pages/EmailVerification';
 import Login from './features/auth/pages/Login';
 import Register from './features/auth/pages/Register';
-import AuthGuard from './features/auth/components/AuthGard';
-import Header from './layout/Header';
-import LeftSidebar from './layout/LeftSidebar';
-import EmailVerification from './features/auth/pages/EmailVerification';
 import VerificationResult from './features/auth/pages/VerificationResult';
-import FeedPage from './features/feed/pages/FeedPage';
-import PostDetailPage from './features/posts/pages/PostDetailPage'; // Import PostDetailPage
-import CreatePostPage from './features/posts/pages/CreatePostPage'; // Import CreatePostPage
 import { CommunityPage } from './features/communities/pages/CommunityPage';
+import ExploreCommunitiesPage from './features/communities/pages/ExploreCommunitiesPage';
 import MyCommunitiesPage from './features/communities/pages/MyCommunitiesPage';
-import ExploreCommunitiesPage from './features/communities/pages/ExploreCommunitiesPage'; // Import ExploreCommunitiesPage
+import FeedPage from './features/feed/pages/FeedPage';
+import CreatePostPage from './features/posts/pages/CreatePostPage';
+import PostDetailPage from './features/posts/pages/PostDetailPage';
+import MainLayout from './layout/MainLayout';
+import ModLayout from './layout/ModLayout';
+// ... other imports
 
-function App() {
+export default function App() {
   return (
     <BrowserRouter>
-      <Header />
-      <div className="flex">
-        <LeftSidebar />
-        <main className="flex-grow p-4">
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/email-verification" element={<EmailVerification />} />
-            <Route path="/verify-email" element={<VerificationResult />} />
-            <Route
-              path="/"
-              element={
-                <AuthGuard>
-                  <FeedPage />
-                </AuthGuard>
-              }
-            />
-            <Route
-              path="/posts/:id"
-              element={
-                <AuthGuard>
-                  <PostDetailPage />
-                </AuthGuard>
-              }
-            />
-            <Route
-              path="/submit"
-              element={
-                <AuthGuard>
-                  <CreatePostPage />
-                </AuthGuard>
-              }
-            />
-            {/* Add other routes here */}
-            <Route
-              path="/communities/:communityId"
-              element={
-                <AuthGuard>
-                  <CommunityPage />
-                </AuthGuard>
-              }
-            />
-            <Route
-              path="/my-communities"
-              element={
-                <AuthGuard>
-                  <MyCommunitiesPage />
-                </AuthGuard>
-              }
-            />
-            <Route
-              path="/explore-communities"
-              element={
-                <AuthGuard>
-                  <ExploreCommunitiesPage />
-                </AuthGuard>
-              }
-            />
-          </Routes>
-        </main>
-      </div>
+      <Routes>
+        {/* --- Public Auth Routes (No Sidebars) --- */}
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/email-verification" element={<EmailVerification />} />
+        <Route path="/verify-email" element={<VerificationResult />} />
+
+        {/* --- Standard User Routes (with LeftSidebar) --- */}
+        <Route element={<MainLayout />}>
+          <Route path="/" element={<AuthGuard><FeedPage /></AuthGuard>} />
+          <Route path="/posts/:id" element={<AuthGuard><PostDetailPage /></AuthGuard>} />
+          <Route path="/submit" element={<AuthGuard><CreatePostPage /></AuthGuard>} />
+          <Route path="/communities/:communityId" element={<AuthGuard><CommunityPage /></AuthGuard>} />
+          <Route path="/my-communities" element={<AuthGuard><MyCommunitiesPage /></AuthGuard>} />
+          <Route path="/explore-communities" element={<AuthGuard><ExploreCommunitiesPage /></AuthGuard>} />
+        </Route>
+
+        {/* --- Moderation Routes (with ModSidebar) --- */}
+        <Route path="/mod/community/:communityId" element={<AuthGuard><ModLayout /></AuthGuard>}>
+          <Route index element={<Navigate to="queues" replace />} />
+          <Route path="queues" element={<div>Queues Content</div>} />
+          <Route path="members" element={<div>Members Management</div>} />
+          <Route path="moderators" element={<div>Moderator Settings</div>} />
+        </Route>
+      </Routes>
     </BrowserRouter>
   );
 }
-
-export default App;

@@ -7,7 +7,6 @@ export interface Community {
   membersCount: number;
   createdAt: string;
   userMembershipStatus?: 'member' | 'pending' | 'none';
-  pendingRequestId?: number;
 }
 
 export interface CreateCommunityDto {

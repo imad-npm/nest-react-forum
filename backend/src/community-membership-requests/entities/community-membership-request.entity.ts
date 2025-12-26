@@ -2,8 +2,8 @@ import {
   CreateDateColumn,
   Entity,
   ManyToOne,
-  PrimaryGeneratedColumn,
   Column,
+  PrimaryColumn,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Community } from '../../communities/entities/community.entity';
@@ -16,23 +16,18 @@ export enum CommunityMembershipRequestStatus {
 
 @Entity('community_membership_requests')
 export class CommunityMembershipRequest {
-  @PrimaryGeneratedColumn()
-  id: number;
+  // Composite primary key: userId + communityId
+  @PrimaryColumn()
+  userId: number;
+
+  @PrimaryColumn()
+  communityId: number;
 
   @ManyToOne(() => User, (user) => user.communityMembershipRequests)
   user: User;
 
-  @Column()
-  userId: number;
-
-  @ManyToOne(
-    () => Community,
-    (community) => community.membershipRequests,
-  )
+  @ManyToOne(() => Community, (community) => community.membershipRequests)
   community: Community;
-
-  @Column()
-  communityId: number;
 
   @Column({
     type: 'simple-enum',

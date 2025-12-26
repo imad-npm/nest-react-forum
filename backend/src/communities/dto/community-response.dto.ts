@@ -13,14 +13,12 @@ export class CommunityResponseDto {
   @Expose() readonly membersCount: number;
   @Expose() readonly createdAt: Date;
   @Expose() userMembershipStatus?: 'member' | 'pending' | 'none';
-  @Expose() pendingRequestId?: number;
 
   static fromEntity(entity: Community): CommunityResponseDto {
     const dto = plainToInstance(CommunityResponseDto, entity, {
       excludeExtraneousValues: true,
     });
     dto.userMembershipStatus = entity.userMembershipStatus;
-    dto.pendingRequestId = entity.pendingRequestId;
     return dto;
   }
 }

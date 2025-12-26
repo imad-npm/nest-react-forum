@@ -1,6 +1,7 @@
 import React from 'react';
 import { Button } from '../../../shared/components/ui/Button';
 import {
+  useCancelMembershipRequestMutation,
   useCreateMembershipRequestMutation,
   useRejectMembershipRequestMutation,
 } from '../../community-membership-requests/services/communityMembershipRequestsApi';
@@ -20,8 +21,8 @@ export const CommunityMembershipActionButton: React.FC<
     useCreateMembershipRequestMutation();
   const [deleteMembership, { isLoading: isDeletingMembership }] =
     useDeleteMembershipMutation();
-  const [rejectMembershipRequest, { isLoading: isRejectingRequest }] =
-    useRejectMembershipRequestMutation();
+  const [cancelMembershipRequest, { isLoading: isRejectingRequest }] =
+    useCancelMembershipRequestMutation();
 
   const handleJoinOrRequest = () => {
     if (currentUser) {
@@ -41,9 +42,9 @@ export const CommunityMembershipActionButton: React.FC<
   };
 
   const handleCancelRequest = () => {
-    if (currentUser && community.pendingRequestId) {
+    if (currentUser && community.userMembershipStatus=="pending") {
       // Assuming communityId is used to reject the user's own request
-      rejectMembershipRequest(community.id);
+      cancelMembershipRequest(community.id);
     } else {
       console.log('Error: Cannot cancel request.');
     }

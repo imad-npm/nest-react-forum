@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Button } from "../../../shared/components/ui/Button";
 import { Input } from "../../../shared/components/ui/Input";
 import { Label } from "../../../shared/components/ui/Label";
@@ -9,21 +9,17 @@ import { Controller, useForm, type SubmitHandler } from "react-hook-form";
 import z from "zod";
 import { InputError } from "../../../shared/components/ui/InputError";
 import { InputRadio } from "../../../shared/components/InputRadio";
+import { useCreateCommunityMutation } from "../services/communitiesApi";
+import type { ToastType } from "../../../shared/components/ui/Toast";
+import Toast from "../../../shared/components/ui/Toast";
 
 interface CreateCommunityFormProps {
   onClose: () => void;
 }
 
-type CommunityType = "Public" | "Private" | "Restricted";
-
-const communityTypeOptions: SelectOption[] = [
-  { value: "Public", label: "Public" },
-  { value: "Private", label: "Private" },
-  { value: "Restricted", label: "Restricted" },
-];
 
 const createCommunitySchema = z.object({
-  communityType: z.enum(["Public", "Private", "Restricted"]),  communityName: z
+  communityType: z.enum(["public", "private", "restricted"]),  name: z
     .string()
     .min(3, "Community Name must be at least 3 characters"),
   description: z.string().optional(),
@@ -33,12 +29,13 @@ type CreateCommunityFormValues = z.infer<typeof createCommunitySchema>;
 
 const stepFields: (keyof CreateCommunityFormValues)[][] = [
   ["communityType"], // Step 0
-  ["communityName", "description"], // Step 1
+  ["name", "description"], // Step 1
 ];
 
 const CreateCommunityForm: React.FC<CreateCommunityFormProps> = ({ onClose }) => {
   const [step, setStep] = React.useState(0);
-
+  const [createCommunity, { isLoading }] = useCreateCommunityMutation();
+   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
   const {
     control,
     register,
@@ -48,20 +45,28 @@ const CreateCommunityForm: React.FC<CreateCommunityFormProps> = ({ onClose }) =>
   } = useForm<CreateCommunityFormValues>({
     resolver: zodResolver(createCommunitySchema),
     defaultValues: {
-      communityName: "",
+      name: "",
       description: "",
     },
   });
 
-  const onSubmit: SubmitHandler<CreateCommunityFormValues> = (data) => {
-    console.log("Form Data:", data);
-    // TODO: send data to API
+  const onSubmit: SubmitHandler<CreateCommunityFormValues> = async(data) => {
+ try {
+      const response = await createCommunity(data).unwrap(); // send data to API
+      console.log("Community created:", response);
+            setToast({ message: 'Community created successfully!', type: 'success' });
+      onClose(); // close form or reset
+    } catch (err) {
+            setToast({ message: err?.data?.message || 'Failed to create community', type: 'error' });
+      console.error("Failed to create community:", err);
+    }
   };
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="p-4">
       {/* Step 0: Community Type */}
 {/* Step 0: Community Type */}
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 {step === 0 && (
   <div className="mb-4">
 
@@ -74,9 +79,9 @@ const CreateCommunityForm: React.FC<CreateCommunityFormProps> = ({ onClose }) =>
       control={control}
       render={({ field }) => {
         const options = [
-          { value: "Public", title: "Public", description: "Anyone can view, post, and comment." },
-          { value: "Restricted", title: "Restricted", description: "Anyone can view, only approved users can post." },
-          { value: "Private", title: "Private", description: "Only approved users can view and post." },
+          { value: "public", title: "Public", description: "Anyone can view, post, and comment." },
+          { value: "restricted", title: "Restricted", description: "Anyone can view, only approved users can post." },
+          { value: "private", title: "Private", description: "Only approved users can view and post." },
         ];
 
         return (
@@ -119,9 +124,9 @@ const CreateCommunityForm: React.FC<CreateCommunityFormProps> = ({ onClose }) =>
     </p>
           <div className="mb-4">
   
-            <Label htmlFor="communityName">Community Name:</Label>
-            <Input id="communityName" {...register("communityName")} />
-            <InputError message={errors.communityName?.message} />
+            <Label htmlFor="name">Community Name:</Label>
+            <Input id="name" {...register("name")} />
+            <InputError message={errors.name?.message} />
           </div>
           <div className="mb-4">
             <Label htmlFor="description">Description:</Label>
@@ -152,8 +157,9 @@ const CreateCommunityForm: React.FC<CreateCommunityFormProps> = ({ onClose }) =>
         )}
 
         {step === 1 && (
-          <Button type="submit">Create Community</Button>
-        )}
+     <Button type="submit" disabled={isLoading}>
+            {isLoading ? "Creating..." : "Create Community"}
+          </Button>        )}
       </div>
     </form>
   );

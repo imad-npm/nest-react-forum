@@ -42,7 +42,6 @@ ownerId: number;
   membersCount: number;
 
   userMembershipStatus?: 'member' | 'pending' | 'none';
-  pendingRequestId?: number;
 
   @OneToMany(() => Post, (post) => post.community)
   posts: Post[];

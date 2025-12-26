@@ -1,5 +1,6 @@
 export enum CommunityMembershipRole {
-  ADMIN = 'admin',
+  OWNER = 'owner',        // top-level owner (creator / transferable)
+  ADMIN = 'admin',        // delegated community admins / managers
   MODERATOR = 'moderator',
   MEMBER = 'member',
 }

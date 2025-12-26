@@ -58,14 +58,25 @@ export class CommunityMembershipRequestsController {
     return this.requestsService.createMembershipRequest(user.id, communityId);
   }
 
-  @Delete()
-  async removeRequest(
-    @Param('communityId', ParseIntPipe) communityId: number,
-    @GetUser() user: User,
-  ) {
-    console.log(user,communityId);
-    
-    const success=await this.requestsService.removeMembershipRequest(user.id, communityId);
-    return new ResponseDto(success);
-      }
+@Delete('me')
+removeOwnRequest(
+  @Param('communityId', ParseIntPipe) communityId: number,
+  @GetUser() user: User,
+) {
+  return this.requestsService.removeOwnRequest(user.id, communityId);
+}
+
+@Delete(':userId')
+removeRequest(
+  @Param('communityId', ParseIntPipe) communityId: number,
+  @Param('userId', ParseIntPipe) userId: number,
+  @GetUser() actor: User,
+) {
+  return this.requestsService.removeMembershipRequest(
+    actor.id,
+    userId,
+    communityId,
+  );
+}
+
 }
