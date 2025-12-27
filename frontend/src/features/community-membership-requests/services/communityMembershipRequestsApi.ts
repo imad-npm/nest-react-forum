@@ -1,6 +1,7 @@
 import { apiSlice } from "../../../shared/services/apiSlice";
 import type { ResponseDto } from "../../auth/types";
-import type { CommunityMembershipRequest } from "../types";
+import type { CommunityMembershipQueryDto } from "../../community-memberships/types";
+import type { CommunityMembershipRequest, CommunityMembershipRequestQueryDto } from "../types";
 
 export const communityMembershipRequestsApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
@@ -56,9 +57,9 @@ export const communityMembershipRequestsApi = apiSlice.injectEndpoints({
     // Get all pending requests for a community (admin/mod)
     getCommunityMembershipRequests: builder.query<
       ResponseDto<CommunityMembershipRequest[]>,
-       // communityId
+CommunityMembershipRequestQueryDto
     >({
-      query: (communityId) => `/communities/${communityId}/membership-requests`,
+      query: ({communityId}) => `/communities/${communityId}/membership-requests`,
       providesTags: ['CommunityMembershipRequests'],
     }),
   }),

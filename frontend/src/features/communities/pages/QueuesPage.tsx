@@ -8,10 +8,16 @@ import {
   useRejectMembershipRequestMutation
 } from '../../community-membership-requests/services/communityMembershipRequestsApi';
 import { Button } from '../../../shared/components/ui/Button';
+import { CommunityMembershipRequestStatus } from '../../community-membership-requests/types';
 
 export const ModQueuesPage = () => {
   const { communityId } = useParams();
-  const { data: requests, isLoading } = useGetCommunityMembershipRequestsQuery(Number(communityId));
+const { data:requests, isLoading } = useGetCommunityMembershipRequestsQuery({
+  communityId: 1,
+  status: CommunityMembershipRequestStatus.PENDING,
+  page: 1,
+  limit: 10,
+});
   const [approve] = useAcceptMembershipRequestMutation();
   const [reject] = useRejectMembershipRequestMutation();
 
