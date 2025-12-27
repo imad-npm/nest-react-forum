@@ -54,14 +54,18 @@ export const communityMembershipRequestsApi = apiSlice.injectEndpoints({
       invalidatesTags: ['CommunityMembershipRequests', 'Communities', 'CommunityMemberships'],
     }),
 
-    // Get all pending requests for a community (admin/mod)
-    getCommunityMembershipRequests: builder.query<
-      ResponseDto<CommunityMembershipRequest[]>,
-CommunityMembershipRequestQueryDto
-    >({
-      query: ({communityId}) => `/communities/${communityId}/membership-requests`,
-      providesTags: ['CommunityMembershipRequests'],
-    }),
+ // communityMembershipRequestsApi.ts (or wherever your api slice lives)
+getCommunityMembershipRequests: builder.query<
+  ResponseDto<CommunityMembershipRequest[]>,
+  CommunityMembershipRequestQueryDto
+>({
+  query: (params) => ({
+    url: `/communities/${params.communityId}/membership-requests`,
+    params, // <-- pass the whole object as query params (page, limit, status, sort, etc.)
+  }),
+  providesTags: ['CommunityMembershipRequests'],
+}),
+
   }),
 });
 

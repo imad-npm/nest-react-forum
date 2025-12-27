@@ -13,7 +13,7 @@ import { CommunityMembershipRequestStatus } from '../../community-membership-req
 export const ModQueuesPage = () => {
   const { communityId } = useParams();
 const { data:requests, isLoading } = useGetCommunityMembershipRequestsQuery({
-  communityId: 1,
+  communityId: +communityId,
   status: CommunityMembershipRequestStatus.PENDING,
   page: 1,
   limit: 10,

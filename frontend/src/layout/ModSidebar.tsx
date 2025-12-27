@@ -1,6 +1,6 @@
 // frontend/src/features/communities/components/ModSidebar.tsx
 import { NavLink, useParams } from 'react-router-dom';
-import { FaShieldAlt, FaUsers, FaTasks, FaUserShield } from 'react-icons/fa';
+import { FaShieldAlt, FaUsers, FaTasks, FaUserShield, FaUserSlash } from 'react-icons/fa';
 
 export const ModSidebar = () => {
   const { communityId } = useParams<{ communityId: string }>();
@@ -10,6 +10,7 @@ export const ModSidebar = () => {
     { label: 'Queues', path: `${basePath}/queues`, icon: <FaTasks /> },
     { label: 'Members', path: `${basePath}/members`, icon: <FaUsers /> },
     { label: 'Moderators', path: `${basePath}/moderators`, icon: <FaUserShield /> },
+    { label: 'Restricted Users', path: `${basePath}/restricted-users`, icon: <FaUserSlash /> },
   ];
 
   return (

@@ -15,6 +15,7 @@ import ModLayout from './layout/ModLayout';
 import { ModQueuesPage } from './features/communities/pages/QueuesPage';
 import { ModMembersPage } from './features/communities/pages/MembersPage';
 import { ModModeratorsPage } from './features/communities/pages/ModeratorsPage';
+import { RestrictedUsersPage } from './features/communities/pages/RestrictedUsersPage';
 // ... other imports
 
 export default function App() {
@@ -43,6 +44,7 @@ export default function App() {
           <Route path="queues" element={<ModQueuesPage />} />
           <Route path="members" element={<ModMembersPage />} />
           <Route path="moderators" element={<ModModeratorsPage />} />
+          <Route path="restricted-users" element={<RestrictedUsersPage />} /> {/* New Route */}
         </Route>
       </Routes>
     </BrowserRouter>

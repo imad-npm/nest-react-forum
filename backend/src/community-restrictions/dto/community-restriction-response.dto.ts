@@ -1,27 +1,42 @@
-import { Exclude, Expose, Type, plainToInstance } from 'class-transformer';
-import { UserResponseDto } from '../../users/dtos/user-response.dto';
-import { CommunityRestriction } from '../entities/community-restriction.entity';
-import { CommunityResponseDto } from 'src/communities/dto/community-response.dto';
+import { Expose, Transform, Type } from 'class-transformer';
 import { CommunityRestrictionType } from '../community-restrictions.types';
+import { CommunityRestriction } from '../entities/community-restriction.entity';
 
-@Exclude()
 export class CommunityRestrictionResponseDto {
-  @Expose() readonly id: number;
-  @Expose() readonly restrictionType: CommunityRestrictionType;
-  @Expose() readonly createdAt: Date;
+  @Expose()
+  id: number;
 
-  @Expose() @Type(() => UserResponseDto) readonly user: UserResponseDto;
-  @Expose() @Type(() => CommunityResponseDto) readonly community: CommunityResponseDto;
+  @Expose()
+  restrictionType: CommunityRestrictionType;
+
+  @Expose()
+  reason: string;
+
+  @Expose()
+  @Transform(({ value }) => value ? value.toISOString() : null)
+  expiresAt: Date | null;
+
+  @Expose()
+  @Transform(({ obj }) => obj.community.id)
+  communityId: number;
+
+  @Expose()
+  @Transform(({ obj }) => obj.user.id)
+  userId: number;
+
+  
+  @Expose()
+  @Transform(({ obj }) => obj.createdBy.id)
+  createdById: number;
+
+  @Expose()
+  @Transform(({ value }) => value.toISOString())
+  createdAt: Date;
 
   static fromEntity(entity: CommunityRestriction): CommunityRestrictionResponseDto {
-    return plainToInstance(
-      CommunityRestrictionResponseDto,
-      {
-        ...entity,
-        user: entity.user ? UserResponseDto.fromEntity(entity.user) : null,
-        community: entity.community ? CommunityResponseDto.fromEntity(entity.community) : null,
-      },
-      { excludeExtraneousValues: true },
+    return Object.assign(
+      new CommunityRestrictionResponseDto(),
+      entity,
     );
   }
 }

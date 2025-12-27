@@ -34,6 +34,8 @@ export class CommunityRestrictionsService {
       restrictionType: CommunityRestrictionType;
       communityId: number;
       userId: number;
+      reason?: string;
+      expiresAt?: Date;
     },
     user: User,
   ) {
@@ -46,6 +48,7 @@ export class CommunityRestrictionsService {
 
     const targetUser = await this.userRepository.findOne({
       where: { id: data.userId },
+      relations: ['communityMemberships'],
     });
     if (!targetUser) {
       throw new NotFoundException('User to restrict not found');
@@ -55,9 +58,9 @@ export class CommunityRestrictionsService {
     await this.canManageRestrictions(user.id, community.id);
 
     // Prevent restricting another moderator
-    const targetMembership = await this.communityMembershipRepository.findOne({
-      where: { communityId: community.id, userId: targetUser.id },
-    });
+    const targetMembership = targetUser.communityMemberships.find(
+      (membership) => membership.communityId === community.id,
+    );
 
     if (targetMembership?.role === CommunityMembershipRole.MODERATOR) {
       throw new ForbiddenException('You cannot restrict a moderator.');
@@ -76,8 +79,11 @@ export class CommunityRestrictionsService {
 
     const restriction = this.communityRestrictionsRepository.create({
       restrictionType: data.restrictionType,
+      reason: data.reason,
+      expiresAt: data.expiresAt,
       community,
       user: targetUser,
+      createdBy: user,
     });
 
     return this.communityRestrictionsRepository.save(restriction);
@@ -133,7 +139,11 @@ export class CommunityRestrictionsService {
   // Update a restriction
   async update(
     id: number,
-    data: { restrictionType?: CommunityRestrictionType },
+    data: {
+      restrictionType?: CommunityRestrictionType;
+      reason?: string;
+      expiresAt?: Date;
+    },
     user: User,
   ) {
     const restriction = await this.communityRestrictionsRepository.findOne({
@@ -149,6 +159,12 @@ export class CommunityRestrictionsService {
 
     if (data.restrictionType) {
       restriction.restrictionType = data.restrictionType;
+    }
+    if (data.reason !== undefined) {
+      restriction.reason = data.reason;
+    }
+    if (data.expiresAt !== undefined) {
+      restriction.expiresAt = data.expiresAt;
     }
 
     return this.communityRestrictionsRepository.save(restriction);

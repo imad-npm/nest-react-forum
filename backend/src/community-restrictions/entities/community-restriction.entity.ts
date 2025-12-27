@@ -17,6 +17,12 @@ export class CommunityRestriction {
   @Column({ type: 'simple-enum', enum: CommunityRestrictionType })
   restrictionType: CommunityRestrictionType;
 
+  @Column({ type: 'text', nullable: true })
+  reason: string;
+
+  @Column({ type: 'datetime', nullable: true })
+  expiresAt?: Date;
+
   @ManyToOne(() => Community, (community) => community.restrictions)
   community: Community;
 
