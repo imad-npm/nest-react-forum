@@ -1,19 +1,28 @@
+import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Button } from '../../../shared/components/ui/Button';
 import { CommunityRestrictionType } from '../../community-restrictions/types';
 import {
   useGetCommunityRestrictionsQuery,
   useDeleteCommunityRestrictionMutation,
-} from '../../community-restrictions/services/communityRestrictionsApi.ts'
+} from '../../community-restrictions/services/communityRestrictionsApi.ts';
+import { Modal } from '../../../shared/components/ui/Modal';
+import { CreateRestrictionForm } from '../../community-restrictions/components/CreateRestrictionForm';
 
 export const RestrictedUsersPage = () => {
   const { communityId } = useParams<{ communityId: string }>();
-  const { data: response, isLoading } = useGetCommunityRestrictionsQuery({
+  const { data: response, isLoading, refetch } = useGetCommunityRestrictionsQuery({
     communityId: Number(communityId),
     page: 1,
     limit: 50,
   });
   const [removeRestriction] = useDeleteCommunityRestrictionMutation();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const handleRestrictionCreated = () => {
+    setIsModalOpen(false);
+    refetch(); // Refetch restrictions to update the list
+  };
 
   if (isLoading) return <div className="p-4">Loading restricted users...</div>;
 
@@ -21,7 +30,10 @@ export const RestrictedUsersPage = () => {
 
   return (
     <div className="max-w-4xl mx-auto">
-      <h2 className="text-2xl font-bold mb-6">Restricted Users</h2>
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-bold">Restricted Users</h2>
+        <Button onClick={() => setIsModalOpen(true)}>Create Restriction</Button>
+      </div>
 
       {restrictions.length === 0 ? (
         <div className="text-center py-10 bg-gray-50 rounded-lg border">
@@ -58,7 +70,14 @@ export const RestrictedUsersPage = () => {
           ))}
         </div>
       )}
+
+      <Modal  open={isModalOpen} onClose={() => setIsModalOpen(false)}>
+        <CreateRestrictionForm
+          communityId={Number(communityId)}
+          onSuccess={handleRestrictionCreated}
+          onCancel={() => setIsModalOpen(false)}
+        />
+      </Modal>
     </div>
   );
 };
-

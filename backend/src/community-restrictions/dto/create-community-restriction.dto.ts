@@ -1,5 +1,6 @@
-import { IsNumber, IsEnum, IsOptional, IsString, IsDateString } from 'class-validator';
+import { IsNumber, IsEnum, IsOptional, IsString, IsDateString, IsDate } from 'class-validator';
 import { CommunityRestrictionType } from '../community-restrictions.types';
+import { Type } from 'class-transformer';
 
 export class CreateCommunityRestrictionDto {
   @IsNumber()
@@ -16,6 +17,7 @@ export class CreateCommunityRestrictionDto {
   reason?: string;
 
   @IsOptional()
-  @IsDateString()
-  expiresAt?: string;
+@IsDate() // Use @IsDate() instead of @IsDateString()
+@Type(() => Date) // Automatically converts string to Date object
+  expiresAt?: Date;
 }

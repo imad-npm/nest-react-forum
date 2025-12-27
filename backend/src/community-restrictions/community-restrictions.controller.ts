@@ -43,6 +43,8 @@ export class CommunityRestrictionsController {
         restrictionType: createCommunityRestrictionDto.restrictionType,
         communityId: createCommunityRestrictionDto.communityId,
         userId: createCommunityRestrictionDto.userId,
+        expiresAt:createCommunityRestrictionDto.expiresAt ,
+        reason:createCommunityRestrictionDto.reason
       },
       user,
     );
@@ -56,7 +58,8 @@ export class CommunityRestrictionsController {
     @GetUser() user: User,
   ): Promise<PaginatedResponseDto<CommunityRestrictionResponseDto>> {
     const { data, count } = await this.communityRestrictionsService.findAll(query, user);
-
+    console.log(data);
+    
     const paginationMeta = new PaginationMetaDto(query.page, query.limit, count, data.length);
 
     return new PaginatedResponseDto(

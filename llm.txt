@@ -212,6 +212,40 @@ if (require.main === module) seedUsers();
 ---
 
 
+### FILE: backend/src/database/seeds/community-restriction.seed.ts ###
+import { User } from '../../users/entities/user.entity';
+import { Community } from '../../communities/entities/community.entity';
+import { CommunityRestriction } from '../../community-restrictions/entities/community-restriction.entity';
+import { communityRestrictionFactory } from '../factories/community-restriction.factory';
+import { AppDataSource } from '../../data-source';
+
+export async function seedCommunityRestrictions(
+  users: User[],
+  communities: Community[],
+): Promise<CommunityRestriction[]> {
+  const restrictions: CommunityRestriction[] = [];
+  const communityRestrictionRepository = AppDataSource.getRepository(CommunityRestriction);
+
+  for (const community of communities) {
+    const bannedUser = users.find((user) => user.id !== community.ownerId);
+    const creatorUser = users[Math.floor(Math.random() * users.length)];
+
+    if (bannedUser && creatorUser) {
+      const restriction = communityRestrictionFactory(
+        bannedUser,
+        community,
+        creatorUser,
+      );
+      restrictions.push(restriction);
+    }
+  }
+
+  return communityRestrictionRepository.save(restrictions);
+}
+
+---
+
+
 ### FILE: backend/src/database/seeds/comment.seed.ts ###
 import { AppDataSource } from '../../data-source';
 import { commentFactory } from '../factories/comment.factory';
@@ -301,6 +335,8 @@ import { communityMembershipFactory } from '../factories/community-memberships.f
 import { CommunityMembership } from '../../community-memberships/entities/community-memberships.entity';
 import { User } from '../../users/entities/user.entity';
 import { Community } from '../../communities/entities/community.entity';
+import { CommunityMembershipRole } from '../../community-memberships/types';
+
 
 export async function seedCommunityMemberships(
   users: User[],
@@ -311,24 +347,37 @@ export async function seedCommunityMemberships(
 
   const memberships: CommunityMembership[] = [];
 
+  // Track next moderator rank per community
+  const nextRankByCommunity = new Map<number, number>();
+
   for (const user of users) {
-    const numMemberships = Math.floor(Math.random() * 3) + 1;
+    const numMemberships = Math.floor(Math.random() * 3) + 1; // 1 to 3 communities
     const shuffled = [...communities].sort(() => 0.5 - Math.random());
     const toSubscribe = shuffled.slice(0, numMemberships);
 
-    for (const community of toSubscribe) {
+    for (let i = 0; i < toSubscribe.length; i++) {
+      const community = toSubscribe[i];
       const membership = communityMembershipFactory();
       membership.userId = user.id;
       membership.communityId = community.id;
+
+      // First community for a user is always a moderator role
+      if (i === 0) {
+        membership.role = CommunityMembershipRole.MODERATOR;
+        const nextRank = nextRankByCommunity.get(community.id) ?? 0;
+        membership.rank = nextRank;
+        nextRankByCommunity.set(community.id, nextRank + 1);
+      } else {
+        membership.role = CommunityMembershipRole.MEMBER;
+        membership.rank = null;
+      }
+
       memberships.push(membership);
     }
   }
 
   await membershipRepo.save(memberships);
 
-  // ─────────────────────────────────────────────
-  // UPDATE subscribers_count (CORRECT WAY)
-  // ─────────────────────────────────────────────
   await communityRepo
     .createQueryBuilder()
     .update(Community)
@@ -336,27 +385,132 @@ export async function seedCommunityMemberships(
       membersCount: () => `
         (
           SELECT COUNT(*)
-          FROM community_memberships cs
-          WHERE cs.communityId = communities.id
+          FROM community_memberships cm
+          WHERE cm.communityId = communities.id
         )
       `,
     })
     .execute();
 
   console.log(`Seeded ${memberships.length} community memberships ✅`);
-  console.log(`Updated communities.subscribers_count ✅`);
+  console.log(`Updated communities.membersCount ✅`);
 
   return memberships;
 }
 
-if (require.main === module) {
-  AppDataSource.initialize().then(async () => {
-    const userRepo = AppDataSource.getRepository(User);
-    const communityRepo = AppDataSource.getRepository(Community);
-    const users = await userRepo.find();
-    const communities = await communityRepo.find();
-    await seedCommunityMemberships(users, communities);
-  }).catch(error => console.error('Seeding failed ❌', error));
+---
+
+
+### FILE: backend/src/database/seeds/community-membership-request.seed.ts ###
+import { AppDataSource } from '../../data-source';
+import {
+  CommunityMembershipRequest,
+  CommunityMembershipRequestStatus,
+} from '../../community-membership-requests/entities/community-membership-request.entity';
+import { communityMembershipRequestFactory } from '../factories/community-membership-request.factory';
+import { User } from '../../users/entities/user.entity';
+import { Community } from '../../communities/entities/community.entity';
+import { CommunityMembership } from '../../community-memberships/entities/community-memberships.entity';
+import { communityMembershipFactory } from '../factories/community-memberships.factory';
+import { CommunityMembershipRole } from '../../community-memberships/types';
+
+export async function seedCommunityMembershipRequests(
+  users: User[],
+  communities: Community[],
+): Promise<CommunityMembershipRequest[]> {
+  const requestRepo = AppDataSource.getRepository(CommunityMembershipRequest);
+  const membershipRepo = AppDataSource.getRepository(CommunityMembership);
+  const communityRepo = AppDataSource.getRepository(Community);
+
+
+  if (users.length === 0 || communities.length === 0) {
+    console.warn(
+      'Skipping CommunityMembershipRequest seeding: No users or communities found.',
+    );
+    return [];
+  }
+
+  const communityMembershipRequests: CommunityMembershipRequest[] = [];
+  const numberOfRequestsToAttempt = 50; // You can adjust this number
+
+  // To keep track of already created requests to avoid duplicates
+  const createdRequestPairs = new Set<string>();
+
+  for (let i = 0; i < numberOfRequestsToAttempt; i++) {
+    const randomUser = users[Math.floor(Math.random() * users.length)];
+    const randomCommunity =
+      communities[Math.floor(Math.random() * communities.length)];
+
+    const pairKey = `${randomUser.id}-${randomCommunity.id}`;
+
+    if (createdRequestPairs.has(pairKey)) {
+      continue; // Skip if this pair already has a pending request
+    }
+
+    // Check for existing request OR existing membership to prevent conflicts
+    const existingRequest = await requestRepo.findOne({
+      where: {
+        userId: randomUser.id,
+        communityId: randomCommunity.id,
+      },
+    });
+
+    const existingMembership = await membershipRepo.findOne({
+      where: {
+        userId: randomUser.id,
+        communityId: randomCommunity.id,
+      },
+    });
+
+
+    if (!existingRequest && !existingMembership) {
+      communityMembershipRequests.push(
+        communityMembershipRequestFactory(randomUser, randomCommunity),
+      );
+      createdRequestPairs.add(pairKey);
+    }
+  }
+
+  const savedRequests = await requestRepo.save(communityMembershipRequests);
+  console.log(`Seeded ${savedRequests.length} community membership requests ✅`);
+
+  const communityMemberships: CommunityMembership[] = [];
+  // Track next moderator rank per community
+  const nextRankByCommunity = new Map<number, number>();
+
+
+  for (const request of savedRequests) {
+    if (request.status === CommunityMembershipRequestStatus.ACCEPTED) {
+      const membership = communityMembershipFactory();
+      membership.userId = request.userId;
+      membership.communityId = request.communityId;
+      membership.user = request.user;
+      membership.community = request.community;
+      membership.role = CommunityMembershipRole.MEMBER; // Always assign MEMBER role
+      membership.rank = null;
+      communityMemberships.push(membership);
+    }
+  }
+
+  await membershipRepo.save(communityMemberships);
+  console.log(`Seeded ${communityMemberships.length} community memberships from accepted requests ✅`);
+
+  await communityRepo
+    .createQueryBuilder()
+    .update(Community)
+    .set({
+      membersCount: () => `
+        (
+          SELECT COUNT(*)
+          FROM community_memberships cm
+          WHERE cm.communityId = communities.id
+        )
+      `,
+    })
+    .execute();
+  console.log(`Updated communities.membersCount for new memberships ✅`);
+
+  return savedRequests;
 }
 
 ---
@@ -400,6 +554,8 @@ import { seedComments } from './comment.seed';
 import { seedReactions } from './reaction.seed';
 import { seedCommunities } from './community.seed';
 import { seedCommunityMemberships } from './community-memberships.seed';
+import { seedCommunityMembershipRequests } from './community-membership-request.seed';
+import { seedCommunityRestrictions } from './community-restriction.seed';
 import { AppDataSource } from '../../data-source';
 
 async function main() {
@@ -423,6 +579,12 @@ async function main() {
     // Seed community memberships
     await seedCommunityMemberships(users, communities);
 
+    // Seed community membership requests
+    await seedCommunityMembershipRequests(users, communities);
+
+    // Seed community restrictions
+    await seedCommunityRestrictions(users, communities);
+
     console.log('Database seeding complete ✅');
   } catch (error) {
     console.error('Seeding failed ❌', error);
@@ -433,6 +595,67 @@ async function main() {
 }
 
 main();
+
+---
+
+
+### FILE: backend/src/database/factories/community-membership-request.factory.ts ###
+import {
+  CommunityMembershipRequest,
+  CommunityMembershipRequestStatus,
+} from '../../community-membership-requests/entities/community-membership-request.entity';
+import { User } from '../../users/entities/user.entity';
+import { Community } from '../../communities/entities/community.entity';
+import { faker } from '@faker-js/faker';
+
+export function communityMembershipRequestFactory(
+  user: User,
+  community: Community,
+): CommunityMembershipRequest {
+  const request = new CommunityMembershipRequest();
+  request.userId = user.id;
+  request.communityId = community.id;
+  request.user = user;
+  request.community = community;
+  request.status = faker.helpers.arrayElement(Object.values(CommunityMembershipRequestStatus));
+  // createdAt is auto-generated by CreateDateColumn
+
+  return request;
+}
+
+---
+
+
+### FILE: backend/src/database/factories/community-restriction.factory.ts ###
+import { CommunityRestriction } from '../../community-restrictions/entities/community-restriction.entity';
+import { CommunityRestrictionType } from '../../community-restrictions/community-restrictions.types';
+import { User } from '../../users/entities/user.entity';
+import { Community } from '../../communities/entities/community.entity';
+import { AppDataSource } from '../../data-source';
+import { Repository } from 'typeorm';
+import { faker } from '@faker-js/faker';
+
+export function communityRestrictionFactory(
+  user: User,
+  community: Community,
+  createdBy: User,
+): CommunityRestriction {
+  const communityRestrictionRepository: Repository<CommunityRestriction> =
+    AppDataSource.getRepository(CommunityRestriction);
+
+  return communityRestrictionRepository.create({
+    restrictionType: faker.helpers.arrayElement([
+      CommunityRestrictionType.BAN,
+      CommunityRestrictionType.MUTE,
+    ]),
+    reason: faker.lorem.sentence(),
+    expiresAt: faker.date.future(),
+    user: user,
+    community: community,
+    createdBy: createdBy,
+    createdById: createdBy.id,
+  });
+}
 
 ---
 
@@ -579,6 +802,39 @@ export function communityFactory(): Community {
   community.communityType = faker.helpers.arrayElement(Object.values(CommunityType));
   community.membersCount = faker.number.int({ min: 0, max: 1000 });
   return community;
+}
+
+---
+
+
+### FILE: backend/src/database/migrations/1766849789902-AddReasonToRestricttions.ts ###
+import { MigrationInterface, QueryRunner } from "typeorm";
+
+export class AddReasonToRestricttions1766849789902 implements MigrationInterface {
+    name = 'AddReasonToRestricttions1766849789902'
+
+    public async up(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`CREATE TABLE "temporary_community_restrictions" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "restrictionType" varchar CHECK( "restrictionType" IN ('ban','mute') ) NOT NULL, "createdById" integer NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "communityId" integer, "userId" integer, "reason" text, "expiresAt" datetime, CONSTRAINT "FK_6b3370beb21ea2316b1e3c444ad" FOREIGN KEY ("createdById") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_7399cce662943e126a61f635e5c" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_066c4afe6f1ba3f2178159967cc" FOREIGN KEY ("communityId") REFERENCES "communities" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION)`);
+        await queryRunner.query(`INSERT INTO "temporary_community_restrictions"("id", "restrictionType", "createdById", "createdAt", "communityId", "userId") SELECT "id", "restrictionType", "createdById", "createdAt", "communityId", "userId" FROM "community_restrictions"`);
+        await queryRunner.query(`DROP TABLE "community_restrictions"`);
+        await queryRunner.query(`ALTER TABLE "temporary_community_restrictions" RENAME TO "community_restrictions"`);
+        await queryRunner.query(`CREATE TABLE "temporary_community_memberships" ("userId" integer NOT NULL, "communityId" integer NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "role" varchar CHECK( "role" IN ('moderator','member') ) NOT NULL DEFAULT ('member'), "rank" integer, CONSTRAINT "FK_6ea82875cc58f4b1b14ebe49717" FOREIGN KEY ("communityId") REFERENCES "communities" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_488d1ca96e355e11d83480a8f2c" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, PRIMARY KEY ("userId", "communityId"))`);
+        await queryRunner.query(`INSERT INTO "temporary_community_memberships"("userId", "communityId", "createdAt", "role", "rank") SELECT "userId", "communityId", "createdAt", "role", "rank" FROM "community_memberships"`);
+        await queryRunner.query(`DROP TABLE "community_memberships"`);
+        await queryRunner.query(`ALTER TABLE "temporary_community_memberships" RENAME TO "community_memberships"`);
+    }
+
+    public async down(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`ALTER TABLE "community_memberships" RENAME TO "temporary_community_memberships"`);
+        await queryRunner.query(`CREATE TABLE "community_memberships" ("userId" integer NOT NULL, "communityId" integer NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "role" varchar CHECK( "role" IN ('owner','admin','moderator','member') ) NOT NULL DEFAULT ('member'), "rank" integer, CONSTRAINT "FK_6ea82875cc58f4b1b14ebe49717" FOREIGN KEY ("communityId") REFERENCES "communities" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_488d1ca96e355e11d83480a8f2c" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, PRIMARY KEY ("userId", "communityId"))`);
+        await queryRunner.query(`INSERT INTO "community_memberships"("userId", "communityId", "createdAt", "role", "rank") SELECT "userId", "communityId", "createdAt", "role", "rank" FROM "temporary_community_memberships"`);
+        await queryRunner.query(`DROP TABLE "temporary_community_memberships"`);
+        await queryRunner.query(`ALTER TABLE "community_restrictions" RENAME TO "temporary_community_restrictions"`);
+        await queryRunner.query(`CREATE TABLE "community_restrictions" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "restrictionType" varchar CHECK( "restrictionType" IN ('ban','mute') ) NOT NULL, "createdById" integer NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "communityId" integer, "userId" integer, CONSTRAINT "FK_6b3370beb21ea2316b1e3c444ad" FOREIGN KEY ("createdById") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_7399cce662943e126a61f635e5c" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_066c4afe6f1ba3f2178159967cc" FOREIGN KEY ("communityId") REFERENCES "communities" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION)`);
+        await queryRunner.query(`INSERT INTO "community_restrictions"("id", "restrictionType", "createdById", "createdAt", "communityId", "userId") SELECT "id", "restrictionType", "createdById", "createdAt", "communityId", "userId" FROM "temporary_community_restrictions"`);
+        await queryRunner.query(`DROP TABLE "temporary_community_restrictions"`);
+    }
+
 }
 
 ---
@@ -805,65 +1061,6 @@ export class RefactorReactions1765490375370 implements MigrationInterface {
 ---
 
 
-### FILE: backend/src/database/migrations/1766774568393-CreateCommunityRestrictionsTable.ts ###
-import { MigrationInterface, QueryRunner } from "typeorm";
-
-export class CreateCommunityRestrictionsTable1766774568393 implements MigrationInterface {
-    name = 'CreateCommunityRestrictionsTable1766774568393'
-
-    public async up(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`CREATE TABLE "community_restrictions" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "restrictionType" varchar CHECK( "restrictionType" IN ('ban','mute') ) NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "communityId" integer, "userId" integer)`);
-        await queryRunner.query(`CREATE TABLE "temporary_community_membership_requests" ("userId" integer NOT NULL, "communityId" integer NOT NULL, "status" varchar CHECK( "status" IN ('pending','accepted','rejected') ) NOT NULL DEFAULT ('pending'), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), CONSTRAINT "FK_c2cdfa8ac8820dca58f4a706773" FOREIGN KEY ("communityId") REFERENCES "communities" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_f41b77e974eb717317d0b8d6469" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION)`);
-        await queryRunner.query(`INSERT INTO "temporary_community_membership_requests"("userId", "communityId", "status", "createdAt") SELECT "userId", "communityId", "status", "createdAt" FROM "community_membership_requests"`);
-        await queryRunner.query(`DROP TABLE "community_membership_requests"`);
-        await queryRunner.query(`ALTER TABLE "temporary_community_membership_requests" RENAME TO "community_membership_requests"`);
-        await queryRunner.query(`CREATE TABLE "temporary_community_membership_requests" ("userId" integer NOT NULL, "communityId" integer NOT NULL, "status" varchar CHECK( "status" IN ('pending','accepted','rejected') ) NOT NULL DEFAULT ('pending'), "createdAt" datetime NOT NULL DEFAULT (datetime('now')))`);
-        await queryRunner.query(`INSERT INTO "temporary_community_membership_requests"("userId", "communityId", "status", "createdAt") SELECT "userId", "communityId", "status", "createdAt" FROM "community_membership_requests"`);
-        await queryRunner.query(`DROP TABLE "community_membership_requests"`);
-        await queryRunner.query(`ALTER TABLE "temporary_community_membership_requests" RENAME TO "community_membership_requests"`);
-        await queryRunner.query(`CREATE TABLE "temporary_community_membership_requests" ("userId" integer NOT NULL, "communityId" integer NOT NULL, "status" varchar CHECK( "status" IN ('pending','accepted','rejected') ) NOT NULL DEFAULT ('pending'), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), PRIMARY KEY ("userId", "communityId"))`);
-        await queryRunner.query(`INSERT INTO "temporary_community_membership_requests"("userId", "communityId", "status", "createdAt") SELECT "userId", "communityId", "status", "createdAt" FROM "community_membership_requests"`);
-        await queryRunner.query(`DROP TABLE "community_membership_requests"`);
-        await queryRunner.query(`ALTER TABLE "temporary_community_membership_requests" RENAME TO "community_membership_requests"`);
-        await queryRunner.query(`CREATE TABLE "temporary_community_membership_requests" ("userId" integer NOT NULL, "communityId" integer NOT NULL, "status" varchar CHECK( "status" IN ('pending','accepted','rejected') ) NOT NULL DEFAULT ('pending'), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), CONSTRAINT "FK_f41b77e974eb717317d0b8d6469" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_c2cdfa8ac8820dca58f4a706773" FOREIGN KEY ("communityId") REFERENCES "communities" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, PRIMARY KEY ("userId", "communityId"))`);
-        await queryRunner.query(`INSERT INTO "temporary_community_membership_requests"("userId", "communityId", "status", "createdAt") SELECT "userId", "communityId", "status", "createdAt" FROM "community_membership_requests"`);
-        await queryRunner.query(`DROP TABLE "community_membership_requests"`);
-        await queryRunner.query(`ALTER TABLE "temporary_community_membership_requests" RENAME TO "community_membership_requests"`);
-        await queryRunner.query(`CREATE TABLE "temporary_community_restrictions" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "restrictionType" varchar CHECK( "restrictionType" IN ('ban','mute') ) NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "communityId" integer, "userId" integer, CONSTRAINT "FK_066c4afe6f1ba3f2178159967cc" FOREIGN KEY ("communityId") REFERENCES "communities" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_7399cce662943e126a61f635e5c" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION)`);
-        await queryRunner.query(`INSERT INTO "temporary_community_restrictions"("id", "restrictionType", "createdAt", "communityId", "userId") SELECT "id", "restrictionType", "createdAt", "communityId", "userId" FROM "community_restrictions"`);
-        await queryRunner.query(`DROP TABLE "community_restrictions"`);
-        await queryRunner.query(`ALTER TABLE "temporary_community_restrictions" RENAME TO "community_restrictions"`);
-    }
-
-    public async down(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`ALTER TABLE "community_restrictions" RENAME TO "temporary_community_restrictions"`);
-        await queryRunner.query(`CREATE TABLE "community_restrictions" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "restrictionType" varchar CHECK( "restrictionType" IN ('ban','mute') ) NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "communityId" integer, "userId" integer)`);
-        await queryRunner.query(`INSERT INTO "community_restrictions"("id", "restrictionType", "createdAt", "communityId", "userId") SELECT "id", "restrictionType", "createdAt", "communityId", "userId" FROM "temporary_community_restrictions"`);
-        await queryRunner.query(`DROP TABLE "temporary_community_restrictions"`);
-        await queryRunner.query(`ALTER TABLE "community_membership_requests" RENAME TO "temporary_community_membership_requests"`);
-        await queryRunner.query(`CREATE TABLE "community_membership_requests" ("userId" integer NOT NULL, "communityId" integer NOT NULL, "status" varchar CHECK( "status" IN ('pending','accepted','rejected') ) NOT NULL DEFAULT ('pending'), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), PRIMARY KEY ("userId", "communityId"))`);
-        await queryRunner.query(`INSERT INTO "community_membership_requests"("userId", "communityId", "status", "createdAt") SELECT "userId", "communityId", "status", "createdAt" FROM "temporary_community_membership_requests"`);
-        await queryRunner.query(`DROP TABLE "temporary_community_membership_requests"`);
-        await queryRunner.query(`ALTER TABLE "community_membership_requests" RENAME TO "temporary_community_membership_requests"`);
-        await queryRunner.query(`CREATE TABLE "community_membership_requests" ("userId" integer NOT NULL, "communityId" integer NOT NULL, "status" varchar CHECK( "status" IN ('pending','accepted','rejected') ) NOT NULL DEFAULT ('pending'), "createdAt" datetime NOT NULL DEFAULT (datetime('now')))`);
-        await queryRunner.query(`INSERT INTO "community_membership_requests"("userId", "communityId", "status", "createdAt") SELECT "userId", "communityId", "status", "createdAt" FROM "temporary_community_membership_requests"`);
-        await queryRunner.query(`DROP TABLE "temporary_community_membership_requests"`);
-        await queryRunner.query(`ALTER TABLE "community_membership_requests" RENAME TO "temporary_community_membership_requests"`);
-        await queryRunner.query(`CREATE TABLE "community_membership_requests" ("userId" integer NOT NULL, "communityId" integer NOT NULL, "status" varchar CHECK( "status" IN ('pending','accepted','rejected') ) NOT NULL DEFAULT ('pending'), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), CONSTRAINT "FK_f41b77e974eb717317d0b8d6469" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION)`);
-        await queryRunner.query(`INSERT INTO "community_membership_requests"("userId", "communityId", "status", "createdAt") SELECT "userId", "communityId", "status", "createdAt" FROM "temporary_community_membership_requests"`);
-        await queryRunner.query(`DROP TABLE "temporary_community_membership_requests"`);
-        await queryRunner.query(`ALTER TABLE "community_membership_requests" RENAME TO "temporary_community_membership_requests"`);
-        await queryRunner.query(`CREATE TABLE "community_membership_requests" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "userId" integer NOT NULL, "communityId" integer NOT NULL, "status" varchar CHECK( "status" IN ('pending','accepted','rejected') ) NOT NULL DEFAULT ('pending'), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), CONSTRAINT "FK_c2cdfa8ac8820dca58f4a706773" FOREIGN KEY ("communityId") REFERENCES "communities" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_f41b77e974eb717317d0b8d6469" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION)`);
-        await queryRunner.query(`INSERT INTO "community_membership_requests"("userId", "communityId", "status", "createdAt") SELECT "userId", "communityId", "status", "createdAt" FROM "temporary_community_membership_requests"`);
-        await queryRunner.query(`DROP TABLE "temporary_community_membership_requests"`);
-        await queryRunner.query(`DROP TABLE "community_restrictions"`);
-    }
-
-}
-
----
-
-
 ### FILE: backend/src/database/migrations/1765821272324-AddLikesDislikesToPostsComments.ts ###
 import { MigrationInterface, QueryRunner } from "typeorm";
 
@@ -983,6 +1180,73 @@ export class Inital1764720178421 implements MigrationInterface {
     await queryRunner.query(`DROP TABLE "comment"`);
     await queryRunner.query(`DROP TABLE "user"`);
   }
+}
+
+---
+
+
+### FILE: backend/src/database/migrations/1766792244031-AddCreatedByToCommunityRestrictions.ts ###
+import { MigrationInterface, QueryRunner } from "typeorm";
+
+export class AddCreatedByToCommunityRestrictions1766792244031 implements MigrationInterface {
+    name = 'AddCreatedByToCommunityRestrictions1766792244031'
+
+    public async up(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`CREATE TABLE "community_restrictions" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "restrictionType" varchar CHECK( "restrictionType" IN ('ban','mute') ) NOT NULL, "createdById" integer NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "communityId" integer, "userId" integer)`);
+        await queryRunner.query(`CREATE TABLE "temporary_community_membership_requests" ("userId" integer NOT NULL, "communityId" integer NOT NULL, "status" varchar CHECK( "status" IN ('pending','accepted','rejected') ) NOT NULL DEFAULT ('pending'), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), CONSTRAINT "FK_c2cdfa8ac8820dca58f4a706773" FOREIGN KEY ("communityId") REFERENCES "communities" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_f41b77e974eb717317d0b8d6469" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION)`);
+        await queryRunner.query(`INSERT INTO "temporary_community_membership_requests"("userId", "communityId", "status", "createdAt") SELECT "userId", "communityId", "status", "createdAt" FROM "community_membership_requests"`);
+        await queryRunner.query(`DROP TABLE "community_membership_requests"`);
+        await queryRunner.query(`ALTER TABLE "temporary_community_membership_requests" RENAME TO "community_membership_requests"`);
+        await queryRunner.query(`CREATE TABLE "temporary_community_memberships" ("userId" integer NOT NULL, "communityId" integer NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "role" varchar CHECK( "role" IN ('owner','admin','moderator','member') ) NOT NULL DEFAULT ('member'), "rank" integer, CONSTRAINT "FK_488d1ca96e355e11d83480a8f2c" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_6ea82875cc58f4b1b14ebe49717" FOREIGN KEY ("communityId") REFERENCES "communities" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, PRIMARY KEY ("userId", "communityId"))`);
+        await queryRunner.query(`INSERT INTO "temporary_community_memberships"("userId", "communityId", "createdAt", "role") SELECT "userId", "communityId", "createdAt", "role" FROM "community_memberships"`);
+        await queryRunner.query(`DROP TABLE "community_memberships"`);
+        await queryRunner.query(`ALTER TABLE "temporary_community_memberships" RENAME TO "community_memberships"`);
+        await queryRunner.query(`CREATE TABLE "temporary_community_membership_requests" ("userId" integer NOT NULL, "communityId" integer NOT NULL, "status" varchar CHECK( "status" IN ('pending','accepted','rejected') ) NOT NULL DEFAULT ('pending'), "createdAt" datetime NOT NULL DEFAULT (datetime('now')))`);
+        await queryRunner.query(`INSERT INTO "temporary_community_membership_requests"("userId", "communityId", "status", "createdAt") SELECT "userId", "communityId", "status", "createdAt" FROM "community_membership_requests"`);
+        await queryRunner.query(`DROP TABLE "community_membership_requests"`);
+        await queryRunner.query(`ALTER TABLE "temporary_community_membership_requests" RENAME TO "community_membership_requests"`);
+        await queryRunner.query(`CREATE TABLE "temporary_community_membership_requests" ("userId" integer NOT NULL, "communityId" integer NOT NULL, "status" varchar CHECK( "status" IN ('pending','accepted','rejected') ) NOT NULL DEFAULT ('pending'), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), PRIMARY KEY ("userId", "communityId"))`);
+        await queryRunner.query(`INSERT INTO "temporary_community_membership_requests"("userId", "communityId", "status", "createdAt") SELECT "userId", "communityId", "status", "createdAt" FROM "community_membership_requests"`);
+        await queryRunner.query(`DROP TABLE "community_membership_requests"`);
+        await queryRunner.query(`ALTER TABLE "temporary_community_membership_requests" RENAME TO "community_membership_requests"`);
+        await queryRunner.query(`CREATE TABLE "temporary_community_membership_requests" ("userId" integer NOT NULL, "communityId" integer NOT NULL, "status" varchar CHECK( "status" IN ('pending','accepted','rejected') ) NOT NULL DEFAULT ('pending'), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), CONSTRAINT "FK_f41b77e974eb717317d0b8d6469" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_c2cdfa8ac8820dca58f4a706773" FOREIGN KEY ("communityId") REFERENCES "communities" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, PRIMARY KEY ("userId", "communityId"))`);
+        await queryRunner.query(`INSERT INTO "temporary_community_membership_requests"("userId", "communityId", "status", "createdAt") SELECT "userId", "communityId", "status", "createdAt" FROM "community_membership_requests"`);
+        await queryRunner.query(`DROP TABLE "community_membership_requests"`);
+        await queryRunner.query(`ALTER TABLE "temporary_community_membership_requests" RENAME TO "community_membership_requests"`);
+        await queryRunner.query(`CREATE TABLE "temporary_community_restrictions" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "restrictionType" varchar CHECK( "restrictionType" IN ('ban','mute') ) NOT NULL, "createdById" integer NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "communityId" integer, "userId" integer, CONSTRAINT "FK_066c4afe6f1ba3f2178159967cc" FOREIGN KEY ("communityId") REFERENCES "communities" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_7399cce662943e126a61f635e5c" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_6b3370beb21ea2316b1e3c444ad" FOREIGN KEY ("createdById") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION)`);
+        await queryRunner.query(`INSERT INTO "temporary_community_restrictions"("id", "restrictionType", "createdById", "createdAt", "communityId", "userId") SELECT "id", "restrictionType", "createdById", "createdAt", "communityId", "userId" FROM "community_restrictions"`);
+        await queryRunner.query(`DROP TABLE "community_restrictions"`);
+        await queryRunner.query(`ALTER TABLE "temporary_community_restrictions" RENAME TO "community_restrictions"`);
+    }
+
+    public async down(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`ALTER TABLE "community_restrictions" RENAME TO "temporary_community_restrictions"`);
+        await queryRunner.query(`CREATE TABLE "community_restrictions" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "restrictionType" varchar CHECK( "restrictionType" IN ('ban','mute') ) NOT NULL, "createdById" integer NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "communityId" integer, "userId" integer)`);
+        await queryRunner.query(`INSERT INTO "community_restrictions"("id", "restrictionType", "createdById", "createdAt", "communityId", "userId") SELECT "id", "restrictionType", "createdById", "createdAt", "communityId", "userId" FROM "temporary_community_restrictions"`);
+        await queryRunner.query(`DROP TABLE "temporary_community_restrictions"`);
+        await queryRunner.query(`ALTER TABLE "community_membership_requests" RENAME TO "temporary_community_membership_requests"`);
+        await queryRunner.query(`CREATE TABLE "community_membership_requests" ("userId" integer NOT NULL, "communityId" integer NOT NULL, "status" varchar CHECK( "status" IN ('pending','accepted','rejected') ) NOT NULL DEFAULT ('pending'), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), PRIMARY KEY ("userId", "communityId"))`);
+        await queryRunner.query(`INSERT INTO "community_membership_requests"("userId", "communityId", "status", "createdAt") SELECT "userId", "communityId", "status", "createdAt" FROM "temporary_community_membership_requests"`);
+        await queryRunner.query(`DROP TABLE "temporary_community_membership_requests"`);
+        await queryRunner.query(`ALTER TABLE "community_membership_requests" RENAME TO "temporary_community_membership_requests"`);
+        await queryRunner.query(`CREATE TABLE "community_membership_requests" ("userId" integer NOT NULL, "communityId" integer NOT NULL, "status" varchar CHECK( "status" IN ('pending','accepted','rejected') ) NOT NULL DEFAULT ('pending'), "createdAt" datetime NOT NULL DEFAULT (datetime('now')))`);
+        await queryRunner.query(`INSERT INTO "community_membership_requests"("userId", "communityId", "status", "createdAt") SELECT "userId", "communityId", "status", "createdAt" FROM "temporary_community_membership_requests"`);
+        await queryRunner.query(`DROP TABLE "temporary_community_membership_requests"`);
+        await queryRunner.query(`ALTER TABLE "community_membership_requests" RENAME TO "temporary_community_membership_requests"`);
+        await queryRunner.query(`CREATE TABLE "community_membership_requests" ("userId" integer NOT NULL, "communityId" integer NOT NULL, "status" varchar CHECK( "status" IN ('pending','accepted','rejected') ) NOT NULL DEFAULT ('pending'), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), CONSTRAINT "FK_f41b77e974eb717317d0b8d6469" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION)`);
+        await queryRunner.query(`INSERT INTO "community_membership_requests"("userId", "communityId", "status", "createdAt") SELECT "userId", "communityId", "status", "createdAt" FROM "temporary_community_membership_requests"`);
+        await queryRunner.query(`DROP TABLE "temporary_community_membership_requests"`);
+        await queryRunner.query(`ALTER TABLE "community_memberships" RENAME TO "temporary_community_memberships"`);
+        await queryRunner.query(`CREATE TABLE "community_memberships" ("userId" integer NOT NULL, "communityId" integer NOT NULL, "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "role" varchar CHECK( "role" IN ('owner','admin','moderator','member') ) NOT NULL DEFAULT ('member'), CONSTRAINT "FK_488d1ca96e355e11d83480a8f2c" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_6ea82875cc58f4b1b14ebe49717" FOREIGN KEY ("communityId") REFERENCES "communities" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, PRIMARY KEY ("userId", "communityId"))`);
+        await queryRunner.query(`INSERT INTO "community_memberships"("userId", "communityId", "createdAt", "role") SELECT "userId", "communityId", "createdAt", "role" FROM "temporary_community_memberships"`);
+        await queryRunner.query(`DROP TABLE "temporary_community_memberships"`);
+        await queryRunner.query(`ALTER TABLE "community_membership_requests" RENAME TO "temporary_community_membership_requests"`);
+        await queryRunner.query(`CREATE TABLE "community_membership_requests" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "userId" integer NOT NULL, "communityId" integer NOT NULL, "status" varchar CHECK( "status" IN ('pending','accepted','rejected') ) NOT NULL DEFAULT ('pending'), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), CONSTRAINT "FK_c2cdfa8ac8820dca58f4a706773" FOREIGN KEY ("communityId") REFERENCES "communities" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_f41b77e974eb717317d0b8d6469" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION)`);
+        await queryRunner.query(`INSERT INTO "community_membership_requests"("userId", "communityId", "status", "createdAt") SELECT "userId", "communityId", "status", "createdAt" FROM "temporary_community_membership_requests"`);
+        await queryRunner.query(`DROP TABLE "temporary_community_membership_requests"`);
+        await queryRunner.query(`DROP TABLE "community_restrictions"`);
+    }
+
 }
 
 ---
@@ -1953,9 +2217,7 @@ export class RemoveIdFromMembRequests1766761884496 implements MigrationInterface
 
 ### FILE: backend/src/community-memberships/types.ts ###
 export enum CommunityMembershipRole {
-  OWNER = 'owner',        // top-level owner (creator / transferable)
-  ADMIN = 'admin',        // delegated community admins / managers
-  MODERATOR = 'moderator',
+   MODERATOR = 'moderator',
   MEMBER = 'member',
 }
 
@@ -1972,6 +2234,7 @@ import {
   UseGuards,
   Get,
   Query,
+  Body,
 } from '@nestjs/common';
 import { CommunityMembershipsService } from './community-memberships.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -1983,25 +2246,27 @@ import { PaginationMetaDto } from 'src/common/dto/pagination-meta.dto';
 import { CommunityMembershipQueryDto } from './dto/community-memberships-query.dto';
 import { CommunityMembershipResponseDto } from './dto/community-memberships-response.dto';
 
+
+
 @Controller()
 export class CommunityMembershipsController {
   constructor(
     private readonly communityMembershipsService: CommunityMembershipsService,
-  ) { }
+  ) {}
 
-
-  // Unified GET endpoint
+  // -----------------------------
+  // GET memberships (paginated)
+  // -----------------------------
+  @UseGuards(JwtAuthGuard)
   @Get('community-memberships')
   async findMemberships(
-   @Query() query: CommunityMembershipQueryDto,
+    @Query() query: CommunityMembershipQueryDto,
   ): Promise<PaginatedResponseDto<CommunityMembershipResponseDto>> {
-    
-
     const { data, count } = await this.communityMembershipsService.findMemberships({
-      userId:query.userId,
-      communityId:query.communityId ,
-      page:query.page ,
-      limit : query.limit
+      userId: query.userId,
+      communityId: query.communityId,
+      page: query.page,
+      limit: query.limit,
     });
 
     const paginationMeta = new PaginationMetaDto(
@@ -2011,22 +2276,41 @@ export class CommunityMembershipsController {
       data.length,
     );
 
-    return new PaginatedResponseDto(data.map(CommunityMembershipResponseDto.fromEntity), paginationMeta);
+    return new PaginatedResponseDto(
+      data.map(CommunityMembershipResponseDto.fromEntity),
+      paginationMeta,
+    );
   }
 
-
-  
-@UseGuards(JwtAuthGuard)
+  // -----------------------------
+  // DELETE /users/me/communities/:communityId/memberships
+  // Self-leave
+  // -----------------------------
+  @UseGuards(JwtAuthGuard)
   @Delete('users/me/communities/:communityId/memberships')
-  async deleteMembership(
+  async leaveCommunity(
     @Param('communityId', ParseIntPipe) communityId: number,
     @GetUser() user: User,
   ): Promise<ResponseDto<boolean>> {
-    await this.communityMembershipsService.deleteMembership(communityId, user.id);
+    await this.communityMembershipsService.leaveCommunity(user.id, communityId);
+    return new ResponseDto(true);
+  }
+
+  // -----------------------------
+  // DELETE /communities/:communityId/members/:targetUserId
+  // Moderator removes a member
+  // -----------------------------
+  @UseGuards(JwtAuthGuard)
+  @Delete('communities/:communityId/members/:targetUserId')
+  async removeMember(
+    @Param('communityId', ParseIntPipe) communityId: number,
+    @Param('targetUserId', ParseIntPipe) targetUserId: number,
+    @GetUser() user: User,
+  ): Promise<ResponseDto<boolean>> {
+    await this.communityMembershipsService.removeMember(user.id, targetUserId, communityId);
     return new ResponseDto(true);
   }
 }
-
 
 ---
 
@@ -2034,6 +2318,7 @@ export class CommunityMembershipsController {
 ### FILE: backend/src/community-memberships/community-memberships.service.ts ###
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -2044,6 +2329,7 @@ import { User } from '../users/entities/user.entity';
 import { Community } from '../communities/entities/community.entity'; // Added Community entity
 
 import { CommunityMembership } from './entities/community-memberships.entity';
+import { CommunityMembershipRole } from './types';
 
 interface MembershipQuery {
   userId?: number;
@@ -2099,42 +2385,25 @@ export class CommunityMembershipsService {
       where: { userId, communityId },
     });
   }
-  
-  async deleteMembership(communityId: number, userId: number) {
+  // -----------------------------
+  // 1️⃣ Self-leave
+  // -----------------------------
+  async leaveCommunity(userId: number, communityId: number) {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
     try {
-      // Check community existence
       const community = await queryRunner.manager.findOne(Community, { where: { id: communityId } });
       if (!community) throw new NotFoundException(`Community ${communityId} not found`);
 
-      // Check user existence via UsersService
-      const userExists = await queryRunner.manager.exists(User, {
-        where: { id: userId },
+      const membership = await queryRunner.manager.findOne(CommunityMembership, {
+        where: { userId, communityId },
       });
-      if (!userExists) {
-        throw new NotFoundException(`User ${userId} not found`);
-      }
+      if (!membership) throw new NotFoundException(`You are not a member of community ${communityId}`);
 
-      const existingMembership = await queryRunner.manager.findOne(CommunityMembership, {
-        where: {
-          userId: userId,
-          communityId: community.id,
-        },
-      });
-
-      if (!existingMembership) {
-        throw new NotFoundException(
-          `User ${userId} is not member of to community ${community.id}`,
-        );
-      }
-
-      await queryRunner.manager.remove(existingMembership);
-
-      // Decrement membersCount directly using the repository within the transaction
-      await queryRunner.manager.decrement(Community, { id: community.id }, 'membersCount', 1);
+      await queryRunner.manager.remove(membership);
+      await queryRunner.manager.decrement(Community, { id: communityId }, 'membersCount', 1);
 
       await queryRunner.commitTransaction();
       return { message: 'Left community successfully' };
@@ -2146,7 +2415,50 @@ export class CommunityMembershipsService {
     }
   }
 
+  // -----------------------------
+  // 2️⃣ Moderator removal
+  // -----------------------------
+  async removeMember(actorUserId: number, targetUserId: number, communityId: number) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
+    try {
+      const community = await queryRunner.manager.findOne(Community, { where: { id: communityId } });
+      if (!community) throw new NotFoundException(`Community ${communityId} not found`);
+
+      const actorMembership = await queryRunner.manager.findOne(CommunityMembership, {
+        where: { userId: actorUserId, communityId },
+      });
+      if (!actorMembership || actorMembership.role !== CommunityMembershipRole.MODERATOR) {
+        throw new ForbiddenException('Only moderators can remove members.');
+      }
+
+      const targetMembership = await queryRunner.manager.findOne(CommunityMembership, {
+        where: { userId: targetUserId, communityId },
+      });
+      if (!targetMembership) throw new NotFoundException(`Target user is not a member of this community`);
+
+      // --- Rank check: lower number = higher rank ---
+      if (
+        targetMembership.role === CommunityMembershipRole.MODERATOR &&
+        actorMembership.rank && targetMembership.rank && actorMembership.rank >= targetMembership.rank // actor.rank higher or equal number = lower/equal authority
+      ) {
+        throw new ForbiddenException('Cannot remove a moderator with equal or higher rank.');
+      }
+
+      await queryRunner.manager.remove(targetMembership);
+      await queryRunner.manager.decrement(Community, { id: communityId }, 'membersCount', 1);
+
+      await queryRunner.commitTransaction();
+      return { message: 'Member removed successfully' };
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
 
 }
 
@@ -2185,6 +2497,9 @@ export class CommunityMembership {
     default: CommunityMembershipRole.MEMBER,
   })
   role: CommunityMembershipRole;
+
+  @Column({ type: 'integer', nullable: true })
+  rank: number | null;
 
   @CreateDateColumn()
   createdAt: Date;
@@ -2790,6 +3105,21 @@ export class CommunityMembershipRequestsController {
   ) {
     return this.requestsService.createMembershipRequest(user.id, communityId);
   }
+  /** Accept a membership request (for moderators) */
+  @Post(':userId/accept')
+  async acceptRequest(
+    @Param('communityId', ParseIntPipe) communityId: number,
+    @Param('userId', ParseIntPipe) userId: number,
+    @GetUser() actor: User,
+  ): Promise<ResponseDto<boolean>> {
+    await this.requestsService.acceptMembershipRequest(
+      actor.id,
+      userId,
+      communityId,
+    );
+    return new ResponseDto(true);
+  }
+
 
 @Delete('me')
 removeOwnRequest(
@@ -2988,6 +3318,8 @@ async acceptMembershipRequest(
   const queryRunner = this.dataSource.createQueryRunner();
   await queryRunner.connect();
   await queryRunner.startTransaction();
+  console.log(actorId,userId,communityId);
+  
 
   try {
     // 1. Fetch pending request
@@ -3006,7 +3338,7 @@ async acceptMembershipRequest(
       throw new NotFoundException('Pending membership request not found');
     }
 
-    // 2. Authorization: owner OR admin
+    // 2. Authorization: 
   await this.canManageMembershipRequests(actorId,communityId)
 
 
@@ -3097,7 +3429,7 @@ async removeOwnRequest(
       where: {
         userId: actorId,
         communityId,
-        role: In([CommunityMembershipRole.OWNER, CommunityMembershipRole.ADMIN,CommunityMembershipRole.MODERATOR]),
+        role: In([CommunityMembershipRole.MODERATOR]),
       },
     });
 
@@ -5553,11 +5885,13 @@ export class PostsService {
   }
 
 
-  async updatePostApprovalStatus(postId: number, isApproved: boolean,userId:number): Promise<Post> {
-    const post = await this.postsRepository.findOneBy({ id: postId });
+  async updatePostApprovalStatus(postId: number, isApproved: boolean, userId: number): Promise<Post> {
+    const post = await this.postsRepository.findOne({ where: { id: postId }, relations: ['community'] });
     if (!post) {
       throw new NotFoundException('Post not found');
     }
+
+    await this.canManagePosts(userId, post.community.id);
 
     post.isApproved = isApproved;
     post.approvedAt = isApproved ? new Date() : null;
@@ -5571,6 +5905,26 @@ export class PostsService {
     }
     post.commentsLocked = commentsLocked;
     return this.postsRepository.save(post);
+  }
+
+  private async canManagePosts(userId: number, communityId: number) {
+    const community = await this.communityRepository.findOne({ where: { id: communityId } });
+    if (!community) {
+      throw new NotFoundException('Community not found');
+    }
+    if (community.ownerId === userId) {
+      return true;
+    }
+
+    const membership = await this.membershipRepository.findOne({
+      where: { communityId, userId },
+    });
+
+    if (membership && membership.role === CommunityMembershipRole.MODERATOR) {
+      return true;
+    }
+
+    throw new ForbiddenException('You do not have permission to manage posts in this community.');
   }
 
 
@@ -6856,6 +7210,8 @@ export class CommunitiesService {
 
     return queryBuilder.getManyAndCount();
   }
+
+
   async create(data: {
     userId: number;
     name: string;
@@ -6882,10 +7238,16 @@ export class CommunitiesService {
       const membership = manager.create(CommunityMembership, {
         userId: data.userId,
         communityId: savedCommunity.id,
-        role: CommunityMembershipRole.OWNER,
+        role: CommunityMembershipRole.MODERATOR,
+        rank: 0,
       });
       await manager.save(membership);
-
+    await manager.increment(
+      Community,
+      { id: savedCommunity.id },
+      'membersCount',
+      1,
+    );
       return savedCommunity;
     });
   }
@@ -6907,7 +7269,6 @@ export class CommunitiesService {
           communityId: community.id,
         },
       });
-      console.log(isMember);
       
 
       if (isMember) {
@@ -7145,6 +7506,8 @@ export class CommunitiesController {
   @GetUser() user :User)
   : Promise<ResponseDto<CommunityResponseDto>> {
     const community = await this.communitiesService.findOne(id,user);
+   console.log(community);
+   
     return new ResponseDto(CommunityResponseDto.fromEntity(community));
   }
 
@@ -7766,7 +8129,6 @@ import { CommunityRestrictionQueryDto } from './dto/community-restriction-query.
 export class CommunityRestrictionsController {
   constructor(
     private readonly communityRestrictionsService: CommunityRestrictionsService,
-    private readonly caslService: CaslService,
   ) {}
 
   @Post()
@@ -7781,6 +8143,8 @@ export class CommunityRestrictionsController {
         restrictionType: createCommunityRestrictionDto.restrictionType,
         communityId: createCommunityRestrictionDto.communityId,
         userId: createCommunityRestrictionDto.userId,
+        expiresAt:createCommunityRestrictionDto.expiresAt ,
+        reason:createCommunityRestrictionDto.reason
       },
       user,
     );
@@ -7794,7 +8158,8 @@ export class CommunityRestrictionsController {
     @GetUser() user: User,
   ): Promise<PaginatedResponseDto<CommunityRestrictionResponseDto>> {
     const { data, count } = await this.communityRestrictionsService.findAll(query, user);
-
+    console.log(data);
+    
     const paginationMeta = new PaginationMetaDto(query.page, query.limit, count, data.length);
 
     return new PaginatedResponseDto(
@@ -7864,11 +8229,23 @@ export class CommunityRestriction {
   @Column({ type: 'simple-enum', enum: CommunityRestrictionType })
   restrictionType: CommunityRestrictionType;
 
+  @Column({ type: 'text', nullable: true })
+  reason: string;
+
+  @Column({ type: 'datetime', nullable: true })
+  expiresAt?: Date;
+
   @ManyToOne(() => Community, (community) => community.restrictions)
   community: Community;
 
   @ManyToOne(() => User, (user) => user.communityRestrictions)
   user: User;
+
+  @ManyToOne(() => User)
+  createdBy: User;
+
+  @Column()
+  createdById: number;
 
   @CreateDateColumn()
   createdAt: Date;
@@ -7908,11 +8285,14 @@ export class CommunityRestrictionsService {
     private readonly communityMembershipRepository: Repository<CommunityMembership>,
   ) {}
 
+  // Create a restriction (members only, moderators cannot be restricted)
   async create(
     data: {
       restrictionType: CommunityRestrictionType;
       communityId: number;
       userId: number;
+      reason?: string;
+      expiresAt?: Date;
     },
     user: User,
   ) {
@@ -7922,26 +8302,26 @@ export class CommunityRestrictionsService {
     if (!community) {
       throw new NotFoundException('Community not found');
     }
+console.log(data.expiresAt);
 
     const targetUser = await this.userRepository.findOne({
       where: { id: data.userId },
+      relations: ['communityMemberships'],
     });
     if (!targetUser) {
       throw new NotFoundException('User to restrict not found');
     }
 
-    const membership = await this.communityMembershipRepository.findOne({
-      where: { communityId: community.id, userId: user.id },
-    });
+    // Only moderators can manage restrictions
+    await this.canManageRestrictions(user.id, community.id);
 
-    if (
-      !membership ||
-      (membership.role !== CommunityMembershipRole.OWNER &&
-        membership.role !== CommunityMembershipRole.MODERATOR)
-    ) {
-      throw new ForbiddenException(
-        'You do not have permission to restrict users in this community.',
-      );
+    // Prevent restricting another moderator
+    const targetMembership = targetUser.communityMemberships.find(
+      (membership) => membership.communityId === community.id,
+    );
+
+    if (targetMembership?.role === CommunityMembershipRole.MODERATOR) {
+      throw new ForbiddenException('You cannot restrict a moderator.');
     }
 
     const existingRestriction = await this.communityRestrictionsRepository.findOne({
@@ -7957,13 +8337,17 @@ export class CommunityRestrictionsService {
 
     const restriction = this.communityRestrictionsRepository.create({
       restrictionType: data.restrictionType,
+      reason: data.reason,
+      expiresAt: data.expiresAt,
       community,
       user: targetUser,
+      createdBy: user,
     });
 
     return this.communityRestrictionsRepository.save(restriction);
   }
 
+  // List restrictions (paginated)
   async findAll(
     query: { communityId?: number; limit?: number; page?: number },
     user: User,
@@ -7985,19 +8369,8 @@ export class CommunityRestrictionsService {
         throw new NotFoundException('Community not found');
       }
 
-      const membership = await this.communityMembershipRepository.findOne({
-        where: { communityId: community.id, userId: user.id },
-      });
+      await this.canManageRestrictions(user.id, community.id);
 
-      if (
-        !membership ||
-        (membership.role !== CommunityMembershipRole.OWNER &&
-          membership.role !== CommunityMembershipRole.MODERATOR)
-      ) {
-        throw new ForbiddenException(
-          'You do not have permission to view restrictions in this community.',
-        );
-      }
       queryBuilder.andWhere('restriction.communityId = :communityId', { communityId });
     }
 
@@ -8005,6 +8378,7 @@ export class CommunityRestrictionsService {
     return { data, count };
   }
 
+  // Get a single restriction
   async findOne(id: number, user: User) {
     const restriction = await this.communityRestrictionsRepository.findOne({
       where: { id },
@@ -8015,26 +8389,19 @@ export class CommunityRestrictionsService {
       throw new NotFoundException('Restriction not found');
     }
 
-    const membership = await this.communityMembershipRepository.findOne({
-      where: { communityId: restriction.community.id, userId: user.id },
-    });
-
-    if (
-      !membership ||
-      (membership.role !== CommunityMembershipRole.OWNER &&
-        membership.role !== CommunityMembershipRole.MODERATOR)
-    ) {
-      throw new ForbiddenException(
-        'You do not have permission to view this restriction.',
-      );
-    }
+    await this.canManageRestrictions(user.id, restriction.community.id);
 
     return restriction;
   }
 
+  // Update a restriction
   async update(
     id: number,
-    data: { restrictionType?: CommunityRestrictionType },
+    data: {
+      restrictionType?: CommunityRestrictionType;
+      reason?: string;
+      expiresAt?: Date;
+    },
     user: User,
   ) {
     const restriction = await this.communityRestrictionsRepository.findOne({
@@ -8046,27 +8413,22 @@ export class CommunityRestrictionsService {
       throw new NotFoundException('Restriction not found');
     }
 
-    const membership = await this.communityMembershipRepository.findOne({
-      where: { communityId: restriction.community.id, userId: user.id },
-    });
-
-    if (
-      !membership ||
-      (membership.role !== CommunityMembershipRole.OWNER &&
-        membership.role !== CommunityMembershipRole.MODERATOR)
-    ) {
-      throw new ForbiddenException(
-        'You do not have permission to update restrictions in this community.',
-      );
-    }
+    await this.canManageRestrictions(user.id, restriction.community.id);
 
     if (data.restrictionType) {
       restriction.restrictionType = data.restrictionType;
+    }
+    if (data.reason !== undefined) {
+      restriction.reason = data.reason;
+    }
+    if (data.expiresAt !== undefined) {
+      restriction.expiresAt = data.expiresAt;
     }
 
     return this.communityRestrictionsRepository.save(restriction);
   }
 
+  // Get restriction by ID (internal)
   async findOneById(id: number) {
     return this.communityRestrictionsRepository.findOne({
       where: { id },
@@ -8074,6 +8436,7 @@ export class CommunityRestrictionsService {
     });
   }
 
+  // Remove a restriction
   async remove(id: number, user: User): Promise<boolean> {
     const restriction = await this.communityRestrictionsRepository.findOne({
       where: { id },
@@ -8084,22 +8447,23 @@ export class CommunityRestrictionsService {
       throw new NotFoundException('Restriction not found');
     }
 
-    const membership = await this.communityMembershipRepository.findOne({
-      where: { communityId: restriction.community.id, userId: user.id },
-    });
-
-    if (
-      !membership ||
-      (membership.role !== CommunityMembershipRole.OWNER &&
-        membership.role !== CommunityMembershipRole.MODERATOR)
-    ) {
-      throw new ForbiddenException(
-        'You do not have permission to remove restrictions in this community.',
-      );
-    }
+    await this.canManageRestrictions(user.id, restriction.community.id);
 
     await this.communityRestrictionsRepository.remove(restriction);
     return true;
+  }
+
+  // Generic reusable authorization helper
+  private async canManageRestrictions(userId: number, communityId: number) {
+    const membership = await this.communityMembershipRepository.findOne({
+      where: { communityId, userId },
+    });
+
+    if (!membership || membership.role !== CommunityMembershipRole.MODERATOR) {
+      throw new ForbiddenException('You do not have permission in this community.');
+    }
+
+    return membership;
   }
 }
 
@@ -8107,30 +8471,45 @@ export class CommunityRestrictionsService {
 
 
 ### FILE: backend/src/community-restrictions/dto/community-restriction-response.dto.ts ###
-import { Exclude, Expose, Type, plainToInstance } from 'class-transformer';
-import { UserResponseDto } from '../../users/dtos/user-response.dto';
-import { CommunityRestriction } from '../entities/community-restriction.entity';
-import { CommunityResponseDto } from 'src/communities/dto/community-response.dto';
+import { Expose, Transform, Type } from 'class-transformer';
 import { CommunityRestrictionType } from '../community-restrictions.types';
+import { CommunityRestriction } from '../entities/community-restriction.entity';
 
-@Exclude()
 export class CommunityRestrictionResponseDto {
-  @Expose() readonly id: number;
-  @Expose() readonly restrictionType: CommunityRestrictionType;
-  @Expose() readonly createdAt: Date;
+  @Expose()
+  id: number;
 
-  @Expose() @Type(() => UserResponseDto) readonly user: UserResponseDto;
-  @Expose() @Type(() => CommunityResponseDto) readonly community: CommunityResponseDto;
+  @Expose()
+  restrictionType: CommunityRestrictionType;
+
+  @Expose()
+  reason: string;
+
+  @Expose()
+  @Transform(({ value }) => value ? value.toISOString() : null)
+  expiresAt: Date | null;
+
+  @Expose()
+  @Transform(({ obj }) => obj.community.id)
+  communityId: number;
+
+  @Expose()
+  @Transform(({ obj }) => obj.user.id)
+  userId: number;
+
+  
+  @Expose()
+  @Transform(({ obj }) => obj.createdBy.id)
+  createdById: number;
+
+  @Expose()
+  @Transform(({ value }) => value.toISOString())
+  createdAt: Date;
 
   static fromEntity(entity: CommunityRestriction): CommunityRestrictionResponseDto {
-    return plainToInstance(
-      CommunityRestrictionResponseDto,
-      {
-        ...entity,
-        user: entity.user ? UserResponseDto.fromEntity(entity.user) : null,
-        community: entity.community ? CommunityResponseDto.fromEntity(entity.community) : null,
-      },
-      { excludeExtraneousValues: true },
+    return Object.assign(
+      new CommunityRestrictionResponseDto(),
+      entity,
     );
   }
 }
@@ -8139,46 +8518,73 @@ export class CommunityRestrictionResponseDto {
 
 
 ### FILE: backend/src/community-restrictions/dto/community-restriction-query.dto.ts ###
+import { IsEnum, IsNumber, IsOptional } from 'class-validator';
 import { PaginationDto } from '../../common/dto/pagination.dto';
-import { IsOptional, IsInt } from 'class-validator';
+import { CommunityRestrictionType } from '../community-restrictions.types';
 import { Type } from 'class-transformer';
 
 export class CommunityRestrictionQueryDto extends PaginationDto {
   @IsOptional()
-  @IsInt()
   @Type(() => Number)
+  @IsNumber()
   communityId?: number;
-}
 
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  userId?: number;
+
+  @IsOptional()
+  @IsEnum(CommunityRestrictionType)
+  restrictionType?: CommunityRestrictionType;
+}
 ---
 
 
 ### FILE: backend/src/community-restrictions/dto/create-community-restriction.dto.ts ###
-import { IsEnum, IsNumber } from 'class-validator';
+import { IsNumber, IsEnum, IsOptional, IsString, IsDateString, IsDate } from 'class-validator';
 import { CommunityRestrictionType } from '../community-restrictions.types';
+import { Type } from 'class-transformer';
 
 export class CreateCommunityRestrictionDto {
-  @IsEnum(CommunityRestrictionType)
-  restrictionType: CommunityRestrictionType;
-
   @IsNumber()
   communityId: number;
 
   @IsNumber()
   userId: number;
-}
 
+  @IsEnum(CommunityRestrictionType)
+  restrictionType: CommunityRestrictionType;
+
+  @IsOptional()
+  @IsString()
+  reason?: string;
+
+  @IsOptional()
+@IsDate() // Use @IsDate() instead of @IsDateString()
+@Type(() => Date) // Automatically converts string to Date object
+  expiresAt?: Date;
+}
 ---
 
 
 ### FILE: backend/src/community-restrictions/dto/update-community-restriction.dto.ts ###
-import { IsEnum, IsOptional } from 'class-validator';
+import { PartialType } from '@nestjs/mapped-types';
+import { IsEnum, IsOptional, IsString, IsDateString } from 'class-validator';
 import { CommunityRestrictionType } from '../community-restrictions.types';
 
 export class UpdateCommunityRestrictionDto {
-  @IsOptional()
   @IsEnum(CommunityRestrictionType)
+  @IsOptional()
   restrictionType?: CommunityRestrictionType;
+
+  @IsOptional()
+  @IsString()
+  reason?: string;
+
+  @IsOptional()
+  @IsDateString()
+  expiresAt?: string;
 }
 
 ---
@@ -9116,7 +9522,7 @@ export default Header;
 ### FILE: frontend/src/layout/ModSidebar.tsx ###
 // frontend/src/features/communities/components/ModSidebar.tsx
 import { NavLink, useParams } from 'react-router-dom';
-import { FaShieldAlt, FaUsers, FaTasks, FaUserShield } from 'react-icons/fa';
+import { FaShieldAlt, FaUsers, FaTasks, FaUserShield, FaUserSlash } from 'react-icons/fa';
 
 export const ModSidebar = () => {
   const { communityId } = useParams<{ communityId: string }>();
@@ -9126,6 +9532,7 @@ export const ModSidebar = () => {
     { label: 'Queues', path: `${basePath}/queues`, icon: <FaTasks /> },
     { label: 'Members', path: `${basePath}/members`, icon: <FaUsers /> },
     { label: 'Moderators', path: `${basePath}/moderators`, icon: <FaUserShield /> },
+    { label: 'Restricted Users', path: `${basePath}/restricted-users`, icon: <FaUserSlash /> },
   ];
 
   return (
@@ -9290,7 +9697,7 @@ export interface CommunityMembership {
     communityId?: number;
     page?: number;
     limit?: number;
-  }export type CommunityRole = 'admin' | 'moderator' | 'member'| 'owner';
+  }export type CommunityRole =  'moderator' | 'member';
 ---
 
 
@@ -9507,6 +9914,21 @@ export default FeedFilters;
 
 
 ### FILE: frontend/src/features/community-membership-requests/types.ts ###
+// Replace enum with const object
+export const CommunityMembershipRequestSort = {
+  NEWEST: 'newest',
+  OLDEST: 'oldest',
+} as const;
+
+export type CommunityMembershipRequestSort = (typeof CommunityMembershipRequestSort)[keyof typeof CommunityMembershipRequestSort];
+
+export const CommunityMembershipRequestStatus = {
+  PENDING: 'pending',
+  ACCEPTED: 'accepted',
+  REJECTED: 'rejected',
+} as const;
+
+export type CommunityMembershipRequestStatus = (typeof CommunityMembershipRequestStatus)[keyof typeof CommunityMembershipRequestStatus];
 export interface CommunityMembershipRequest {
     id: number;
     userId: number;
@@ -9516,13 +9938,24 @@ export interface CommunityMembershipRequest {
     updatedAt: string;
   }
   
+export interface CommunityMembershipRequestQueryDto {
+  page?: number;
+  limit?: number;
+  userId?: number;
+  communityId?: number;
+  status?: CommunityMembershipRequestStatus; // ✅ include it
+  sort?: CommunityMembershipRequestSort;
+}
+
+
 ---
 
 
 ### FILE: frontend/src/features/community-membership-requests/services/communityMembershipRequestsApi.ts ###
 import { apiSlice } from "../../../shared/services/apiSlice";
 import type { ResponseDto } from "../../auth/types";
-import type { CommunityMembershipRequest } from "../types";
+import type { CommunityMembershipQueryDto } from "../../community-memberships/types";
+import type { CommunityMembershipRequest, CommunityMembershipRequestQueryDto } from "../types";
 
 export const communityMembershipRequestsApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
@@ -9541,10 +9974,10 @@ export const communityMembershipRequestsApi = apiSlice.injectEndpoints({
     // Accept a pending request (admin/mod action, keep requestId for now)
     acceptMembershipRequest: builder.mutation<
       ResponseDto<CommunityMembershipRequest>,
-      number // requestId
-    >({
-      query: (requestId) => ({
-        url: `/communities/membership-requests/${requestId}/accept`,
+  { communityId: number; userId: number } // pass both IDs
+      >({
+      query: ({communityId,userId}) => ({
+        url: `/communities/${communityId}/membership-requests/${userId}/accept`,
         method: 'POST',
       }),
       invalidatesTags: ['CommunityMembershipRequests', 'Communities', 'CommunityMemberships'],
@@ -9575,14 +10008,18 @@ export const communityMembershipRequestsApi = apiSlice.injectEndpoints({
       invalidatesTags: ['CommunityMembershipRequests', 'Communities', 'CommunityMemberships'],
     }),
 
-    // Get all pending requests for a community (admin/mod)
-    getCommunityMembershipRequests: builder.query<
-      ResponseDto<CommunityMembershipRequest[]>,
-      number // communityId
-    >({
-      query: (communityId) => `/communities/${communityId}/membership-requests`,
-      providesTags: ['CommunityMembershipRequests'],
-    }),
+ // communityMembershipRequestsApi.ts (or wherever your api slice lives)
+getCommunityMembershipRequests: builder.query<
+  ResponseDto<CommunityMembershipRequest[]>,
+  CommunityMembershipRequestQueryDto
+>({
+  query: (params) => ({
+    url: `/communities/${params.communityId}/membership-requests`,
+    params, // <-- pass the whole object as query params (page, limit, status, sort, etc.)
+  }),
+  providesTags: ['CommunityMembershipRequests'],
+}),
+
   }),
 });
 
@@ -11404,10 +11841,16 @@ import {
   useRejectMembershipRequestMutation
 } from '../../community-membership-requests/services/communityMembershipRequestsApi';
 import { Button } from '../../../shared/components/ui/Button';
+import { CommunityMembershipRequestStatus } from '../../community-membership-requests/types';
 
 export const ModQueuesPage = () => {
   const { communityId } = useParams();
-  const { data: requests, isLoading } = useGetCommunityMembershipRequestsQuery(Number(communityId));
+const { data:requests, isLoading } = useGetCommunityMembershipRequestsQuery({
+  communityId: +communityId,
+  status: CommunityMembershipRequestStatus.PENDING,
+  page: 1,
+  limit: 10,
+});
   const [approve] = useAcceptMembershipRequestMutation();
   const [reject] = useRejectMembershipRequestMutation();
 
@@ -11429,7 +11872,8 @@ export const ModQueuesPage = () => {
                 <p className="text-xs text-gray-500 italic">Requested on {new Date(req.createdAt).toLocaleDateString()}</p>
               </div>
               <div className="flex gap-2">
-                <Button size="sm" onClick={() => approve(req.userId)} className="bg-green-600 hover:bg-green-700">Approve</Button>
+                <Button size="sm" onClick={() => approve({communityId: req.communityId,
+                  userId:req.userId})} className="bg-green-600 hover:bg-green-700">Approve</Button>
                 <Button size="sm" variant="outline" onClick={() => reject({userId:req.userId ,communityId:req.communityId})} className="text-red-600 border-red-600 hover:bg-red-50">Reject</Button>
               </div>
             </div>
@@ -12048,7 +12492,7 @@ export const communitiesApi = apiSlice.injectEndpoints({
         url: '/communities',
         params,
       }),
-      providesTags: ['Communities'],
+      providesTags: ['Communities',"CommunityMemberships"],
     }),
     getCommunityById: builder.query<ResponseDto<Community>, number>({
       query: (id) => `/communities/${id}`,
@@ -12060,7 +12504,7 @@ export const communitiesApi = apiSlice.injectEndpoints({
         method: 'POST',
         body: newCommunity,
       }),
-      invalidatesTags: ['Communities'],
+      invalidatesTags: ['Communities',"CommunityMemberships"],
     }),
     updateCommunity: builder.mutation<ResponseDto<Community>, { id: number; data: UpdateCommunityDto }>({
       query: ({ id, data }) => ({
@@ -12075,7 +12519,7 @@ export const communitiesApi = apiSlice.injectEndpoints({
         url: `/communities/${id}`,
         method: 'DELETE',
       }),
-      invalidatesTags: ['Communities'],
+      invalidatesTags: ['Communities',"CommunityMemberships"],
     }),
   }),
 });
@@ -12087,6 +12531,371 @@ export const {
   useUpdateCommunityMutation,
   useDeleteCommunityMutation,
 } = communitiesApi;
+
+---
+
+
+### FILE: frontend/src/features/community-restrictions/types.ts ###
+// Enum compatible with React/TS
+export const CommunityRestrictionType = {
+  BAN: 'ban',
+  MUTE: 'mute',
+} as const;
+
+export type CommunityRestrictionType = typeof CommunityRestrictionType[keyof typeof CommunityRestrictionType];
+
+// Interface for a Community Restriction (matches backend DTO)
+export interface CommunityRestriction {
+  id: number;
+  communityId: number;
+  userId: number;
+  createdById: number;
+  restrictionType: CommunityRestrictionType;
+  reason?: string;
+  expiresAt?: string | null; // ISO string or null
+  createdAt: string;          // ISO string
+}
+
+// DTO for creating a community restriction
+export interface CreateCommunityRestrictionDto {
+  communityId: number;
+  userId: number;
+  restrictionType: CommunityRestrictionType;
+  reason?: string;
+  expiresAt?: string; // ISO string
+}
+
+// DTO for updating a community restriction
+export interface UpdateCommunityRestrictionDto {
+  restrictionType?: CommunityRestrictionType;
+  reason?: string;
+  expiresAt?: string; // ISO string
+}
+
+// Query parameters for fetching community restrictions
+export interface CommunityRestrictionQueryDto{
+  page?: number;
+  limit?: number;
+  communityId?: number;
+  userId?: number;
+  restrictionType?: CommunityRestrictionType;
+}
+
+---
+
+
+### FILE: frontend/src/features/community-restrictions/pages/RestrictedUsersPage.tsx ###
+import { useState } from 'react';
+import { useParams } from 'react-router-dom';
+import { Button } from '../../../shared/components/ui/Button';
+import { CommunityRestrictionType } from '../../community-restrictions/types';
+import {
+  useGetCommunityRestrictionsQuery,
+  useDeleteCommunityRestrictionMutation,
+} from '../../community-restrictions/services/communityRestrictionsApi.ts';
+import { Modal } from '../../../shared/components/ui/Modal';
+import { CreateRestrictionForm } from '../../community-restrictions/components/CreateRestrictionForm';
+
+export const RestrictedUsersPage = () => {
+  const { communityId } = useParams<{ communityId: string }>();
+  const { data: response, isLoading, refetch } = useGetCommunityRestrictionsQuery({
+    communityId: Number(communityId),
+    page: 1,
+    limit: 50,
+  });
+  const [removeRestriction] = useDeleteCommunityRestrictionMutation();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const handleRestrictionCreated = () => {
+    setIsModalOpen(false);
+    refetch(); // Refetch restrictions to update the list
+  };
+
+  if (isLoading) return <div className="p-4">Loading restricted users...</div>;
+
+  const restrictions = response?.data ?? [];
+
+  return (
+    <div className="max-w-4xl mx-auto">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-bold">Restricted Users</h2>
+        <Button onClick={() => setIsModalOpen(true)}>Create Restriction</Button>
+      </div>
+
+      {restrictions.length === 0 ? (
+        <div className="text-center py-10 bg-gray-50 rounded-lg border">
+          <p className="text-gray-500 italic">No users are currently restricted.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {restrictions.map((r) => (
+            <div
+              key={r.id}
+              className="flex justify-between items-center p-4 bg-white rounded-lg border border-gray-200"
+            >
+              <div>
+                <span className="font-medium text-gray-900 text-lg">User #{r.userId}</span>
+                <p className="text-sm text-gray-500">
+                  Restriction: {r.restrictionType === CommunityRestrictionType.BAN ? 'Ban' : 'Mute'}
+                </p>
+                {r.reason && <p className="text-xs italic text-gray-400">Reason: {r.reason}</p>}
+                <p className="text-xs text-gray-400">
+                  Expires: {r.expiresAt ? new Date(r.expiresAt).toLocaleString() : 'Never'}
+                </p>
+              </div>
+              <div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => removeRestriction(r.id)}
+                  className="text-red-600 border-red-600 hover:bg-red-50"
+                >
+                  Remove Restriction
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <Modal  open={isModalOpen} onClose={() => setIsModalOpen(false)}>
+        <CreateRestrictionForm
+          communityId={Number(communityId)}
+          onSuccess={handleRestrictionCreated}
+          onCancel={() => setIsModalOpen(false)}
+        />
+      </Modal>
+    </div>
+  );
+};
+
+---
+
+
+### FILE: frontend/src/features/community-restrictions/components/CreateRestrictionForm.tsx ###
+import { useState } from 'react';
+import { CommunityRestrictionType } from '../types';
+import { useGetCommunityMembershipsQuery } from '../../community-memberships/services/communityMembershipsApi';
+import type { CommunityMembershipQueryDto } from '../../community-memberships/types';
+import { useCreateCommunityRestrictionMutation } from '../services/communityRestrictionsApi';
+import { Button } from '../../../shared/components/ui/Button';
+import { Input } from '../../../shared/components/ui/Input';
+import { Label } from '../../../shared/components/ui/Label';
+import { Select, type SelectOption } from '../../../shared/components/ui/Select';
+import SearchableSelect from '../../../shared/components/ui/SearchableSelect';
+import { Textarea } from '../../../shared/components/ui/TextArea';
+
+interface CreateRestrictionFormProps {
+  communityId: number;
+  onSuccess: () => void;
+  onCancel: () => void;
+}
+
+interface SearchableUser {
+  id: number;
+  label: string;
+}
+
+export const CreateRestrictionForm = ({ communityId, onSuccess, onCancel }: CreateRestrictionFormProps) => {
+  const [selectedUser, setSelectedUser] = useState<SearchableUser | null>(null);
+  const [userSearchTerm, setUserSearchTerm] = useState<string>('');
+  const [restrictionType, setRestrictionType] = useState<CommunityRestrictionType>(CommunityRestrictionType.BAN);
+  const [reason, setReason] = useState<string>('');
+  const [expiresAt, setExpiresAt] = useState<string>('');
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const communityMembershipsQueryParams: CommunityMembershipQueryDto = {
+    communityId: communityId,
+    limit: 100,
+  };
+  const { data: membersResponse, isLoading: isLoadingMembers } = useGetCommunityMembershipsQuery(communityMembershipsQueryParams);
+  const [createRestriction, { isLoading: isCreating }] = useCreateCommunityRestrictionMutation();
+console.log(expiresAt);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormError(null);
+
+    if (!selectedUser) {
+      setFormError('Please select a user.');
+      return;
+    }
+console.log(expiresAt);
+
+    try {
+      await createRestriction({
+        communityId,
+        userId: selectedUser.id,
+        restrictionType,
+        reason: reason || undefined,
+        expiresAt: expiresAt ? new Date(expiresAt).toISOString() : undefined,
+      }).unwrap();
+      onSuccess();
+    } catch (err: any) {
+      setFormError(err.data?.message || 'Failed to create restriction.');
+    }
+  };
+
+  if (isLoadingMembers) {
+    return <div className="p-4">Loading members...</div>;
+  }
+
+  const allMembers = membersResponse?.data || [];
+  const searchableMembers: SearchableUser[] = allMembers.map(member => ({
+    id: member.userId,
+    label: `User ID: ${member.userId}`
+  }));
+
+  const filteredMembers = searchableMembers.filter(member =>
+    member.label.toLowerCase().includes(userSearchTerm.toLowerCase())
+  );
+
+  const restrictionTypeOptions: SelectOption[] = [
+    { value: CommunityRestrictionType.BAN, label: 'Ban' },
+    { value: CommunityRestrictionType.MUTE, label: 'Mute' },
+  ];
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <div className="space-y-4">
+        <div>
+          <Label htmlFor="user-select">User</Label>
+          <SearchableSelect<SearchableUser>
+            value={selectedUser ? selectedUser.label : userSearchTerm}
+            onSearch={setUserSearchTerm}
+            options={filteredMembers}
+            onSelect={(user) => {
+              setSelectedUser(user);
+              setUserSearchTerm(user.label); // Keep the selected user's label in the input
+            }}
+            getLabel={(user) => user.label}
+            placeholder="Search for a user"
+            loading={isLoadingMembers}
+          />
+        </div>
+
+        <div>
+          <Label htmlFor="restriction-type-select">Restriction Type</Label>
+          <Select
+            id="restriction-type-select"
+            value={restrictionType}
+            onChange={(value) => setRestrictionType(value as CommunityRestrictionType)}
+            className="w-full"
+            options={restrictionTypeOptions}
+          />
+        </div>
+
+        <div>
+          <Label htmlFor="reason">Reason</Label>
+          <Textarea
+            id="reason"
+            value={reason}
+            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setReason(e.target.value)}
+            placeholder="Reason for restriction (optional)"
+            className="w-full"
+            rows={3}
+          />
+        </div>
+
+        <div>
+          <Label htmlFor="expires-at">Expires At (optional)</Label>
+          <Input
+            type="datetime-local"
+            id="expires-at"
+            value={expiresAt}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setExpiresAt(e.target.value)}
+            className="w-full"
+          />
+        </div>
+
+        {formError && <p className="text-red-500 text-sm">{formError}</p>}
+
+        <div className="flex justify-end space-x-2">
+          <Button type="button" variant="outline" onClick={onCancel} disabled={isCreating}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={isCreating}>
+            {isCreating ? 'Creating...' : 'Create'}
+          </Button>
+        </div>
+      </div>
+    </form>
+  );
+};
+
+---
+
+
+### FILE: frontend/src/features/community-restrictions/services/communityRestrictionsApi.ts ###
+import { apiSlice } from "../../../shared/services/apiSlice";
+import type { ResponseDto } from "../../auth/types";
+import type {
+  CommunityRestriction,
+  CreateCommunityRestrictionDto,
+  UpdateCommunityRestrictionDto,
+  CommunityRestrictionQueryDto,
+} from "../types";
+
+export const communityRestrictionsApi = apiSlice.injectEndpoints({
+  endpoints: (builder) => ({
+    // Fetch restrictions (supports query params)
+    getCommunityRestrictions: builder.query<
+      ResponseDto<CommunityRestriction[]>,
+      CommunityRestrictionQueryDto
+    >({
+      query: (params) => ({
+        url: `/community-restrictions`,
+        params,
+      }),
+      providesTags: ['CommunityRestrictions'],
+    }),
+
+    // Create a restriction
+    createCommunityRestriction: builder.mutation<
+      ResponseDto<CommunityRestriction>,
+      CreateCommunityRestrictionDto
+    >({
+      query: (body) => ({
+        url: `/community-restrictions`,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['CommunityRestrictions'],
+    }),
+
+    // Update a restriction
+    updateCommunityRestriction: builder.mutation<
+      ResponseDto<CommunityRestriction>,
+      { id: number; body: UpdateCommunityRestrictionDto }
+    >({
+      query: ({ id, body }) => ({
+        url: `/community-restrictions/${id}`,
+        method: 'PATCH',
+        body,
+      }),
+      invalidatesTags: ['CommunityRestrictions'],
+    }),
+
+    // Delete a restriction
+    deleteCommunityRestriction: builder.mutation<
+      ResponseDto<boolean>,
+      number // id
+    >({
+      query: (id) => ({
+        url: `/community-restrictions/${id}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['CommunityRestrictions'],
+    }),
+  }),
+});
+
+export const {
+  useGetCommunityRestrictionsQuery,
+  useCreateCommunityRestrictionMutation,
+  useUpdateCommunityRestrictionMutation,
+  useDeleteCommunityRestrictionMutation,
+} = communityRestrictionsApi;
 
 ---
 
@@ -12536,6 +13345,7 @@ import ModLayout from './layout/ModLayout';
 import { ModQueuesPage } from './features/communities/pages/QueuesPage';
 import { ModMembersPage } from './features/communities/pages/MembersPage';
 import { ModModeratorsPage } from './features/communities/pages/ModeratorsPage';
+import { RestrictedUsersPage } from './features/community-restrictions/pages/RestrictedUsersPage';
 // ... other imports
 
 export default function App() {
@@ -12564,6 +13374,7 @@ export default function App() {
           <Route path="queues" element={<ModQueuesPage />} />
           <Route path="members" element={<ModMembersPage />} />
           <Route path="moderators" element={<ModModeratorsPage />} />
+          <Route path="restricted-users" element={<RestrictedUsersPage />} /> {/* New Route */}
         </Route>
       </Routes>
     </BrowserRouter>
@@ -13358,7 +14169,7 @@ export const apiSlice = createApi({
      'Auth', 'Communities', 'CommunityMemberships',
       'EmailVerification', 'Profile', 'ResetPassword',
        'PostReaction', 'CommentReaction', 'PostStats',
-        'CommentStats',"CommunityMembershipRequests"],
+        'CommentStats',"CommunityMembershipRequests","CommunityRestrictions"],
   endpoints: () => ({}), // Empty endpoints as this is a base slice
 });
 

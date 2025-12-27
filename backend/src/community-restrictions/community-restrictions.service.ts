@@ -45,6 +45,7 @@ export class CommunityRestrictionsService {
     if (!community) {
       throw new NotFoundException('Community not found');
     }
+console.log(data.expiresAt);
 
     const targetUser = await this.userRepository.findOne({
       where: { id: data.userId },
