@@ -141,6 +141,8 @@ async acceptMembershipRequest(
   const queryRunner = this.dataSource.createQueryRunner();
   await queryRunner.connect();
   await queryRunner.startTransaction();
+  console.log(actorId,userId,communityId);
+  
 
   try {
     // 1. Fetch pending request

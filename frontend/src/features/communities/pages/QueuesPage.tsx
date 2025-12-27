@@ -33,7 +33,8 @@ export const ModQueuesPage = () => {
                 <p className="text-xs text-gray-500 italic">Requested on {new Date(req.createdAt).toLocaleDateString()}</p>
               </div>
               <div className="flex gap-2">
-                <Button size="sm" onClick={() => approve(req.userId)} className="bg-green-600 hover:bg-green-700">Approve</Button>
+                <Button size="sm" onClick={() => approve({communityId: req.communityId,
+                  userId:req.userId})} className="bg-green-600 hover:bg-green-700">Approve</Button>
                 <Button size="sm" variant="outline" onClick={() => reject({userId:req.userId ,communityId:req.communityId})} className="text-red-600 border-red-600 hover:bg-red-50">Reject</Button>
               </div>
             </div>

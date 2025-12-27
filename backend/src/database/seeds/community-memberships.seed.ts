@@ -18,29 +18,25 @@ export async function seedCommunityMemberships(
   // Track next moderator rank per community
   const nextRankByCommunity = new Map<number, number>();
 
-  function randomRole(): CommunityMembership['role'] {
-    return Math.random() < 0.1
-      ? CommunityMembershipRole.MODERATOR
-      : CommunityMembershipRole.MEMBER;
-  }
-
   for (const user of users) {
-    const numMemberships = Math.floor(Math.random() * 3) + 1;
+    const numMemberships = Math.floor(Math.random() * 3) + 1; // 1 to 3 communities
     const shuffled = [...communities].sort(() => 0.5 - Math.random());
     const toSubscribe = shuffled.slice(0, numMemberships);
 
-    for (const community of toSubscribe) {
+    for (let i = 0; i < toSubscribe.length; i++) {
+      const community = toSubscribe[i];
       const membership = communityMembershipFactory();
       membership.userId = user.id;
       membership.communityId = community.id;
 
-      membership.role = randomRole();
-
-      if (membership.role === CommunityMembershipRole.MODERATOR) {
+      // First community for a user is always a moderator role
+      if (i === 0) {
+        membership.role = CommunityMembershipRole.MODERATOR;
         const nextRank = nextRankByCommunity.get(community.id) ?? 0;
         membership.rank = nextRank;
         nextRankByCommunity.set(community.id, nextRank + 1);
       } else {
+        membership.role = CommunityMembershipRole.MEMBER;
         membership.rank = null;
       }
 

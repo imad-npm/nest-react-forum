@@ -57,6 +57,21 @@ export class CommunityMembershipRequestsController {
   ) {
     return this.requestsService.createMembershipRequest(user.id, communityId);
   }
+  /** Accept a membership request (for moderators) */
+  @Post(':userId/accept')
+  async acceptRequest(
+    @Param('communityId', ParseIntPipe) communityId: number,
+    @Param('userId', ParseIntPipe) userId: number,
+    @GetUser() actor: User,
+  ): Promise<ResponseDto<boolean>> {
+    await this.requestsService.acceptMembershipRequest(
+      actor.id,
+      userId,
+      communityId,
+    );
+    return new ResponseDto(true);
+  }
+
 
 @Delete('me')
 removeOwnRequest(

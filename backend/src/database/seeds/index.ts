@@ -4,6 +4,7 @@ import { seedComments } from './comment.seed';
 import { seedReactions } from './reaction.seed';
 import { seedCommunities } from './community.seed';
 import { seedCommunityMemberships } from './community-memberships.seed';
+import { seedCommunityMembershipRequests } from './community-membership-request.seed';
 import { AppDataSource } from '../../data-source';
 
 async function main() {
@@ -26,6 +27,9 @@ async function main() {
 
     // Seed community memberships
     await seedCommunityMemberships(users, communities);
+
+    // Seed community membership requests
+    await seedCommunityMembershipRequests(users, communities);
 
     console.log('Database seeding complete ✅');
   } catch (error) {

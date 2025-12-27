@@ -19,10 +19,10 @@ export const communityMembershipRequestsApi = apiSlice.injectEndpoints({
     // Accept a pending request (admin/mod action, keep requestId for now)
     acceptMembershipRequest: builder.mutation<
       ResponseDto<CommunityMembershipRequest>,
-      number // requestId
-    >({
-      query: (requestId) => ({
-        url: `/communities/membership-requests/${requestId}/accept`,
+  { communityId: number; userId: number } // pass both IDs
+      >({
+      query: ({communityId,userId}) => ({
+        url: `/communities/${communityId}/membership-requests/${userId}/accept`,
         method: 'POST',
       }),
       invalidatesTags: ['CommunityMembershipRequests', 'Communities', 'CommunityMemberships'],
@@ -56,7 +56,7 @@ export const communityMembershipRequestsApi = apiSlice.injectEndpoints({
     // Get all pending requests for a community (admin/mod)
     getCommunityMembershipRequests: builder.query<
       ResponseDto<CommunityMembershipRequest[]>,
-      number // communityId
+       // communityId
     >({
       query: (communityId) => `/communities/${communityId}/membership-requests`,
       providesTags: ['CommunityMembershipRequests'],
