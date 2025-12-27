@@ -5,6 +5,7 @@ import { seedReactions } from './reaction.seed';
 import { seedCommunities } from './community.seed';
 import { seedCommunityMemberships } from './community-memberships.seed';
 import { seedCommunityMembershipRequests } from './community-membership-request.seed';
+import { seedCommunityRestrictions } from './community-restriction.seed';
 import { AppDataSource } from '../../data-source';
 
 async function main() {
@@ -30,6 +31,9 @@ async function main() {
 
     // Seed community membership requests
     await seedCommunityMembershipRequests(users, communities);
+
+    // Seed community restrictions
+    await seedCommunityRestrictions(users, communities);
 
     console.log('Database seeding complete ✅');
   } catch (error) {
