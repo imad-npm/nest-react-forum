@@ -7,6 +7,7 @@ import {
   UseGuards,
   Get,
   Query,
+  Body,
 } from '@nestjs/common';
 import { CommunityMembershipsService } from './community-memberships.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -18,25 +19,27 @@ import { PaginationMetaDto } from 'src/common/dto/pagination-meta.dto';
 import { CommunityMembershipQueryDto } from './dto/community-memberships-query.dto';
 import { CommunityMembershipResponseDto } from './dto/community-memberships-response.dto';
 
+
+
 @Controller()
 export class CommunityMembershipsController {
   constructor(
     private readonly communityMembershipsService: CommunityMembershipsService,
-  ) { }
+  ) {}
 
-
-  // Unified GET endpoint
+  // -----------------------------
+  // GET memberships (paginated)
+  // -----------------------------
+  @UseGuards(JwtAuthGuard)
   @Get('community-memberships')
   async findMemberships(
-   @Query() query: CommunityMembershipQueryDto,
+    @Query() query: CommunityMembershipQueryDto,
   ): Promise<PaginatedResponseDto<CommunityMembershipResponseDto>> {
-    
-
     const { data, count } = await this.communityMembershipsService.findMemberships({
-      userId:query.userId,
-      communityId:query.communityId ,
-      page:query.page ,
-      limit : query.limit
+      userId: query.userId,
+      communityId: query.communityId,
+      page: query.page,
+      limit: query.limit,
     });
 
     const paginationMeta = new PaginationMetaDto(
@@ -46,19 +49,38 @@ export class CommunityMembershipsController {
       data.length,
     );
 
-    return new PaginatedResponseDto(data.map(CommunityMembershipResponseDto.fromEntity), paginationMeta);
+    return new PaginatedResponseDto(
+      data.map(CommunityMembershipResponseDto.fromEntity),
+      paginationMeta,
+    );
   }
 
-
-  
-@UseGuards(JwtAuthGuard)
+  // -----------------------------
+  // DELETE /users/me/communities/:communityId/memberships
+  // Self-leave
+  // -----------------------------
+  @UseGuards(JwtAuthGuard)
   @Delete('users/me/communities/:communityId/memberships')
-  async deleteMembership(
+  async leaveCommunity(
     @Param('communityId', ParseIntPipe) communityId: number,
     @GetUser() user: User,
   ): Promise<ResponseDto<boolean>> {
-    await this.communityMembershipsService.deleteMembership(communityId, user.id);
+    await this.communityMembershipsService.leaveCommunity(user.id, communityId);
+    return new ResponseDto(true);
+  }
+
+  // -----------------------------
+  // DELETE /communities/:communityId/members/:targetUserId
+  // Moderator removes a member
+  // -----------------------------
+  @UseGuards(JwtAuthGuard)
+  @Delete('communities/:communityId/members/:targetUserId')
+  async removeMember(
+    @Param('communityId', ParseIntPipe) communityId: number,
+    @Param('targetUserId', ParseIntPipe) targetUserId: number,
+    @GetUser() user: User,
+  ): Promise<ResponseDto<boolean>> {
+    await this.communityMembershipsService.removeMember(user.id, targetUserId, communityId);
     return new ResponseDto(true);
   }
 }
-

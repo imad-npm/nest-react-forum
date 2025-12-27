@@ -70,6 +70,8 @@ export class CommunitiesController {
   @GetUser() user :User)
   : Promise<ResponseDto<CommunityResponseDto>> {
     const community = await this.communitiesService.findOne(id,user);
+   console.log(community);
+   
     return new ResponseDto(CommunityResponseDto.fromEntity(community));
   }
 

@@ -51,6 +51,8 @@ export class CommunitiesService {
 
     return queryBuilder.getManyAndCount();
   }
+
+
   async create(data: {
     userId: number;
     name: string;
@@ -77,10 +79,16 @@ export class CommunitiesService {
       const membership = manager.create(CommunityMembership, {
         userId: data.userId,
         communityId: savedCommunity.id,
-        role: CommunityMembershipRole.OWNER,
+        role: CommunityMembershipRole.MODERATOR,
+        rank: 0,
       });
       await manager.save(membership);
-
+    await manager.increment(
+      Community,
+      { id: savedCommunity.id },
+      'membersCount',
+      1,
+    );
       return savedCommunity;
     });
   }
@@ -102,7 +110,6 @@ export class CommunitiesService {
           communityId: community.id,
         },
       });
-      console.log(isMember);
       
 
       if (isMember) {

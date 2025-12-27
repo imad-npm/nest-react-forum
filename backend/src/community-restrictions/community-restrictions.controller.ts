@@ -29,7 +29,6 @@ import { CommunityRestrictionQueryDto } from './dto/community-restriction-query.
 export class CommunityRestrictionsController {
   constructor(
     private readonly communityRestrictionsService: CommunityRestrictionsService,
-    private readonly caslService: CaslService,
   ) {}
 
   @Post()

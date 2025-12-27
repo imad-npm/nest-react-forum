@@ -12,4 +12,4 @@ export interface CommunityMembership {
     communityId?: number;
     page?: number;
     limit?: number;
-  }export type CommunityRole = 'admin' | 'moderator' | 'member'| 'owner';
+  }export type CommunityRole =  'moderator' | 'member';

@@ -23,6 +23,12 @@ export class CommunityRestriction {
   @ManyToOne(() => User, (user) => user.communityRestrictions)
   user: User;
 
+  @ManyToOne(() => User)
+  createdBy: User;
+
+  @Column()
+  createdById: number;
+
   @CreateDateColumn()
   createdAt: Date;
 }

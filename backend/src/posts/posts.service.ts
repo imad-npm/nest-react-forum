@@ -220,11 +220,13 @@ export class PostsService {
   }
 
 
-  async updatePostApprovalStatus(postId: number, isApproved: boolean,userId:number): Promise<Post> {
-    const post = await this.postsRepository.findOneBy({ id: postId });
+  async updatePostApprovalStatus(postId: number, isApproved: boolean, userId: number): Promise<Post> {
+    const post = await this.postsRepository.findOne({ where: { id: postId }, relations: ['community'] });
     if (!post) {
       throw new NotFoundException('Post not found');
     }
+
+    await this.canManagePosts(userId, post.community.id);
 
     post.isApproved = isApproved;
     post.approvedAt = isApproved ? new Date() : null;
@@ -238,6 +240,26 @@ export class PostsService {
     }
     post.commentsLocked = commentsLocked;
     return this.postsRepository.save(post);
+  }
+
+  private async canManagePosts(userId: number, communityId: number) {
+    const community = await this.communityRepository.findOne({ where: { id: communityId } });
+    if (!community) {
+      throw new NotFoundException('Community not found');
+    }
+    if (community.ownerId === userId) {
+      return true;
+    }
+
+    const membership = await this.membershipRepository.findOne({
+      where: { communityId, userId },
+    });
+
+    if (membership && membership.role === CommunityMembershipRole.MODERATOR) {
+      return true;
+    }
+
+    throw new ForbiddenException('You do not have permission to manage posts in this community.');
   }
 
 

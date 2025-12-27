@@ -9,7 +9,7 @@ export const communitiesApi = apiSlice.injectEndpoints({
         url: '/communities',
         params,
       }),
-      providesTags: ['Communities'],
+      providesTags: ['Communities',"CommunityMemberships"],
     }),
     getCommunityById: builder.query<ResponseDto<Community>, number>({
       query: (id) => `/communities/${id}`,
@@ -21,7 +21,7 @@ export const communitiesApi = apiSlice.injectEndpoints({
         method: 'POST',
         body: newCommunity,
       }),
-      invalidatesTags: ['Communities'],
+      invalidatesTags: ['Communities',"CommunityMemberships"],
     }),
     updateCommunity: builder.mutation<ResponseDto<Community>, { id: number; data: UpdateCommunityDto }>({
       query: ({ id, data }) => ({
@@ -36,7 +36,7 @@ export const communitiesApi = apiSlice.injectEndpoints({
         url: `/communities/${id}`,
         method: 'DELETE',
       }),
-      invalidatesTags: ['Communities'],
+      invalidatesTags: ['Communities',"CommunityMemberships"],
     }),
   }),
 });

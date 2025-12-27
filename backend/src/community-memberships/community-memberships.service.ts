@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -10,6 +11,7 @@ import { User } from '../users/entities/user.entity';
 import { Community } from '../communities/entities/community.entity'; // Added Community entity
 
 import { CommunityMembership } from './entities/community-memberships.entity';
+import { CommunityMembershipRole } from './types';
 
 interface MembershipQuery {
   userId?: number;
@@ -65,42 +67,25 @@ export class CommunityMembershipsService {
       where: { userId, communityId },
     });
   }
-  
-  async deleteMembership(communityId: number, userId: number) {
+  // -----------------------------
+  // 1️⃣ Self-leave
+  // -----------------------------
+  async leaveCommunity(userId: number, communityId: number) {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
     try {
-      // Check community existence
       const community = await queryRunner.manager.findOne(Community, { where: { id: communityId } });
       if (!community) throw new NotFoundException(`Community ${communityId} not found`);
 
-      // Check user existence via UsersService
-      const userExists = await queryRunner.manager.exists(User, {
-        where: { id: userId },
+      const membership = await queryRunner.manager.findOne(CommunityMembership, {
+        where: { userId, communityId },
       });
-      if (!userExists) {
-        throw new NotFoundException(`User ${userId} not found`);
-      }
+      if (!membership) throw new NotFoundException(`You are not a member of community ${communityId}`);
 
-      const existingMembership = await queryRunner.manager.findOne(CommunityMembership, {
-        where: {
-          userId: userId,
-          communityId: community.id,
-        },
-      });
-
-      if (!existingMembership) {
-        throw new NotFoundException(
-          `User ${userId} is not member of to community ${community.id}`,
-        );
-      }
-
-      await queryRunner.manager.remove(existingMembership);
-
-      // Decrement membersCount directly using the repository within the transaction
-      await queryRunner.manager.decrement(Community, { id: community.id }, 'membersCount', 1);
+      await queryRunner.manager.remove(membership);
+      await queryRunner.manager.decrement(Community, { id: communityId }, 'membersCount', 1);
 
       await queryRunner.commitTransaction();
       return { message: 'Left community successfully' };
@@ -112,6 +97,49 @@ export class CommunityMembershipsService {
     }
   }
 
+  // -----------------------------
+  // 2️⃣ Moderator removal
+  // -----------------------------
+  async removeMember(actorUserId: number, targetUserId: number, communityId: number) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
+    try {
+      const community = await queryRunner.manager.findOne(Community, { where: { id: communityId } });
+      if (!community) throw new NotFoundException(`Community ${communityId} not found`);
+
+      const actorMembership = await queryRunner.manager.findOne(CommunityMembership, {
+        where: { userId: actorUserId, communityId },
+      });
+      if (!actorMembership || actorMembership.role !== CommunityMembershipRole.MODERATOR) {
+        throw new ForbiddenException('Only moderators can remove members.');
+      }
+
+      const targetMembership = await queryRunner.manager.findOne(CommunityMembership, {
+        where: { userId: targetUserId, communityId },
+      });
+      if (!targetMembership) throw new NotFoundException(`Target user is not a member of this community`);
+
+      // --- Rank check: lower number = higher rank ---
+      if (
+        targetMembership.role === CommunityMembershipRole.MODERATOR &&
+        actorMembership.rank && targetMembership.rank && actorMembership.rank >= targetMembership.rank // actor.rank higher or equal number = lower/equal authority
+      ) {
+        throw new ForbiddenException('Cannot remove a moderator with equal or higher rank.');
+      }
+
+      await queryRunner.manager.remove(targetMembership);
+      await queryRunner.manager.decrement(Community, { id: communityId }, 'membersCount', 1);
+
+      await queryRunner.commitTransaction();
+      return { message: 'Member removed successfully' };
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
 
 }

@@ -159,7 +159,7 @@ async acceptMembershipRequest(
       throw new NotFoundException('Pending membership request not found');
     }
 
-    // 2. Authorization: owner OR admin
+    // 2. Authorization: 
   await this.canManageMembershipRequests(actorId,communityId)
 
 
@@ -250,7 +250,7 @@ async removeOwnRequest(
       where: {
         userId: actorId,
         communityId,
-        role: In([CommunityMembershipRole.OWNER, CommunityMembershipRole.ADMIN,CommunityMembershipRole.MODERATOR]),
+        role: In([CommunityMembershipRole.MODERATOR]),
       },
     });
 

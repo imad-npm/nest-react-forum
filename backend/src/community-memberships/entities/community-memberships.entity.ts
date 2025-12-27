@@ -30,6 +30,9 @@ export class CommunityMembership {
   })
   role: CommunityMembershipRole;
 
+  @Column({ type: 'integer', nullable: true })
+  rank: number | null;
+
   @CreateDateColumn()
   createdAt: Date;
 }
