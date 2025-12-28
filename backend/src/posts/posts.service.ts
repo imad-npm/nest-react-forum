@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Repository } from 'typeorm';
-import { Post } from './entities/post.entity';
+import { Post, PostStatus } from './entities/post.entity';
 import { PostSort } from './dto/post-query.dto';
 import { CommunityType } from 'src/communities/types';
 import { Community } from 'src/communities/entities/community.entity';
@@ -17,7 +17,7 @@ export class PostsService {
     private readonly communityRepository: Repository<Community>,
 
     @InjectRepository(CommunityMembership)
-    private readonly membershipRepository: Repository<CommunityMembership>) 
+    private readonly membershipRepository: Repository<CommunityMembership>)
     { }
   async findAll(
     options: {
@@ -30,6 +30,7 @@ export class PostsService {
       endDate?: Date;
       currentUserId?: number;
       communityId?: number;
+      status?: PostStatus;
     },
   ): Promise<{
     data: Post[];
@@ -45,13 +46,39 @@ export class PostsService {
       endDate,
       currentUserId,
       communityId,
+      status = PostStatus.APPROVED,
     } = options;
 
     const query = this.postsRepository
       .createQueryBuilder('post')
       .leftJoinAndSelect('post.author', 'author')
-      .leftJoinAndSelect('post.community', 'community')
-      .where('post.isApproved = :approved', { approved: true });
+      .leftJoinAndSelect('post.community', 'community');
+
+    // Handle status filtering and authorization
+    if (status === PostStatus.PENDING || status === PostStatus.REJECTED) {
+      if (!currentUserId) {
+        throw new ForbiddenException('You must be logged in to view pending or rejected posts.');
+      }
+      if (!communityId) {
+        throw new BadRequestException('Cannot query for pending or rejected posts without a community ID.');
+      }
+      const isCommunityModerator = await this.isModerator(currentUserId, communityId);
+      const isAuthor = authorId === currentUserId; // Assuming authorId is passed if filtering by author
+      
+      if (!isCommunityModerator && !isAuthor) {
+          throw new ForbiddenException('You do not have permission to view this type of post in this community.');
+      }
+
+      // If user is author, they can see their own pending/rejected posts
+      // If user is moderator, they can see all pending/rejected posts in their community
+      if (status === PostStatus.PENDING) {
+        query.andWhere('post.status = :status', { status: PostStatus.PENDING });
+      } else if (status === PostStatus.REJECTED) {
+        query.andWhere('post.status = :status', { status: PostStatus.REJECTED });
+      }
+    } else { // status === PostStatus.APPROVED
+        query.andWhere('post.status = :status', { status: PostStatus.APPROVED });
+    }
 
     if (currentUserId) {
       query.leftJoinAndMapOne(
@@ -64,7 +91,7 @@ export class PostsService {
     }
 
     if (search) {
-      query.where(
+      query.andWhere(
         new Brackets((qb) => {
           qb.where('post.title LIKE :search', {
             search: `%${search}%`,
@@ -104,14 +131,13 @@ export class PostsService {
       query.orderBy('post.createdAt', 'DESC');
     }
 
-    // Community visibility rules
-    if (!currentUserId) {
-      // Not logged in → hide PRIVATE communities and show only approved posts
+    // Community visibility rules for APPROVED posts
+    if (status === PostStatus.APPROVED && !currentUserId) {
+      // Not logged in → hide PRIVATE communities
       query.andWhere('community.communityType != :privateType', {
         privateType: 'private',
       });
-      query.andWhere('post.isApproved = :isApproved', { isApproved: true });
-    } else {
+    } else if(status === PostStatus.APPROVED && currentUserId) {
       query.andWhere(
         new Brackets((qb) => {
           qb.where('community.communityType != :privateType', {
@@ -133,8 +159,6 @@ export class PostsService {
       .take(limit)
       .skip((page - 1) * limit)
       .getManyAndCount();
-
-
 
     return { data: data, count };
   }
@@ -161,20 +185,47 @@ export class PostsService {
     // Filter by post ID
     query.where('post.id = :id', { id });
 
-    // TODO: Implement actual admin check based on user roles
-    const isAdmin = false; // Placeholder for admin check
+    const post = await query.getOne();
 
-    if (!currentUserId || !isAdmin) {
-      query.andWhere('post.isApproved = :isApproved', { isApproved: true });
+    if (!post) {
+      return null;
     }
 
-    // Execute query
-    const post = await query.getOne();
+    // Authorization for PENDING/REJECTED posts in findOne
+    if (post.status === PostStatus.PENDING || post.status === PostStatus.REJECTED) {
+        if (!currentUserId) {
+            throw new ForbiddenException('You must be logged in to view this post.');
+        }
+        const isCommunityModerator = post.communityId ? await this.isModerator(currentUserId, post.communityId) : false;
+        const isAuthor = post.authorId === currentUserId;
+        
+        if (!isCommunityModerator && !isAuthor) {
+            throw new ForbiddenException('You do not have permission to view this post.');
+        }
+    }
+
+
+    // Community visibility rules for APPROVED posts
+    if (post.status === PostStatus.APPROVED && !currentUserId) {
+        // Not logged in and post is in a private community
+        if (post.community?.communityType === CommunityType.PRIVATE) {
+            return null; // Hide private community posts
+        }
+    } else if (post.status === PostStatus.APPROVED && currentUserId && post.community?.communityType === CommunityType.PRIVATE) {
+        const isMember = await this.membershipRepository.exist({
+            where: { communityId: post.communityId, userId: currentUserId },
+        });
+        if (!isMember) {
+            throw new ForbiddenException('You are not a member of this private community.');
+        }
+    }
+
+
     return post;
   }
 
   async create(
-    { title, content, authorId, communityId, isApproved }: { title: string; content: string; authorId: number; communityId: number; isApproved?: boolean },
+    { title, content, authorId, communityId }: { title: string; content: string; authorId: number; communityId: number },
   ): Promise<Post> {
     const community = await this.communityRepository.findOneBy({ id: communityId });
     if (!community) {
@@ -188,7 +239,7 @@ export class PostsService {
       content,
       authorId,
       community,
-      isApproved: isApproved !== undefined ? isApproved : false, // Set isApproved based on provided value or default to false
+      status: PostStatus.PENDING,
     });
     return this.postsRepository.save(post);
   }
@@ -220,16 +271,16 @@ export class PostsService {
   }
 
 
-  async updatePostApprovalStatus(postId: number, isApproved: boolean, userId: number): Promise<Post> {
+  async updatePostStatus(postId: number, newStatus: PostStatus, userId: number): Promise<Post> {
     const post = await this.postsRepository.findOne({ where: { id: postId }, relations: ['community'] });
     if (!post) {
       throw new NotFoundException('Post not found');
     }
 
+    // Only allow owner/moderator to change status
     await this.canManagePosts(userId, post.community.id);
 
-    post.isApproved = isApproved;
-    post.approvedAt = isApproved ? new Date() : null;
+    post.status = newStatus;
     return this.postsRepository.save(post);
   }
 
@@ -240,6 +291,26 @@ export class PostsService {
     }
     post.commentsLocked = commentsLocked;
     return this.postsRepository.save(post);
+  }
+
+  private async isModerator(userId: number, communityId: number): Promise<boolean> {
+    const community = await this.communityRepository.findOne({ where: { id: communityId } });
+    if (!community) {
+      return false;
+    }
+    if (community.ownerId === userId) {
+      return true;
+    }
+
+    const membership = await this.membershipRepository.findOne({
+      where: { communityId, userId },
+    });
+
+    if (membership && membership.role === CommunityMembershipRole.MODERATOR) {
+      return true;
+    }
+
+    return false;
   }
 
   private async canManagePosts(userId: number, communityId: number) {
@@ -261,11 +332,6 @@ export class PostsService {
 
     throw new ForbiddenException('You do not have permission to manage posts in this community.');
   }
-
-
-
-
-
 
   async incrementViews(postId: number): Promise<void> {
     await this.postsRepository.increment({ id: postId }, 'views', 1);

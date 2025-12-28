@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsInt, IsBoolean, IsOptional } from 'class-validator';
+import { IsString, IsNotEmpty, IsInt } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreatePostDto {
@@ -14,8 +14,4 @@ export class CreatePostDto {
   @IsNotEmpty()
   @Type(() => Number)
   communityId: number;
-
-  @IsBoolean()
-  @IsOptional()
-  isApproved?: boolean;
 }

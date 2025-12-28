@@ -1,5 +1,5 @@
 import { apiSlice } from '../../../shared/services/apiSlice';
-import type { Post, CreatePostDto, UpdatePostDto, PostQueryDto } from '../types';
+import type { Post, CreatePostDto, UpdatePostDto, PostQueryDto, PostStatus } from '../types';
 import type { PaginatedResponse, ResponseDto } from '../../../shared/types';
 
 export const postsApi = apiSlice.injectEndpoints({
@@ -50,6 +50,14 @@ export const postsApi = apiSlice.injectEndpoints({
             }),
             invalidatesTags: (result, error, { id }) => [{ type: 'Posts', id }],
         }),
+        updatePostStatus: builder.mutation<ResponseDto<Post>, { id: number; status: PostStatus }>({
+          query: ({ id, status }) => ({
+            url: `/posts/${id}/status`,
+            method: 'PATCH',
+            body: { status },
+          }),
+          invalidatesTags: ['Posts'],
+      }),
         deletePost: builder.mutation<ResponseDto<boolean>, number>({
             query: (id) => ({
                 url: `/posts/${id}`,
@@ -66,5 +74,6 @@ export const {
     useGetPostByIdQuery,
     useCreatePostMutation,
     useUpdatePostMutation,
+    useUpdatePostStatusMutation,
     useDeletePostMutation,
 } = postsApi;

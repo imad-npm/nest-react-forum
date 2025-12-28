@@ -1061,6 +1061,39 @@ export class RefactorReactions1765490375370 implements MigrationInterface {
 ---
 
 
+### FILE: backend/src/database/migrations/1766879712347-StatusToPosts.ts ###
+import { MigrationInterface, QueryRunner } from "typeorm";
+
+export class StatusToPosts1766879712347 implements MigrationInterface {
+    name = 'StatusToPosts1766879712347'
+
+    public async up(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`CREATE TABLE "temporary_posts" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "title" varchar NOT NULL, "content" varchar NOT NULL, "authorId" integer NOT NULL, "communityId" integer NOT NULL, "commentsCount" integer NOT NULL DEFAULT (0), "views" integer NOT NULL DEFAULT (0), "likesCount" integer NOT NULL DEFAULT (0), "dislikesCount" integer NOT NULL DEFAULT (0), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, "commentsLocked" boolean NOT NULL DEFAULT (0), CONSTRAINT "FK_c5a322ad12a7bf95460c958e80e" FOREIGN KEY ("authorId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_e5f99a0b3edb7e1867f44b2cf4c" FOREIGN KEY ("communityId") REFERENCES "communities" ("id") ON DELETE RESTRICT ON UPDATE NO ACTION)`);
+        await queryRunner.query(`INSERT INTO "temporary_posts"("id", "title", "content", "authorId", "communityId", "commentsCount", "views", "likesCount", "dislikesCount", "createdAt", "updatedAt", "deletedAt", "commentsLocked") SELECT "id", "title", "content", "authorId", "communityId", "commentsCount", "views", "likesCount", "dislikesCount", "createdAt", "updatedAt", "deletedAt", "commentsLocked" FROM "posts"`);
+        await queryRunner.query(`DROP TABLE "posts"`);
+        await queryRunner.query(`ALTER TABLE "temporary_posts" RENAME TO "posts"`);
+        await queryRunner.query(`CREATE TABLE "temporary_posts" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "title" varchar NOT NULL, "content" varchar NOT NULL, "authorId" integer NOT NULL, "communityId" integer NOT NULL, "commentsCount" integer NOT NULL DEFAULT (0), "views" integer NOT NULL DEFAULT (0), "likesCount" integer NOT NULL DEFAULT (0), "dislikesCount" integer NOT NULL DEFAULT (0), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, "commentsLocked" boolean NOT NULL DEFAULT (0), "status" varchar CHECK( "status" IN ('pending','approved','rejected') ) NOT NULL DEFAULT ('pending'), CONSTRAINT "FK_c5a322ad12a7bf95460c958e80e" FOREIGN KEY ("authorId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_e5f99a0b3edb7e1867f44b2cf4c" FOREIGN KEY ("communityId") REFERENCES "communities" ("id") ON DELETE RESTRICT ON UPDATE NO ACTION)`);
+        await queryRunner.query(`INSERT INTO "temporary_posts"("id", "title", "content", "authorId", "communityId", "commentsCount", "views", "likesCount", "dislikesCount", "createdAt", "updatedAt", "deletedAt", "commentsLocked") SELECT "id", "title", "content", "authorId", "communityId", "commentsCount", "views", "likesCount", "dislikesCount", "createdAt", "updatedAt", "deletedAt", "commentsLocked" FROM "posts"`);
+        await queryRunner.query(`DROP TABLE "posts"`);
+        await queryRunner.query(`ALTER TABLE "temporary_posts" RENAME TO "posts"`);
+    }
+
+    public async down(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`ALTER TABLE "posts" RENAME TO "temporary_posts"`);
+        await queryRunner.query(`CREATE TABLE "posts" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "title" varchar NOT NULL, "content" varchar NOT NULL, "authorId" integer NOT NULL, "communityId" integer NOT NULL, "commentsCount" integer NOT NULL DEFAULT (0), "views" integer NOT NULL DEFAULT (0), "likesCount" integer NOT NULL DEFAULT (0), "dislikesCount" integer NOT NULL DEFAULT (0), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, "commentsLocked" boolean NOT NULL DEFAULT (0), CONSTRAINT "FK_c5a322ad12a7bf95460c958e80e" FOREIGN KEY ("authorId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_e5f99a0b3edb7e1867f44b2cf4c" FOREIGN KEY ("communityId") REFERENCES "communities" ("id") ON DELETE RESTRICT ON UPDATE NO ACTION)`);
+        await queryRunner.query(`INSERT INTO "posts"("id", "title", "content", "authorId", "communityId", "commentsCount", "views", "likesCount", "dislikesCount", "createdAt", "updatedAt", "deletedAt", "commentsLocked") SELECT "id", "title", "content", "authorId", "communityId", "commentsCount", "views", "likesCount", "dislikesCount", "createdAt", "updatedAt", "deletedAt", "commentsLocked" FROM "temporary_posts"`);
+        await queryRunner.query(`DROP TABLE "temporary_posts"`);
+        await queryRunner.query(`ALTER TABLE "posts" RENAME TO "temporary_posts"`);
+        await queryRunner.query(`CREATE TABLE "posts" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "title" varchar NOT NULL, "content" varchar NOT NULL, "authorId" integer NOT NULL, "communityId" integer NOT NULL, "commentsCount" integer NOT NULL DEFAULT (0), "views" integer NOT NULL DEFAULT (0), "likesCount" integer NOT NULL DEFAULT (0), "dislikesCount" integer NOT NULL DEFAULT (0), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, "commentsLocked" boolean NOT NULL DEFAULT (0), "isApproved" boolean NOT NULL DEFAULT (0), "approvedAt" datetime, CONSTRAINT "FK_c5a322ad12a7bf95460c958e80e" FOREIGN KEY ("authorId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_e5f99a0b3edb7e1867f44b2cf4c" FOREIGN KEY ("communityId") REFERENCES "communities" ("id") ON DELETE RESTRICT ON UPDATE NO ACTION)`);
+        await queryRunner.query(`INSERT INTO "posts"("id", "title", "content", "authorId", "communityId", "commentsCount", "views", "likesCount", "dislikesCount", "createdAt", "updatedAt", "deletedAt", "commentsLocked") SELECT "id", "title", "content", "authorId", "communityId", "commentsCount", "views", "likesCount", "dislikesCount", "createdAt", "updatedAt", "deletedAt", "commentsLocked" FROM "temporary_posts"`);
+        await queryRunner.query(`DROP TABLE "temporary_posts"`);
+    }
+
+}
+
+---
+
+
 ### FILE: backend/src/database/migrations/1765821272324-AddLikesDislikesToPostsComments.ts ###
 import { MigrationInterface, QueryRunner } from "typeorm";
 
@@ -5666,7 +5699,7 @@ export class PostsModule { }
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Repository } from 'typeorm';
-import { Post } from './entities/post.entity';
+import { Post, PostStatus } from './entities/post.entity';
 import { PostSort } from './dto/post-query.dto';
 import { CommunityType } from 'src/communities/types';
 import { Community } from 'src/communities/entities/community.entity';
@@ -5682,7 +5715,7 @@ export class PostsService {
     private readonly communityRepository: Repository<Community>,
 
     @InjectRepository(CommunityMembership)
-    private readonly membershipRepository: Repository<CommunityMembership>) 
+    private readonly membershipRepository: Repository<CommunityMembership>)
     { }
   async findAll(
     options: {
@@ -5695,6 +5728,7 @@ export class PostsService {
       endDate?: Date;
       currentUserId?: number;
       communityId?: number;
+      status?: PostStatus;
     },
   ): Promise<{
     data: Post[];
@@ -5710,13 +5744,39 @@ export class PostsService {
       endDate,
       currentUserId,
       communityId,
+      status = PostStatus.APPROVED,
     } = options;
 
     const query = this.postsRepository
       .createQueryBuilder('post')
       .leftJoinAndSelect('post.author', 'author')
-      .leftJoinAndSelect('post.community', 'community')
-      .where('post.isApproved = :approved', { approved: true });
+      .leftJoinAndSelect('post.community', 'community');
+
+    // Handle status filtering and authorization
+    if (status === PostStatus.PENDING || status === PostStatus.REJECTED) {
+      if (!currentUserId) {
+        throw new ForbiddenException('You must be logged in to view pending or rejected posts.');
+      }
+      if (!communityId) {
+        throw new BadRequestException('Cannot query for pending or rejected posts without a community ID.');
+      }
+      const isCommunityModerator = await this.isModerator(currentUserId, communityId);
+      const isAuthor = authorId === currentUserId; // Assuming authorId is passed if filtering by author
+      
+      if (!isCommunityModerator && !isAuthor) {
+          throw new ForbiddenException('You do not have permission to view this type of post in this community.');
+      }
+
+      // If user is author, they can see their own pending/rejected posts
+      // If user is moderator, they can see all pending/rejected posts in their community
+      if (status === PostStatus.PENDING) {
+        query.andWhere('post.status = :status', { status: PostStatus.PENDING });
+      } else if (status === PostStatus.REJECTED) {
+        query.andWhere('post.status = :status', { status: PostStatus.REJECTED });
+      }
+    } else { // status === PostStatus.APPROVED
+        query.andWhere('post.status = :status', { status: PostStatus.APPROVED });
+    }
 
     if (currentUserId) {
       query.leftJoinAndMapOne(
@@ -5729,7 +5789,7 @@ export class PostsService {
     }
 
     if (search) {
-      query.where(
+      query.andWhere(
         new Brackets((qb) => {
           qb.where('post.title LIKE :search', {
             search: `%${search}%`,
@@ -5769,14 +5829,13 @@ export class PostsService {
       query.orderBy('post.createdAt', 'DESC');
     }
 
-    // Community visibility rules
-    if (!currentUserId) {
-      // Not logged in → hide PRIVATE communities and show only approved posts
+    // Community visibility rules for APPROVED posts
+    if (status === PostStatus.APPROVED && !currentUserId) {
+      // Not logged in → hide PRIVATE communities
       query.andWhere('community.communityType != :privateType', {
         privateType: 'private',
       });
-      query.andWhere('post.isApproved = :isApproved', { isApproved: true });
-    } else {
+    } else if(status === PostStatus.APPROVED && currentUserId) {
       query.andWhere(
         new Brackets((qb) => {
           qb.where('community.communityType != :privateType', {
@@ -5798,8 +5857,6 @@ export class PostsService {
       .take(limit)
       .skip((page - 1) * limit)
       .getManyAndCount();
-
-
 
     return { data: data, count };
   }
@@ -5826,20 +5883,47 @@ export class PostsService {
     // Filter by post ID
     query.where('post.id = :id', { id });
 
-    // TODO: Implement actual admin check based on user roles
-    const isAdmin = false; // Placeholder for admin check
+    const post = await query.getOne();
 
-    if (!currentUserId || !isAdmin) {
-      query.andWhere('post.isApproved = :isApproved', { isApproved: true });
+    if (!post) {
+      return null;
     }
 
-    // Execute query
-    const post = await query.getOne();
+    // Authorization for PENDING/REJECTED posts in findOne
+    if (post.status === PostStatus.PENDING || post.status === PostStatus.REJECTED) {
+        if (!currentUserId) {
+            throw new ForbiddenException('You must be logged in to view this post.');
+        }
+        const isCommunityModerator = post.communityId ? await this.isModerator(currentUserId, post.communityId) : false;
+        const isAuthor = post.authorId === currentUserId;
+        
+        if (!isCommunityModerator && !isAuthor) {
+            throw new ForbiddenException('You do not have permission to view this post.');
+        }
+    }
+
+
+    // Community visibility rules for APPROVED posts
+    if (post.status === PostStatus.APPROVED && !currentUserId) {
+        // Not logged in and post is in a private community
+        if (post.community?.communityType === CommunityType.PRIVATE) {
+            return null; // Hide private community posts
+        }
+    } else if (post.status === PostStatus.APPROVED && currentUserId && post.community?.communityType === CommunityType.PRIVATE) {
+        const isMember = await this.membershipRepository.exist({
+            where: { communityId: post.communityId, userId: currentUserId },
+        });
+        if (!isMember) {
+            throw new ForbiddenException('You are not a member of this private community.');
+        }
+    }
+
+
     return post;
   }
 
   async create(
-    { title, content, authorId, communityId, isApproved }: { title: string; content: string; authorId: number; communityId: number; isApproved?: boolean },
+    { title, content, authorId, communityId }: { title: string; content: string; authorId: number; communityId: number },
   ): Promise<Post> {
     const community = await this.communityRepository.findOneBy({ id: communityId });
     if (!community) {
@@ -5853,7 +5937,7 @@ export class PostsService {
       content,
       authorId,
       community,
-      isApproved: isApproved !== undefined ? isApproved : false, // Set isApproved based on provided value or default to false
+      status: PostStatus.PENDING,
     });
     return this.postsRepository.save(post);
   }
@@ -5885,16 +5969,16 @@ export class PostsService {
   }
 
 
-  async updatePostApprovalStatus(postId: number, isApproved: boolean, userId: number): Promise<Post> {
+  async updatePostStatus(postId: number, newStatus: PostStatus, userId: number): Promise<Post> {
     const post = await this.postsRepository.findOne({ where: { id: postId }, relations: ['community'] });
     if (!post) {
       throw new NotFoundException('Post not found');
     }
 
+    // Only allow owner/moderator to change status
     await this.canManagePosts(userId, post.community.id);
 
-    post.isApproved = isApproved;
-    post.approvedAt = isApproved ? new Date() : null;
+    post.status = newStatus;
     return this.postsRepository.save(post);
   }
 
@@ -5905,6 +5989,26 @@ export class PostsService {
     }
     post.commentsLocked = commentsLocked;
     return this.postsRepository.save(post);
+  }
+
+  private async isModerator(userId: number, communityId: number): Promise<boolean> {
+    const community = await this.communityRepository.findOne({ where: { id: communityId } });
+    if (!community) {
+      return false;
+    }
+    if (community.ownerId === userId) {
+      return true;
+    }
+
+    const membership = await this.membershipRepository.findOne({
+      where: { communityId, userId },
+    });
+
+    if (membership && membership.role === CommunityMembershipRole.MODERATOR) {
+      return true;
+    }
+
+    return false;
   }
 
   private async canManagePosts(userId: number, communityId: number) {
@@ -5926,11 +6030,6 @@ export class PostsService {
 
     throw new ForbiddenException('You do not have permission to manage posts in this community.');
   }
-
-
-
-
-
 
   async incrementViews(postId: number): Promise<void> {
     await this.postsRepository.increment({ id: postId }, 'views', 1);
@@ -5987,6 +6086,12 @@ import { Community } from '../../communities/entities/community.entity';
 import { ReactionType } from 'src/reactions/reactions.types';
 import { PostReport } from '../../reports/entities/post-report.entity';
 
+export enum PostStatus {
+  PENDING = 'pending',
+  APPROVED = 'approved',
+  REJECTED = 'rejected',
+}
+
 @Entity('posts')
 export class Post {
   @PrimaryGeneratedColumn()
@@ -6037,11 +6142,12 @@ export class Post {
   @Column({ default: false })
   commentsLocked: boolean;
 
-  @Column({ default: false })
-  isApproved: boolean;
-
-  @Column({ type: 'datetime', nullable: true })
-  approvedAt: Date | null;
+  @Column({
+    type: 'simple-enum',
+    enum: PostStatus,
+    default: PostStatus.PENDING,
+  })
+  status: PostStatus;
 
   @OneToMany(() => PostReport, (postReport) => postReport.post)
   reports: PostReport[];
@@ -6077,7 +6183,7 @@ import {
 import { PostsService } from './posts.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
-import { UpdatePostApprovalDto } from './dto/update-post-approval.dto'; // Import the new DTO
+import { UpdatePostStatusDto } from './dto/update-post-status.dto';
 import { UpdateCommentsLockedDto } from './dto/update-comments-locked.dto';
 import { Post as PostEntity } from './entities/post.entity';
 import { GetUser } from 'src/decorators/user.decorator';
@@ -6093,8 +6199,6 @@ import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
 import { PaginationMetaDto } from 'src/common/dto/pagination-meta.dto';
 import { OptionalJwtAuthGuard } from 'src/auth/guards/optional-jwt-auth.guard';
 import type { Request } from 'express';
-import { CommunityType } from 'src/communities/types';
-import { CommunityMembershipRole } from 'src/community-memberships/types';
 
 @Controller('posts')
 export class PostsController {
@@ -6119,6 +6223,7 @@ export class PostsController {
       endDate: query.endDate,
       currentUserId: req.user?.id ?? undefined,
       communityId: query.communityId,
+      status: query.status,
     });
 
     const paginationMeta = new PaginationMetaDto(
@@ -6131,22 +6236,6 @@ export class PostsController {
     return new PaginatedResponseDto(data.map(PostResponseDto.fromEntity), paginationMeta);
   }
 
-  @Get(':id')
-  @UseGuards(OptionalJwtAuthGuard)
-  async findOne(
-    @Param('id') id: string,
-    @GetUser() user?: User, // Get user if authenticated
-  ): Promise<ResponseDto<PostResponseDto>> {
-    const postId = +id;
-    const post = await this.postsService.findOne(postId, user?.id); // Pass currentUserId
-
-    if (!post) {
-      throw new NotFoundException(`Post not found`);
-    }
-
-    this.postsService.incrementViews(postId);
-    return new ResponseDto(PostResponseDto.fromEntity(post));
-  }
 
   @HttpPost()
   @UseGuards(JwtAuthGuard)
@@ -6188,15 +6277,14 @@ export class PostsController {
     return new ResponseDto(success);
   }
 
-  @Patch(':id/approve')
+  @Patch(':id/status')
   @UseGuards(JwtAuthGuard)
-  // TODO: Add admin role guard here
-  async updatePostApprovalStatus(
+  async updatePostStatus(
     @Param('id', PostPipe) post: PostEntity,
-    @Body() dto: UpdatePostApprovalDto, // Use the new DTO
-    @GetUser() user: User, // For potential admin check
+    @Body() dto: UpdatePostStatusDto,
+    @GetUser() user: User,
   ): Promise<ResponseDto<PostResponseDto>> {
-    const updatedPost = await this.postsService.updatePostApprovalStatus(post.id, dto.isApproved,user.id);
+    const updatedPost = await this.postsService.updatePostStatus(post.id, dto.status,user.id);
     return new ResponseDto(PostResponseDto.fromEntity(updatedPost));
   }
 
@@ -6213,6 +6301,22 @@ export class PostsController {
     return new ResponseDto(PostResponseDto.fromEntity(updatedPost));
   }
 
+  @Get(':id')
+  @UseGuards(OptionalJwtAuthGuard)
+  async findOne(
+    @Param('id') id: string,
+    @GetUser() user?: User, // Get user if authenticated
+  ): Promise<ResponseDto<PostResponseDto>> {
+    const postId = +id;
+    const post = await this.postsService.findOne(postId, user?.id); // Pass currentUserId
+
+    if (!post) {
+      throw new NotFoundException(`Post not found`);
+    }
+
+    this.postsService.incrementViews(postId);
+    return new ResponseDto(PostResponseDto.fromEntity(post));
+  }
 
   }
 
@@ -6234,6 +6338,18 @@ export class UpdatePostDto extends PartialType(CreatePostDto) {
 ---
 
 
+### FILE: backend/src/posts/dto/update-post-status.dto.ts ###
+import { IsEnum } from 'class-validator';
+import { PostStatus } from '../entities/post.entity';
+
+export class UpdatePostStatusDto {
+  @IsEnum(PostStatus)
+  status: PostStatus;
+}
+
+---
+
+
 ### FILE: backend/src/posts/dto/update-comments-locked.dto.ts ###
 import { IsBoolean } from 'class-validator';
 
@@ -6249,12 +6365,15 @@ export class UpdateCommentsLockedDto {
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { IsOptional, IsString, IsInt, IsEnum, IsISO8601 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { PostStatus } from '../entities/post.entity';
 
 export enum PostSort {
   NEWEST = 'newest',
   POPULAR = 'popular',
   OLDEST = 'oldest',
 }
+
+export { PostStatus };
 
 export class PostQueryDto extends PaginationDto {
   @IsOptional()
@@ -6284,6 +6403,10 @@ export class PostQueryDto extends PaginationDto {
   @IsISO8601()
   @Type(() => Date)
   endDate?: Date;
+
+  @IsOptional()
+  @IsEnum(PostStatus)
+  status?: PostStatus;
 }
 
 ---
@@ -6334,20 +6457,8 @@ export class PostResponseDto {
 ---
 
 
-### FILE: backend/src/posts/dto/update-post-approval.dto.ts ###
-import { IsBoolean, IsNotEmpty } from 'class-validator';
-
-export class UpdatePostApprovalDto {
-  @IsBoolean()
-  @IsNotEmpty()
-  isApproved: boolean;
-}
-
----
-
-
 ### FILE: backend/src/posts/dto/create-post.dto.ts ###
-import { IsString, IsNotEmpty, IsInt, IsBoolean, IsOptional } from 'class-validator';
+import { IsString, IsNotEmpty, IsInt } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreatePostDto {
@@ -6363,10 +6474,6 @@ export class CreatePostDto {
   @IsNotEmpty()
   @Type(() => Number)
   communityId: number;
-
-  @IsBoolean()
-  @IsOptional()
-  isApproved?: boolean;
 }
 
 ---
@@ -10374,8 +10481,119 @@ export interface ResponseDto<T> {
 ---
 
 
+### FILE: frontend/src/features/reports/types.ts ###
+
+export interface Report {
+  id: number;
+  reason: string;
+  createdAt: string;
+  userId: number;
+  postId?: number;
+  commentId?: number;
+}
+
+export interface ReportQueryDto {
+  communityId: number;
+  page: number;
+  limit: number;
+}
+
+---
+
+
+### FILE: frontend/src/features/reports/components/ReportsQueue.tsx ###
+import { useParams } from "react-router-dom";
+import { useGetReportsQuery, useDismissReportMutation } from "../services/reportsApi";
+import { Button } from "../../../shared/components/ui/Button";
+
+export const ReportsQueue = () => {
+  const { communityId } = useParams();
+  const { data: reports, isLoading } = useGetReportsQuery({
+    communityId: +communityId,
+    page: 1,
+    limit: 10,
+  });
+  const [dismiss] = useDismissReportMutation();
+
+  if (isLoading) return <div className="p-4">Loading reports...</div>;
+
+  return (
+    <div className="space-y-3">
+      {reports?.data.length === 0 ? (
+        <div className="text-center py-10 bg-gray-50 rounded-lg border">
+          <p className="text-gray-500 italic">No pending reports to review.</p>
+        </div>
+      ) : (
+        reports?.data.map((report) => (
+          <div key={report.id} className="flex justify-between items-center p-4 bg-white rounded-lg border border-gray-200">
+            <div>
+              <p className="font-medium text-gray-900 text-lg">Report #{report.id}</p>
+              <p className="text-sm text-gray-700">{report.reason}</p>
+              <p className="text-xs text-gray-500 italic">
+                Reported by User #{report.userId} on {new Date(report.createdAt).toLocaleDateString()}
+              </p>
+              {report.postId && <p className="text-xs text-gray-500">Post ID: {report.postId}</p>}
+              {report.commentId && <p className="text-xs text-gray-500">Comment ID: {report.commentId}</p>}
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" onClick={() => dismiss({ communityId: +communityId, reportId: report.id })} className="bg-blue-600 hover:bg-blue-700">Dismiss</Button>
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+};
+
+---
+
+
+### FILE: frontend/src/features/reports/services/reportsApi.ts ###
+import { apiSlice } from "../../../shared/services/apiSlice";
+import type { ResponseDto } from "../../auth/types";
+import type { Report, ReportQueryDto } from "../types";
+
+export const reportsApi = apiSlice.injectEndpoints({
+  endpoints: (builder) => ({
+    getReports: builder.query<
+      ResponseDto<Report[]>,
+      ReportQueryDto
+    >({
+      query: (params) => ({
+        url: `/communities/${params.communityId}/reports`,
+        params,
+      }),
+      providesTags: ["Reports"],
+    }),
+    dismissReport: builder.mutation<
+      ResponseDto<boolean>,
+      { communityId: number; reportId: number }
+    >({
+      query: ({ communityId, reportId }) => ({
+        url: `/communities/${communityId}/reports/${reportId}/dismiss`,
+        method: "POST",
+      }),
+      invalidatesTags: ["Reports"],
+    }),
+  }),
+});
+
+export const {
+  useGetReportsQuery,
+  useDismissReportMutation,
+} = reportsApi;
+
+---
+
+
 ### FILE: frontend/src/features/posts/types.ts ###
 import type { ReactionType } from "../reactions/types/types";
+
+export enum PostStatus {
+  PENDING = 'pending',
+  APPROVED = 'approved',
+  REJECTED = 'rejected',
+}
 
 export interface Post {
   id: number;
@@ -10394,8 +10612,8 @@ export interface Post {
   dislikesCount: number;
   commentsCount: number; // Added commentsCount
   userReaction?: { id: number; type: ReactionType };
-    userSaved?: any;
-
+  userSaved?: any;
+  status: PostStatus;
   createdAt: string;
   updatedAt: string;
 }
@@ -10420,7 +10638,9 @@ export interface PostQueryDto {
   startDate?: string;
   endDate?: string;
   communityId?: number;
+  status?: PostStatus;
 }
+
 
 ---
 
@@ -10776,6 +10996,63 @@ export default PostList;
 ---
 
 
+### FILE: frontend/src/features/posts/components/PendingPostsQueue.tsx ###
+import { useParams } from "react-router-dom";
+import { useGetPostsInfiniteQuery, useUpdatePostStatusMutation } from "../services/postsApi";
+import { Button } from "../../../shared/components/ui/Button";
+import { PostStatus } from "../types";
+
+export const PendingPostsQueue = () => {
+  const { communityId } = useParams();
+  const { data, isLoading } = useGetPostsInfiniteQuery({
+    communityId: +communityId,
+    status: PostStatus.PENDING,
+  });
+  const [updatePostStatus] = useUpdatePostStatusMutation();
+
+  const approvePost = (postId: number) => {
+    updatePostStatus({ id: postId, status: PostStatus.APPROVED });
+  };
+
+  const rejectPost = (postId: number) => {
+    updatePostStatus({ id: postId, status: PostStatus.REJECTED });
+  };
+
+
+  if (isLoading) return <div className="p-4">Loading pending posts...</div>;
+
+  const posts = data?.pages.flatMap(page => page.data) ?? [];
+
+  return (
+    <div className="space-y-3">
+      {posts.length === 0 ? (
+        <div className="text-center py-10 bg-gray-50 rounded-lg border">
+          <p className="text-gray-500 italic">No pending posts to review.</p>
+        </div>
+      ) : (
+        posts.map((post) => (
+          <div key={post.id} className="flex justify-between items-center p-4 bg-white rounded-lg border border-gray-200">
+            <div>
+              <p className="font-medium text-gray-900 text-lg">{post.title}</p>
+              <p className="text-sm text-gray-700">{post.content}</p>
+              <p className="text-xs text-gray-500 italic">
+                Posted by User #{post.author.name} on {new Date(post.createdAt).toLocaleDateString()}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" onClick={() => approvePost(post.id)} className="bg-green-600 hover:bg-green-700">Approve</Button>
+              <Button size="sm" variant="outline" onClick={() => rejectPost(post.id)} className="text-red-600 border-red-600 hover:bg-red-50">Reject</Button>
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+};
+
+---
+
+
 ### FILE: frontend/src/features/posts/components/PostCardDropdown.tsx ###
 import React from 'react';
 import type { Post } from '../types';
@@ -10872,6 +11149,48 @@ const [deletePost, { isLoading }] = useDeletePostMutation();
 };
 
 export default PostDropdown;
+
+---
+
+
+### FILE: frontend/src/features/posts/components/RejectedPostsQueue.tsx ###
+import { useParams } from "react-router-dom";
+import { useGetPostsInfiniteQuery } from "../services/postsApi";
+import { PostStatus } from "../types";
+
+export const RejectedPostsQueue = () => {
+  const { communityId } = useParams();
+  const { data, isLoading } = useGetPostsInfiniteQuery({
+    communityId: +communityId,
+    status: PostStatus.REJECTED,
+  });
+
+  if (isLoading) return <div className="p-4">Loading rejected posts...</div>;
+
+  const posts = data?.pages.flatMap(page => page.data) ?? [];
+
+  return (
+    <div className="space-y-3">
+      {posts.length === 0 ? (
+        <div className="text-center py-10 bg-gray-50 rounded-lg border">
+          <p className="text-gray-500 italic">No rejected posts to review.</p>
+        </div>
+      ) : (
+        posts.map((post) => (
+          <div key={post.id} className="flex justify-between items-center p-4 bg-white rounded-lg border border-gray-200">
+            <div>
+              <p className="font-medium text-gray-900 text-lg">{post.title}</p>
+              <p className="text-sm text-gray-700">{post.content}</p>
+              <p className="text-xs text-gray-500 italic">
+                Posted by User #{post.author.name} on {new Date(post.createdAt).toLocaleDateString()}
+              </p>
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+};
 
 ---
 
@@ -11066,7 +11385,7 @@ export default PostCard;
 
 ### FILE: frontend/src/features/posts/services/postsApi.ts ###
 import { apiSlice } from '../../../shared/services/apiSlice';
-import type { Post, CreatePostDto, UpdatePostDto, PostQueryDto } from '../types';
+import type { Post, CreatePostDto, UpdatePostDto, PostQueryDto, PostStatus } from '../types';
 import type { PaginatedResponse, ResponseDto } from '../../../shared/types';
 
 export const postsApi = apiSlice.injectEndpoints({
@@ -11117,6 +11436,14 @@ export const postsApi = apiSlice.injectEndpoints({
             }),
             invalidatesTags: (result, error, { id }) => [{ type: 'Posts', id }],
         }),
+        updatePostStatus: builder.mutation<ResponseDto<Post>, { id: number; status: PostStatus }>({
+          query: ({ id, status }) => ({
+            url: `/posts/${id}/status`,
+            method: 'PATCH',
+            body: { status },
+          }),
+          invalidatesTags: ['Posts'],
+      }),
         deletePost: builder.mutation<ResponseDto<boolean>, number>({
             query: (id) => ({
                 url: `/posts/${id}`,
@@ -11133,6 +11460,7 @@ export const {
     useGetPostByIdQuery,
     useCreatePostMutation,
     useUpdatePostMutation,
+    useUpdatePostStatusMutation,
     useDeletePostMutation,
 } = postsApi;
 
@@ -11832,33 +12160,31 @@ export const CommunityPage = () => {
 
 ### FILE: frontend/src/features/communities/pages/QueuesPage.tsx ###
 // frontend/src/features/communities/pages/mod/ModQueuesPage.tsx
+import { useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { 
-  
-  
-  useAcceptMembershipRequestMutation,
-  useGetCommunityMembershipRequestsQuery,
-  useRejectMembershipRequestMutation
-} from '../../community-membership-requests/services/communityMembershipRequestsApi';
+import { useAcceptMembershipRequestMutation, useGetCommunityMembershipRequestsQuery, useRejectMembershipRequestMutation } from '../../community-membership-requests/services/communityMembershipRequestsApi';
 import { Button } from '../../../shared/components/ui/Button';
 import { CommunityMembershipRequestStatus } from '../../community-membership-requests/types';
+import { ReportsQueue } from '../../reports/components/ReportsQueue';
+import { BannedUsersQueue } from '../../community-restrictions/components/BannedUsersQueue';
+import { PendingPostsQueue } from '../../posts/components/PendingPostsQueue';
+import { RejectedPostsQueue } from '../../posts/components/RejectedPostsQueue';
 
-export const ModQueuesPage = () => {
+const JoinRequestsQueue = () => {
   const { communityId } = useParams();
-const { data:requests, isLoading } = useGetCommunityMembershipRequestsQuery({
-  communityId: +communityId,
-  status: CommunityMembershipRequestStatus.PENDING,
-  page: 1,
-  limit: 10,
-});
+  const { data:requests, isLoading } = useGetCommunityMembershipRequestsQuery({
+    communityId: +communityId,
+    status: CommunityMembershipRequestStatus.PENDING,
+    page: 1,
+    limit: 10,
+  });
   const [approve] = useAcceptMembershipRequestMutation();
   const [reject] = useRejectMembershipRequestMutation();
 
   if (isLoading) return <div className="p-4">Loading queue...</div>;
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <h2 className="text-2xl font-bold mb-6">Moderation Queue: Join Requests</h2>
+    <>
       {requests?.data.length === 0 ? (
         <div className="text-center py-10 bg-gray-50 rounded-lg border">
           <p className="text-gray-500 italic">No pending requests to review.</p>
@@ -11880,6 +12206,79 @@ const { data:requests, isLoading } = useGetCommunityMembershipRequestsQuery({
           ))}
         </div>
       )}
+    </>
+  );
+}
+
+export const ModQueuesPage = () => {
+  const [activeTab, setActiveTab] = useState('join-requests');
+
+  return (
+    <div className="max-w-4xl mx-auto">
+      <h2 className="text-2xl font-bold mb-6">Moderation Queues</h2>
+
+      <div className="border-b border-gray-200">
+        <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+          <button
+            onClick={() => setActiveTab('join-requests')}
+            className={`${
+              activeTab === 'join-requests'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+          >
+            Join Requests
+          </button>
+          <button
+            onClick={() => setActiveTab('reports')}
+            className={`${
+              activeTab === 'reports'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+          >
+            Reports
+          </button>
+          <button
+            onClick={() => setActiveTab('banned-users')}
+            className={`${
+              activeTab === 'banned-users'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+          >
+            Banned Users
+          </button>
+          <button
+            onClick={() => setActiveTab('pending-posts')}
+            className={`${
+              activeTab === 'pending-posts'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+          >
+            Pending Posts
+          </button>
+          <button
+            onClick={() => setActiveTab('rejected-posts')}
+            className={`${
+              activeTab === 'rejected-posts'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+          >
+            Rejected Posts
+          </button>
+        </nav>
+      </div>
+
+      <div className="py-6">
+        {activeTab === 'join-requests' && <JoinRequestsQueue />}
+        {activeTab === 'reports' && <ReportsQueue />}
+        {activeTab === 'banned-users' && <BannedUsersQueue />}
+        {activeTab === 'pending-posts' && <PendingPostsQueue />}
+        {activeTab === 'rejected-posts' && <RejectedPostsQueue />}
+      </div>
     </div>
   );
 };
@@ -12820,6 +13219,54 @@ console.log(expiresAt);
         </div>
       </div>
     </form>
+  );
+};
+
+---
+
+
+### FILE: frontend/src/features/community-restrictions/components/BannedUsersQueue.tsx ###
+import { useParams } from "react-router-dom";
+import { useGetCommunityRestrictionsQuery, useDeleteCommunityRestrictionMutation } from "../services/communityRestrictionsApi";
+import { Button } from "../../../shared/components/ui/Button";
+import { CommunityRestrictionType } from "../types";
+
+export const BannedUsersQueue = () => {
+  const { communityId } = useParams();
+  const { data: restrictions, isLoading } = useGetCommunityRestrictionsQuery({
+    communityId: +communityId,
+    restrictionType: CommunityRestrictionType.BAN,
+    page: 1,
+    limit: 10,
+  });
+  const [unban] = useDeleteCommunityRestrictionMutation();
+
+  if (isLoading) return <div className="p-4">Loading banned users...</div>;
+
+  return (
+    <div className="space-y-3">
+      {restrictions?.data.length === 0 ? (
+        <div className="text-center py-10 bg-gray-50 rounded-lg border">
+          <p className="text-gray-500 italic">No banned users in this community.</p>
+        </div>
+      ) : (
+        restrictions?.data.map((restriction) => (
+          <div key={restriction.id} className="flex justify-between items-center p-4 bg-white rounded-lg border border-gray-200">
+            <div>
+              <p className="font-medium text-gray-900 text-lg">User #{restriction.userId}</p>
+              <p className="text-sm text-gray-700">{restriction.reason}</p>
+              <p className="text-xs text-gray-500 italic">
+                Banned on {new Date(restriction.createdAt).toLocaleDateString()}
+                {restriction.expiresAt && ` - Expires on ${new Date(restriction.expiresAt).toLocaleDateString()}`}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" onClick={() => unban(restriction.id)} className="bg-red-600 hover:bg-red-700">Unban</Button>
+            </div>
+          </div>
+        ))
+      )}
+    </div>
   );
 };
 
@@ -14169,7 +14616,7 @@ export const apiSlice = createApi({
      'Auth', 'Communities', 'CommunityMemberships',
       'EmailVerification', 'Profile', 'ResetPassword',
        'PostReaction', 'CommentReaction', 'PostStats',
-        'CommentStats',"CommunityMembershipRequests","CommunityRestrictions"],
+        'CommentStats',"CommunityMembershipRequests","CommunityRestrictions", "Reports"],
   endpoints: () => ({}), // Empty endpoints as this is a base slice
 });
 

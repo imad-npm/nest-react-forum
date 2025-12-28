@@ -15,6 +15,12 @@ import { Community } from '../../communities/entities/community.entity';
 import { ReactionType } from 'src/reactions/reactions.types';
 import { PostReport } from '../../reports/entities/post-report.entity';
 
+export enum PostStatus {
+  PENDING = 'pending',
+  APPROVED = 'approved',
+  REJECTED = 'rejected',
+}
+
 @Entity('posts')
 export class Post {
   @PrimaryGeneratedColumn()
@@ -65,11 +71,12 @@ export class Post {
   @Column({ default: false })
   commentsLocked: boolean;
 
-  @Column({ default: false })
-  isApproved: boolean;
-
-  @Column({ type: 'datetime', nullable: true })
-  approvedAt: Date | null;
+  @Column({
+    type: 'simple-enum',
+    enum: PostStatus,
+    default: PostStatus.PENDING,
+  })
+  status: PostStatus;
 
   @OneToMany(() => PostReport, (postReport) => postReport.post)
   reports: PostReport[];

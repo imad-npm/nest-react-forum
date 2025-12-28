@@ -10,11 +10,12 @@ import {
   Query,
   Req,
   NotFoundException,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { PostsService } from './posts.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
-import { UpdatePostApprovalDto } from './dto/update-post-approval.dto'; // Import the new DTO
+import { UpdatePostStatusDto } from './dto/update-post-status.dto';
 import { UpdateCommentsLockedDto } from './dto/update-comments-locked.dto';
 import { Post as PostEntity } from './entities/post.entity';
 import { GetUser } from 'src/decorators/user.decorator';
@@ -30,8 +31,6 @@ import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
 import { PaginationMetaDto } from 'src/common/dto/pagination-meta.dto';
 import { OptionalJwtAuthGuard } from 'src/auth/guards/optional-jwt-auth.guard';
 import type { Request } from 'express';
-import { CommunityType } from 'src/communities/types';
-import { CommunityMembershipRole } from 'src/community-memberships/types';
 
 @Controller('posts')
 export class PostsController {
@@ -56,6 +55,7 @@ export class PostsController {
       endDate: query.endDate,
       currentUserId: req.user?.id ?? undefined,
       communityId: query.communityId,
+      status: query.status,
     });
 
     const paginationMeta = new PaginationMetaDto(
@@ -68,22 +68,6 @@ export class PostsController {
     return new PaginatedResponseDto(data.map(PostResponseDto.fromEntity), paginationMeta);
   }
 
-  @Get(':id')
-  @UseGuards(OptionalJwtAuthGuard)
-  async findOne(
-    @Param('id') id: string,
-    @GetUser() user?: User, // Get user if authenticated
-  ): Promise<ResponseDto<PostResponseDto>> {
-    const postId = +id;
-    const post = await this.postsService.findOne(postId, user?.id); // Pass currentUserId
-
-    if (!post) {
-      throw new NotFoundException(`Post not found`);
-    }
-
-    this.postsService.incrementViews(postId);
-    return new ResponseDto(PostResponseDto.fromEntity(post));
-  }
 
   @HttpPost()
   @UseGuards(JwtAuthGuard)
@@ -125,15 +109,14 @@ export class PostsController {
     return new ResponseDto(success);
   }
 
-  @Patch(':id/approve')
+  @Patch(':id/status')
   @UseGuards(JwtAuthGuard)
-  // TODO: Add admin role guard here
-  async updatePostApprovalStatus(
-    @Param('id', PostPipe) post: PostEntity,
-    @Body() dto: UpdatePostApprovalDto, // Use the new DTO
-    @GetUser() user: User, // For potential admin check
+  async updatePostStatus(
+@Param('id', ParseIntPipe) id: number, // Use ParseIntPipe instead of PostPipe   
+ @Body() dto: UpdatePostStatusDto,
+    @GetUser() user: User,
   ): Promise<ResponseDto<PostResponseDto>> {
-    const updatedPost = await this.postsService.updatePostApprovalStatus(post.id, dto.isApproved,user.id);
+    const updatedPost = await this.postsService.updatePostStatus(id, dto.status,user.id);
     return new ResponseDto(PostResponseDto.fromEntity(updatedPost));
   }
 
@@ -150,5 +133,21 @@ export class PostsController {
     return new ResponseDto(PostResponseDto.fromEntity(updatedPost));
   }
 
+  @Get(':id')
+  @UseGuards(OptionalJwtAuthGuard)
+  async findOne(
+    @Param('id') id: string,
+    @GetUser() user?: User, // Get user if authenticated
+  ): Promise<ResponseDto<PostResponseDto>> {
+    const postId = +id;
+    const post = await this.postsService.findOne(postId, user?.id); // Pass currentUserId
+
+    if (!post) {
+      throw new NotFoundException(`Post not found`);
+    }
+
+    this.postsService.incrementViews(postId);
+    return new ResponseDto(PostResponseDto.fromEntity(post));
+  }
 
   }

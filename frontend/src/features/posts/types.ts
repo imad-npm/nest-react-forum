@@ -1,5 +1,11 @@
 import type { ReactionType } from "../reactions/types/types";
 
+export enum PostStatus {
+  PENDING = 'pending',
+  APPROVED = 'approved',
+  REJECTED = 'rejected',
+}
+
 export interface Post {
   id: number;
   title: string;
@@ -17,8 +23,8 @@ export interface Post {
   dislikesCount: number;
   commentsCount: number; // Added commentsCount
   userReaction?: { id: number; type: ReactionType };
-    userSaved?: any;
-
+  userSaved?: any;
+  status: PostStatus;
   createdAt: string;
   updatedAt: string;
 }
@@ -43,4 +49,6 @@ export interface PostQueryDto {
   startDate?: string;
   endDate?: string;
   communityId?: number;
+  status?: PostStatus;
 }
+
