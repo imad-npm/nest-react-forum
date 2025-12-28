@@ -71,7 +71,10 @@ export class ProfileService {
   }
 
   async findOneByUserId(userId: number): Promise<Profile> {
-    const profile = await this.profileRepo.findOne({ where: { user: { id: userId } } });
+    const profile = await this.profileRepo.findOne({
+      where: { user: { id: userId } },
+      relations: ['user'] // Eager load the user entity
+    });
     if (!profile) {
       throw new NotFoundException(`Profile for user with ID ${userId} not found.`);
     }

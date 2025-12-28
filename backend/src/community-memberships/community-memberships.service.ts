@@ -36,16 +36,15 @@ export class CommunityMembershipsService {
 
   async findMemberships(query: MembershipQuery): Promise<{ data: CommunityMembership[]; count: number }> {
     const where: any = {};
-    const relations: string[] = [];
+    const relations: string[] = ['user']; // Always push 'user' relation
 
     if (query.userId) {
       where.userId = query.userId;
-      relations.push('community');
+      relations.push('community'); 
     }
 
     if (query.communityId) {
       where.communityId = query.communityId;
-      relations.push('user');
     }
 
     const options: any = { where, relations };

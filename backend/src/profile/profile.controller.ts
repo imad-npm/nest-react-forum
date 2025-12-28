@@ -34,6 +34,13 @@ export class ProfileController {
     return ProfileResponseDto.fromEntity(profile);
   }
 
+  // New endpoint to get a profile by user ID
+  @Get('user/:userId')
+  async getProfileByUserId(@Param('userId', ParseIntPipe) userId: number): Promise<ProfileResponseDto> {
+    const profile = await this.profileService.findOneByUserId(userId);
+    return ProfileResponseDto.fromEntity(profile);
+  }
+
   @UseGuards(JwtAuthGuard)
   @Post()
   @UseInterceptors(PictureInterceptor

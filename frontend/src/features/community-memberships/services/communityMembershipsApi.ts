@@ -14,6 +14,7 @@ export const communityMembershipsApi = apiSlice.injectEndpoints({
       }),
       providesTags: ['CommunityMemberships'],
     }),
+
     deleteMembership: builder.mutation<
       ResponseDto<boolean>,
       number // communityId
@@ -22,7 +23,18 @@ export const communityMembershipsApi = apiSlice.injectEndpoints({
         url: `/users/me/communities/${communityId}/memberships`,
         method: 'DELETE',
       }),
-      invalidatesTags: ['CommunityMemberships', 'Communities'], // Invalidate communities to update subscriber count
+      invalidatesTags: ['CommunityMemberships', 'Communities'],
+    }),
+
+    removeCommunityMember: builder.mutation<
+      ResponseDto<boolean>,
+      { communityId: number; targetUserId: number }
+    >({
+      query: ({ communityId, targetUserId }) => ({
+        url: `/communities/${communityId}/members/${targetUserId}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['CommunityMemberships', 'Communities'],
     }),
   }),
 });
@@ -30,4 +42,5 @@ export const communityMembershipsApi = apiSlice.injectEndpoints({
 export const {
   useGetCommunityMembershipsQuery,
   useDeleteMembershipMutation,
+  useRemoveCommunityMemberMutation,
 } = communityMembershipsApi;

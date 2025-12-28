@@ -23,6 +23,9 @@ export class CommunityMembershipResponseDto {
   role: CommunityMembershipRole;
 
   @Expose()
+  rank: number; // Add this line
+
+  @Expose()
   createdAt: Date;
 
   static fromEntity(

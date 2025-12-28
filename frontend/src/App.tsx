@@ -16,6 +16,7 @@ import { ModQueuesPage } from './features/communities/pages/QueuesPage';
 import { ModMembersPage } from './features/communities/pages/MembersPage';
 import { ModModeratorsPage } from './features/communities/pages/ModeratorsPage';
 import { RestrictedUsersPage } from './features/community-restrictions/pages/RestrictedUsersPage';
+import { ProfilePage } from './features/profile/pages/ProfilePage';
 // ... other imports
 
 export default function App() {
@@ -36,6 +37,7 @@ export default function App() {
           <Route path="/communities/:communityId" element={<AuthGuard><CommunityPage /></AuthGuard>} />
           <Route path="/my-communities" element={<AuthGuard><MyCommunitiesPage /></AuthGuard>} />
           <Route path="/explore-communities" element={<AuthGuard><ExploreCommunitiesPage /></AuthGuard>} />
+          <Route path="/profile" element={<AuthGuard><ProfilePage /></AuthGuard>} /> {/* Changed Route */}
         </Route>
 
         {/* --- Moderation Routes (with ModSidebar) --- */}
