@@ -7,6 +7,7 @@ import { FaHome, FaSignInAlt, FaUserPlus, FaSignOutAlt, FaBell, FaPlus, FaCaretD
 const Header = () => {
   const { isAuthenticated, user } = useAuth();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+console.log(user);
 
   const toggleDropdown = () => {
     setIsDropdownOpen(!isDropdownOpen);
@@ -49,8 +50,11 @@ const Header = () => {
                 </button>
                 {isDropdownOpen && (
                   <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-700 rounded-md shadow-lg py-1 text-gray-800 dark:text-gray-200 z-10">
-                    <Link to="/profile" className="block px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-600">
-                      Profile ({user?.name})
+                    <Link
+                      to={`/profile/${user.username}`}
+                      className="block px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-600"
+                    >
+                      Profile (@{user.username})
                     </Link>
                     <Link to="/settings" className="block px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-600">
                       Settings

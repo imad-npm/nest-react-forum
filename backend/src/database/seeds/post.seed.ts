@@ -14,7 +14,7 @@ export async function seedPosts(users: User[], communities: Community[]) {
   });
 
   await postRepo.save(posts);
-  console.log('Seeded 100 posts ✅');
+  console.log('Seeded 30 posts ✅');
 
   return posts;
 }

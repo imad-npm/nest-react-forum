@@ -6,7 +6,7 @@ export class ProfileResponseDto {
   id: number;
 
   @Expose()
-  username: string;
+  displayName: string;
 
   @Expose()
   bio: string | null;
@@ -21,7 +21,7 @@ export class ProfileResponseDto {
   static fromEntity(entity: Profile): ProfileResponseDto {
     const dto = new ProfileResponseDto();
     dto.id = entity.id;
-    dto.username = entity.username;
+    dto.displayName = entity.displayName;
     dto.bio = entity.bio ?? null;
     dto.picture = entity.picture ?? null;
     return dto;

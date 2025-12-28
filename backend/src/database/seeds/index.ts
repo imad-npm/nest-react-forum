@@ -1,4 +1,5 @@
 import { seedUsers } from './user.seed';
+import { seedProfiles } from './profile.seed'; // NEW IMPORT
 import { seedPosts } from './post.seed';
 import { seedComments } from './comment.seed';
 import { seedReactions } from './reaction.seed';
@@ -13,6 +14,9 @@ async function main() {
     await AppDataSource.initialize();
     // Seed users
     const users = await seedUsers();
+
+    // Seed profiles
+    await seedProfiles();
 
     // Seed communities
     const communities = await seedCommunities(users);

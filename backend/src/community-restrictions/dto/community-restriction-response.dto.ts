@@ -27,7 +27,7 @@ export class CommunityRestrictionResponseDto {
 
   @Expose()
   @Type(() => UserResponseDto) // Expose the full user object
-  user: UserResponseDto; // Add user property
+  user: UserResponseDto | null; // Add user property
 
   @Expose()
   @Transform(({ obj }) => obj.createdBy.id)

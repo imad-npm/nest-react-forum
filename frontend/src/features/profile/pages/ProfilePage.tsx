@@ -1,5 +1,5 @@
 // frontend/src/pages/ProfilePage.tsx
-import React, { useState } from 'react'; // Import useState
+import { useState } from 'react'; // Import useState
 import { useParams } from 'react-router-dom';
 import { FaUserCircle, FaEdit } from 'react-icons/fa';
 import { useAuth } from '../../auth/hooks/useAuth';
@@ -7,6 +7,8 @@ import { ProfileEditForm } from '../components/ProfileEditForm';
 import { useGetProfileByUserIdQuery } from '../services/profileApi';
 
 export const ProfilePage = () => {
+  const { userId } = useParams<{ userId: string }>();
+  const parsedUserId = Number(userId);
 
   const { data: profileResponse, isLoading, error, refetch } = useGetProfileByUserIdQuery(parsedUserId); // Add refetch
   const { user: currentUser } = useAuth(); // Get current logged-in user
@@ -36,10 +38,19 @@ export const ProfilePage = () => {
   }
 
   if (error) {
-    // @ts-ignore
+    let errorMessage = 'Failed to load profile';
+    if ('status' in error && 'data' in error) {
+      // You can check if 'data' is an object and has a message property
+      if (typeof error.data === 'object' && error.data !== null && 'message' in error.data) {
+        errorMessage = (error.data as { message: string }).message;
+      }
+    } else if ('message' in error) {
+      errorMessage = error.message;
+    }
+
     return (
       <div className="flex justify-center items-center h-screen">
-        <p className="text-red-500">Error: {error.data?.message || 'Failed to load profile'}</p>
+        <p className="text-red-500">Error: {errorMessage}</p>
       </div>
     );
   }

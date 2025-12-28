@@ -8,6 +8,8 @@ import {
   UploadedFile,
   Post,
   ConflictException,
+  Param, // NEW
+  ParseIntPipe, // NEW
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ProfileService } from './profile.service';
@@ -53,7 +55,7 @@ export class ProfileController {
 
     const profile = await this.profileService.createProfile({
       user,
-      username: createProfileDto.username,
+      displayName: createProfileDto.displayName,
       bio: createProfileDto.bio,
       picture: file ? file.path : undefined,
     });
@@ -73,7 +75,7 @@ export class ProfileController {
 
     const updatedProfile = await this.profileService.updateProfile({
       profile,
-      username: updateProfileDto.username,
+      displayName: updateProfileDto.displayName,
       bio: updateProfileDto.bio,
       picture: file ? file.path : undefined,
     });

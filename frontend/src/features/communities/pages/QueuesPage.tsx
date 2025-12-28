@@ -34,12 +34,12 @@ const JoinRequestsQueue = () => {
               <div className="flex-shrink-0 mr-4">
                 {/* Placeholder for avatar - could be replaced with actual avatar later */}
                 <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 font-bold">
-                  {req.user.name.charAt(0).toUpperCase()}
+                  {req.user.username.charAt(0).toUpperCase()}
                 </div>
               </div>
               <div className="flex-grow">
                 <a href={`/profile/${req.userId}`} className="font-medium text-blue-600 hover:underline text-lg">
-                  {req.user.name}
+                  {req.user.username}
                 </a>
                 <p className="text-xs text-gray-500 italic">Requested on {new Date(req.createdAt).toLocaleDateString()}</p>
               </div>

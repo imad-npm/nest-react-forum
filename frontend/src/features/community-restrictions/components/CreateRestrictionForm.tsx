@@ -68,7 +68,7 @@ console.log(expiresAt);
   const allMembers = membersResponse?.data || [];
   const searchableMembers: SearchableUser[] = allMembers.map(member => ({
     id: member.userId,
-    label: member.user.name
+    label: member.user.username
   }));
 
   const filteredMembers = searchableMembers.filter(member =>

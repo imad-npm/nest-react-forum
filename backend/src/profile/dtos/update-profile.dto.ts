@@ -6,7 +6,7 @@ export class UpdateProfileDto {
   @IsAlphanumeric()
   @MinLength(3)
   @MaxLength(20)
-  username?: string;
+  displayName?: string;
 
   @IsOptional()
   @IsString()

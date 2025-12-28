@@ -24,10 +24,10 @@ export class UsersService {
     if (search) {
       query.where(
         new Brackets((qb) => {
-          qb.where('user.name LIKE :search', {
+          qb.where('user.username LIKE :search', {
             search: `%${search}%`,
           }).orWhere('user.email LIKE :search', { search: `%${search}%` })
-          .orWhere('profile.username LIKE :search', { search: `%${search}%` }); // Search in profile username
+          .orWhere('profile.displayName LIKE :search', { search: `%${search}%` }); // Search in profile display name
         }),
       );
     }
@@ -64,14 +64,14 @@ export class UsersService {
 
 
 async createUser({
-  name,
+  username,
   email,
   password,
   provider,
   providerId,
   emailVerifiedAt,
 }: {
-  name: string;
+  username: string;
   email: string;
   password?: string | null;
   provider?: 'google' | 'github' | null;
@@ -95,7 +95,7 @@ async createUser({
   }
 
   const user = this.repo.create({
-    name,
+    username,
     email,
     provider: provider ?? null,
     providerId: providerId ?? null,
@@ -110,7 +110,7 @@ async createUser({
 }
  async updateUser({
   user,
-  name,
+  username,
   email,
   password,
   provider,
@@ -118,7 +118,7 @@ async createUser({
   emailVerifiedAt,
 }: {
   user: User;
-  name?: string;
+  username?: string;
   email?: string;
   password?: string | null;
   provider?: 'google' | 'github' | null;
@@ -152,7 +152,7 @@ async createUser({
   }
 
   Object.assign(user, {
-    ...(name !== undefined && { name }),
+    ...(username !== undefined && { username }),
     ...(email !== undefined && { email }),
     ...(provider !== undefined && { provider }),
     ...(providerId !== undefined && { providerId }),

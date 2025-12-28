@@ -8,7 +8,7 @@ export class Profile { // Updated class name
   id: number;
 
   @Column({ type: 'varchar', unique: true })
-  username: string;
+  displayName: string;
 
   @Column({ type: 'text', nullable: true })
   bio: string | null;

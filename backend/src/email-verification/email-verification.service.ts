@@ -62,7 +62,7 @@ export class EmailVerificationService {
         user.email,
         'Verify Your Email',
         'verify-email', // templateName (templates/verify-email.hbs)
-        { name: user.name, verifyUrl }, // context for the template
+        { username: user.username, verifyUrl }, // context for the template
       );
     } catch (err) {
       console.error('Error sending verification email:', err);

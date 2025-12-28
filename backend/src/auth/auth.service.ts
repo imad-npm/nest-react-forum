@@ -21,9 +21,9 @@ export class AuthService {
   // -------------------------------------------------------------------------
   // Register (local account)
   // -------------------------------------------------------------------------
-  async register(name: string, email: string, password: string): Promise<User> {
+  async register(username: string, email: string, password: string): Promise<User> {
     return this.userService.createUser(
-     { name,
+     { username,
       email,
       password, }
     );
@@ -81,7 +81,7 @@ async validateUser(email: string, password: string): Promise<User> {
     if (!user) {
       // First time → create new user
      return this.userService.createUser({
-  name: oauthUser.fullName ?? oauthUser.email.split('@')[0],
+  username: oauthUser.fullName ?? oauthUser.email.split('@')[0],
   email: oauthUser.email,
   password: undefined, // no password
   provider: 'google',
@@ -93,7 +93,7 @@ async validateUser(email: string, password: string): Promise<User> {
 
     // Existing user → make sure provider data is up-to-date
     return this.userService.updateUser({user ,
-      name: oauthUser.fullName ?? user.name,
+      username: oauthUser.fullName ?? user.username,
       provider: 'google',
       providerId: oauthUser.id,
       emailVerifiedAt: user.emailVerifiedAt ?? new Date(),

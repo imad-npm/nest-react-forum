@@ -28,7 +28,7 @@ export class PasswordResetController {
         user.email,
         'Reset Your Password',
         'reset-password',
-        { name: user.name, resetLink },
+        { username: user.username, resetLink },
       );
 
       return { message: 'Email sent if account exists' };

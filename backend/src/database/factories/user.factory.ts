@@ -5,7 +5,7 @@ import * as bcrypt from 'bcrypt';
 export function userFactory(): User {
   const user = new User();
 
-  user.name = faker.person.fullName();
+  user.username = faker.internet.username();
   user.email = faker.internet.email();
 
   // --- Add bcrypt password ---

@@ -25,7 +25,7 @@ export const BannedUsersQueue = () => {
         restrictions?.data.map((restriction) => (
           <div key={restriction.id} className="flex justify-between items-center p-4 bg-white rounded-lg border border-gray-200">
             <div>
-              <p className="font-medium text-gray-900 text-lg">{restriction.user.name}</p>
+              <p className="font-medium text-gray-900 text-lg">{restriction.user.username}</p>
               <p className="text-sm text-gray-700">{restriction.reason}</p>
               <p className="text-xs text-gray-500 italic">
                 Banned on {new Date(restriction.createdAt).toLocaleDateString()}
