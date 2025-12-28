@@ -25,17 +25,15 @@ export class ProfileService {
     private readonly profileRepo: Repository<Profile>,
   ) { }
 
-  async createProfile(params: CreateProfileParams): Promise<Profile> {
-
-    const existingProfile = await this
-      .findOneByUserId(params.user.id)
-      .catch(() => null);
+async createProfile(params: CreateProfileParams): Promise<Profile> {
+  try {
+    const existingProfile = await this.findOneByUserId(params.user.id).catch(() => null);
     if (existingProfile) {
       throw new ConflictException('Profile already exists for this user.');
     }
 
     const existingDisplayname = await this.profileRepo.findOne({
-      where: { displayName: params.displayName }, // exclude current profile
+      where: { displayName: params.displayName },
     });
     if (existingDisplayname) {
       throw new ConflictException('Username is already taken.');
@@ -47,30 +45,58 @@ export class ProfileService {
       bio: params.bio ?? null,
       picture: params.picture ?? null,
     });
-    return this.profileRepo.save(profile);
-  }
 
-  async updateProfile(params: UpdateProfileParams): Promise<Profile> {
-    const { profile, displayName, bio, picture } = params;
+    const savedProfile = await this.profileRepo.save(profile);
 
-    if (displayName) {
-      const existingDisplayname = await this.profileRepo.findOne({
-        where: { displayName, id: Not(profile.id) }, // exclude current profile
-      });
-      if (existingDisplayname) {
-        throw new ConflictException('Display name is already taken.');
-      }
+    const fullProfile = await this.profileRepo.findOne({
+      where: { id: savedProfile.id },
+      relations: ['user'],
+    });
+
+    if (!fullProfile) {
+      throw new NotFoundException('Failed to retrieve the created profile.');
     }
 
-    Object.assign(profile, {
-      ...(displayName !== undefined && { displayName }),
-      ...(bio !== undefined && { bio }),
-      ...(picture !== undefined && { picture }), // Directly assign the path
+    return fullProfile;
+  } catch (err) {
+    // Optional: log error here
+    throw err;
+  }
+}
+
+async updateProfile(params: UpdateProfileParams): Promise<Profile> {
+  const { profile, displayName, bio, picture } = params;
+
+  if (displayName) {
+    const existingDisplayname = await this.profileRepo.findOne({
+      where: { displayName, id: Not(profile.id) },
     });
-    return this.profileRepo.save(profile);
+    if (existingDisplayname) {
+      throw new ConflictException('Display name is already taken.');
+    }
   }
 
-  async findOneByUserId(userId: number): Promise<Profile> {
+  Object.assign(profile, {
+    ...(displayName !== undefined && { displayName }),
+    ...(bio !== undefined && { bio }),
+    ...(picture !== undefined && { picture }),
+  });
+
+  const savedProfile = await this.profileRepo.save(profile);
+
+  const fullProfile = await this.profileRepo.findOne({
+    where: { id: savedProfile.id },
+    relations: ['user'],
+  });
+
+  if (!fullProfile) {
+    throw new NotFoundException('Failed to retrieve the updated profile.');
+  }
+
+  return fullProfile;
+}
+
+  async findOneByUserId(userId: number): Promise<Profile > {
     const profile = await this.profileRepo.findOne({
       where: { user: { id: userId } },
       relations: ['user'] // Eager load the user entity

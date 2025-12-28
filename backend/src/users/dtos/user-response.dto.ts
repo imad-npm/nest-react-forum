@@ -4,7 +4,7 @@ import { User } from '../entities/user.entity';
 @Exclude()
 export class UserResponseDto {
   @Expose() readonly id: number;
-  @Expose() readonly name: string;
+  @Expose() readonly username: string;
   @Expose() readonly email: string;
   @Expose() readonly emailVerifiedAt: Date | null;
   @Expose() readonly provider: string | null;

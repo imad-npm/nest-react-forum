@@ -2,7 +2,7 @@
 // For now, let's include a minimal User type if not already globally available.
 export interface User {
   id: number;
-  name: string;
+  username: string;
   email: string;
   // Add other user properties as needed
 }

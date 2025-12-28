@@ -9,11 +9,11 @@ import { useGetProfileByUserIdQuery } from '../services/profileApi';
 export const ProfilePage = () => {
   const { userId } = useParams<{ userId: string }>();
   const parsedUserId = Number(userId);
-
+  
   const { data: profileResponse, isLoading, error, refetch } = useGetProfileByUserIdQuery(parsedUserId); // Add refetch
   const { user: currentUser } = useAuth(); // Get current logged-in user
 
-  console.log(currentUser);
+  console.log(profileResponse,parsedUserId);
   
   const profile = profileResponse?.data;
   const isMyProfile = currentUser?.id === parsedUserId;

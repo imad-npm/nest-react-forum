@@ -51,7 +51,7 @@ console.log(user);
                 {isDropdownOpen && (
                   <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-700 rounded-md shadow-lg py-1 text-gray-800 dark:text-gray-200 z-10">
                     <Link
-                      to={`/profile/${user.username}`}
+                      to={`/profile/${user.id}`}
                       className="block px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-600"
                     >
                       Profile (@{user.username})

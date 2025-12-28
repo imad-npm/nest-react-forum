@@ -37,7 +37,7 @@ export default function App() {
           <Route path="/communities/:communityId" element={<AuthGuard><CommunityPage /></AuthGuard>} />
           <Route path="/my-communities" element={<AuthGuard><MyCommunitiesPage /></AuthGuard>} />
           <Route path="/explore-communities" element={<AuthGuard><ExploreCommunitiesPage /></AuthGuard>} />
-          <Route path="/profile" element={<AuthGuard><ProfilePage /></AuthGuard>} /> {/* Changed Route */}
+          <Route path="/profile/:userId" element={<AuthGuard><ProfilePage /></AuthGuard>} /> {/* Changed Route */}
         </Route>
 
         {/* --- Moderation Routes (with ModSidebar) --- */}

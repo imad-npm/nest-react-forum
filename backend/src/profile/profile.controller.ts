@@ -23,6 +23,7 @@ import { extname } from 'path';
 import { ProfileResponseDto } from './dtos/profile-response.dto';
 import { ConfigService } from '@nestjs/config';
 import { PictureInterceptor } from './interceptors/picture.interceptor';
+import { ResponseDto } from 'src/common/dto/response.dto';
 
 @Controller('profile')
 export class ProfileController {
@@ -31,16 +32,16 @@ export class ProfileController {
   ) { }
   @UseGuards(JwtAuthGuard)
   @Get()
-  async getMyProfile(@GetUser() user: User): Promise<ProfileResponseDto> {
+  async getMyProfile(@GetUser() user: User): Promise<ResponseDto<ProfileResponseDto>> {
     const profile = await this.profileService.findOneByUserId(user.id);
-    return ProfileResponseDto.fromEntity(profile);
+    return new ResponseDto(ProfileResponseDto.fromEntity(profile));
   }
 
   // New endpoint to get a profile by user ID
   @Get('user/:userId')
-  async getProfileByUserId(@Param('userId', ParseIntPipe) userId: number): Promise<ProfileResponseDto> {
+  async getProfileByUserId(@Param('userId', ParseIntPipe) userId: number): Promise<ResponseDto<ProfileResponseDto>> {
     const profile = await this.profileService.findOneByUserId(userId);
-    return ProfileResponseDto.fromEntity(profile);
+    return new ResponseDto(ProfileResponseDto.fromEntity(profile));
   }
 
   @UseGuards(JwtAuthGuard)
@@ -51,7 +52,7 @@ export class ProfileController {
     @GetUser() user: User,
     @Body() createProfileDto: CreateProfileDto,
     @UploadedFile() file: Express.Multer.File,
-  ): Promise<ProfileResponseDto> {
+  ): Promise<ResponseDto<ProfileResponseDto>> {
 
     const profile = await this.profileService.createProfile({
       user,
@@ -60,7 +61,7 @@ export class ProfileController {
       picture: file ? file.path : undefined,
     });
 
-    return ProfileResponseDto.fromEntity(profile);
+    return new ResponseDto(ProfileResponseDto.fromEntity(profile));
   }
 
   @UseGuards(JwtAuthGuard)
@@ -70,7 +71,7 @@ export class ProfileController {
     @GetUser() user: User,
     @Body() updateProfileDto: UpdateProfileDto,
     @UploadedFile() file: Express.Multer.File,
-  ): Promise<ProfileResponseDto> {
+  ): Promise<ResponseDto<ProfileResponseDto>> {
     const profile = await this.profileService.findOneByUserId(user.id);
 
     const updatedProfile = await this.profileService.updateProfile({
@@ -80,6 +81,6 @@ export class ProfileController {
       picture: file ? file.path : undefined,
     });
 
-    return ProfileResponseDto.fromEntity(updatedProfile);
+    return new ResponseDto(ProfileResponseDto.fromEntity(updatedProfile));
   }
 }

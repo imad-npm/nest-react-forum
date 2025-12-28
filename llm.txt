@@ -40,7 +40,7 @@ export async function seedPosts(users: User[], communities: Community[]) {
   });
 
   await postRepo.save(posts);
-  console.log('Seeded 100 posts ✅');
+  console.log('Seeded 30 posts ✅');
 
   return posts;
 }
@@ -186,23 +186,31 @@ import { AppDataSource } from '../../data-source';
 import { userFactory } from '../factories/user.factory';
 import { User } from '../../users/entities/user.entity';
 import * as bcrypt from 'bcrypt';
-import { use } from 'passport';
+import { faker } from '@faker-js/faker';
 
 export async function seedUsers() {
   const userRepo = AppDataSource.getRepository(User);
 
-  const users: User[] = Array.from({ length: 30 }).map(() => userFactory());
+  const users: User[] = Array.from({ length: 6 }).map(() => {
+    return userFactory();
+  });
 
-  const user = new User();
-  user.name = 'Test User';
-  user.email = 'test@example.com';
-  user.password = bcrypt.hashSync('password123', 10);
-  user.emailVerifiedAt=new Date()
+  // Handle the special 'testuser'
+  const testUser = new User();
+  testUser.username = 'testuser';
+  testUser.email = 'test@example.com';
+  testUser.password = bcrypt.hashSync('password123', 10);
+  testUser.emailVerifiedAt = new Date();
 
-  users.push(user);
+  users.push(testUser);
 
-  await userRepo.save(users);
-  console.log('Seeded 101 users ✅');
+  await Promise.all(
+    users.map(async (user) => {
+      await userRepo.save(user); // Save user
+    }),
+  );
+
+  console.log(`Seeded ${users.length} users ✅`);
 
   return users;
 }
@@ -549,6 +557,7 @@ if (require.main === module) {
 
 ### FILE: backend/src/database/seeds/index.ts ###
 import { seedUsers } from './user.seed';
+import { seedProfiles } from './profile.seed'; // NEW IMPORT
 import { seedPosts } from './post.seed';
 import { seedComments } from './comment.seed';
 import { seedReactions } from './reaction.seed';
@@ -563,6 +572,9 @@ async function main() {
     await AppDataSource.initialize();
     // Seed users
     const users = await seedUsers();
+
+    // Seed profiles
+    await seedProfiles();
 
     // Seed communities
     const communities = await seedCommunities(users);
@@ -595,6 +607,43 @@ async function main() {
 }
 
 main();
+
+---
+
+
+### FILE: backend/src/database/seeds/profile.seed.ts ###
+import { AppDataSource } from '../../data-source';
+import { User } from '../../users/entities/user.entity';
+import { Profile } from '../../profile/entities/profile.entity';
+import { profileFactory } from '../factories/profile.factory';
+
+export async function seedProfiles() {
+  const userRepo = AppDataSource.getRepository(User);
+  const profileRepo = AppDataSource.getRepository(Profile);
+
+  const usersWithoutProfiles = await userRepo
+    .createQueryBuilder('user')
+    .leftJoinAndSelect('user.profile', 'profile')
+    .where('profile.id IS NULL')
+    .getMany();
+
+  const profiles: Profile[] = [];
+
+  for (const user of usersWithoutProfiles) {
+    const newProfile = profileFactory(user);
+    profiles.push(newProfile);
+  }
+
+  await profileRepo.save(profiles);
+
+  console.log(`Seeded ${profiles.length} profiles ✅`);
+
+  return profiles;
+}
+
+
+
+if (require.main === module) seedProfiles();
 
 ---
 
@@ -682,7 +731,7 @@ import * as bcrypt from 'bcrypt';
 export function userFactory(): User {
   const user = new User();
 
-  user.name = faker.person.fullName();
+  user.username = faker.internet.username();
   user.email = faker.internet.email();
 
   // --- Add bcrypt password ---
@@ -692,6 +741,23 @@ export function userFactory(): User {
   user.password = bcrypt.hashSync(plainPassword, saltRounds);
 
   return user;
+}
+
+---
+
+
+### FILE: backend/src/database/factories/profile.factory.ts ###
+import { Profile } from '../../profile/entities/profile.entity';
+import { User } from '../../users/entities/user.entity';
+import { faker } from '@faker-js/faker';
+
+export function profileFactory(user: User): Profile {
+  const profile = new Profile();
+  profile.displayName = faker.person.fullName();
+  profile.bio = faker.lorem.sentence();
+  profile.picture = faker.image.avatar();
+  profile.user = user; // Link profile to the provided user
+  return profile;
 }
 
 ---
@@ -973,6 +1039,31 @@ export class AddCommentsLockedToPost1766443444048 implements MigrationInterface 
 ---
 
 
+### FILE: backend/src/database/migrations/1766917664292-AddPublishedAtToPosts.ts ###
+import { MigrationInterface, QueryRunner } from "typeorm";
+
+export class AddPublishedAtToPosts1766917664292 implements MigrationInterface {
+    name = 'AddPublishedAtToPosts1766917664292'
+
+    public async up(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`CREATE TABLE "temporary_posts" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "title" varchar NOT NULL, "content" varchar NOT NULL, "authorId" integer NOT NULL, "communityId" integer NOT NULL, "commentsCount" integer NOT NULL DEFAULT (0), "views" integer NOT NULL DEFAULT (0), "likesCount" integer NOT NULL DEFAULT (0), "dislikesCount" integer NOT NULL DEFAULT (0), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, "commentsLocked" boolean NOT NULL DEFAULT (0), "status" varchar CHECK( "status" IN ('pending','approved','rejected') ) NOT NULL DEFAULT ('pending'), "publishedAt" datetime, CONSTRAINT "FK_e5f99a0b3edb7e1867f44b2cf4c" FOREIGN KEY ("communityId") REFERENCES "communities" ("id") ON DELETE RESTRICT ON UPDATE NO ACTION, CONSTRAINT "FK_c5a322ad12a7bf95460c958e80e" FOREIGN KEY ("authorId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`);
+        await queryRunner.query(`INSERT INTO "temporary_posts"("id", "title", "content", "authorId", "communityId", "commentsCount", "views", "likesCount", "dislikesCount", "createdAt", "updatedAt", "deletedAt", "commentsLocked", "status") SELECT "id", "title", "content", "authorId", "communityId", "commentsCount", "views", "likesCount", "dislikesCount", "createdAt", "updatedAt", "deletedAt", "commentsLocked", "status" FROM "posts"`);
+        await queryRunner.query(`DROP TABLE "posts"`);
+        await queryRunner.query(`ALTER TABLE "temporary_posts" RENAME TO "posts"`);
+    }
+
+    public async down(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`ALTER TABLE "posts" RENAME TO "temporary_posts"`);
+        await queryRunner.query(`CREATE TABLE "posts" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "title" varchar NOT NULL, "content" varchar NOT NULL, "authorId" integer NOT NULL, "communityId" integer NOT NULL, "commentsCount" integer NOT NULL DEFAULT (0), "views" integer NOT NULL DEFAULT (0), "likesCount" integer NOT NULL DEFAULT (0), "dislikesCount" integer NOT NULL DEFAULT (0), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, "commentsLocked" boolean NOT NULL DEFAULT (0), "status" varchar CHECK( "status" IN ('pending','approved','rejected') ) NOT NULL DEFAULT ('pending'), CONSTRAINT "FK_e5f99a0b3edb7e1867f44b2cf4c" FOREIGN KEY ("communityId") REFERENCES "communities" ("id") ON DELETE RESTRICT ON UPDATE NO ACTION, CONSTRAINT "FK_c5a322ad12a7bf95460c958e80e" FOREIGN KEY ("authorId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`);
+        await queryRunner.query(`INSERT INTO "posts"("id", "title", "content", "authorId", "communityId", "commentsCount", "views", "likesCount", "dislikesCount", "createdAt", "updatedAt", "deletedAt", "commentsLocked", "status") SELECT "id", "title", "content", "authorId", "communityId", "commentsCount", "views", "likesCount", "dislikesCount", "createdAt", "updatedAt", "deletedAt", "commentsLocked", "status" FROM "temporary_posts"`);
+        await queryRunner.query(`DROP TABLE "temporary_posts"`);
+    }
+
+}
+
+---
+
+
 ### FILE: backend/src/database/migrations/1765490375370-refactor-reactions.ts ###
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
@@ -1213,6 +1304,47 @@ export class Inital1764720178421 implements MigrationInterface {
     await queryRunner.query(`DROP TABLE "comment"`);
     await queryRunner.query(`DROP TABLE "user"`);
   }
+}
+
+---
+
+
+### FILE: backend/src/database/migrations/1766932368690-AddUsernameAndDisplayName.ts ###
+import { MigrationInterface, QueryRunner } from "typeorm";
+
+export class AddUsernameAndDisplayName1766932368690 implements MigrationInterface {
+    name = 'AddUsernameAndDisplayName1766932368690'
+
+    public async up(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`CREATE TABLE "temporary_profiles" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "displayName" varchar NOT NULL, "bio" text, "picture" varchar, "userId" integer, CONSTRAINT "UQ_963eb0a3184ae150f3346445bac" UNIQUE ("displayName"), CONSTRAINT "REL_315ecd98bd1a42dcf2ec4e2e98" UNIQUE ("userId"), CONSTRAINT "FK_315ecd98bd1a42dcf2ec4e2e985" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION)`);
+        await queryRunner.query(`INSERT INTO "temporary_profiles"("id", "displayName", "bio", "picture", "userId") SELECT "id", "username", "bio", "picture", "userId" FROM "profiles"`);
+        await queryRunner.query(`DROP TABLE "profiles"`);
+        await queryRunner.query(`ALTER TABLE "temporary_profiles" RENAME TO "profiles"`);
+        await queryRunner.query(`CREATE TABLE "temporary_users" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "username" varchar(100) NOT NULL, "email" varchar(100) NOT NULL, "password" varchar, "emailVerifiedAt" datetime, "provider" varchar CHECK( "provider" IN ('google','github') ), "providerId" varchar, "role" varchar CHECK( "role" IN ('0','1','2') ) NOT NULL DEFAULT (2), CONSTRAINT "UQ_97672ac88f789774dd47f7c8be3" UNIQUE ("email"))`);
+        await queryRunner.query(`INSERT INTO "temporary_users"("id", "username", "email", "password", "emailVerifiedAt", "provider", "providerId", "role") SELECT "id", "name", "email", "password", "emailVerifiedAt", "provider", "providerId", "role" FROM "users"`);
+        await queryRunner.query(`DROP TABLE "users"`);
+        await queryRunner.query(`ALTER TABLE "temporary_users" RENAME TO "users"`);
+        await queryRunner.query(`CREATE TABLE "temporary_users" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "username" varchar(100) NOT NULL, "email" varchar(100) NOT NULL, "password" varchar, "emailVerifiedAt" datetime, "provider" varchar CHECK( "provider" IN ('google','github') ), "providerId" varchar, "role" varchar CHECK( "role" IN ('0','1','2') ) NOT NULL DEFAULT (2), CONSTRAINT "UQ_97672ac88f789774dd47f7c8be3" UNIQUE ("email"), CONSTRAINT "UQ_4baf95322bd69fe419c26c5430c" UNIQUE ("username"))`);
+        await queryRunner.query(`INSERT INTO "temporary_users"("id", "username", "email", "password", "emailVerifiedAt", "provider", "providerId", "role") SELECT "id", "username", "email", "password", "emailVerifiedAt", "provider", "providerId", "role" FROM "users"`);
+        await queryRunner.query(`DROP TABLE "users"`);
+        await queryRunner.query(`ALTER TABLE "temporary_users" RENAME TO "users"`);
+    }
+
+    public async down(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`ALTER TABLE "users" RENAME TO "temporary_users"`);
+        await queryRunner.query(`CREATE TABLE "users" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "username" varchar(100) NOT NULL, "email" varchar(100) NOT NULL, "password" varchar, "emailVerifiedAt" datetime, "provider" varchar CHECK( "provider" IN ('google','github') ), "providerId" varchar, "role" varchar CHECK( "role" IN ('0','1','2') ) NOT NULL DEFAULT (2), CONSTRAINT "UQ_97672ac88f789774dd47f7c8be3" UNIQUE ("email"))`);
+        await queryRunner.query(`INSERT INTO "users"("id", "username", "email", "password", "emailVerifiedAt", "provider", "providerId", "role") SELECT "id", "username", "email", "password", "emailVerifiedAt", "provider", "providerId", "role" FROM "temporary_users"`);
+        await queryRunner.query(`DROP TABLE "temporary_users"`);
+        await queryRunner.query(`ALTER TABLE "users" RENAME TO "temporary_users"`);
+        await queryRunner.query(`CREATE TABLE "users" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(100) NOT NULL, "email" varchar(100) NOT NULL, "password" varchar, "emailVerifiedAt" datetime, "provider" varchar CHECK( "provider" IN ('google','github') ), "providerId" varchar, "role" varchar CHECK( "role" IN ('0','1','2') ) NOT NULL DEFAULT (2), CONSTRAINT "UQ_97672ac88f789774dd47f7c8be3" UNIQUE ("email"))`);
+        await queryRunner.query(`INSERT INTO "users"("id", "name", "email", "password", "emailVerifiedAt", "provider", "providerId", "role") SELECT "id", "username", "email", "password", "emailVerifiedAt", "provider", "providerId", "role" FROM "temporary_users"`);
+        await queryRunner.query(`DROP TABLE "temporary_users"`);
+        await queryRunner.query(`ALTER TABLE "profiles" RENAME TO "temporary_profiles"`);
+        await queryRunner.query(`CREATE TABLE "profiles" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "username" varchar NOT NULL, "bio" text, "picture" varchar, "userId" integer, CONSTRAINT "UQ_d1ea35db5be7c08520d70dc03f8" UNIQUE ("username"), CONSTRAINT "REL_315ecd98bd1a42dcf2ec4e2e98" UNIQUE ("userId"), CONSTRAINT "FK_315ecd98bd1a42dcf2ec4e2e985" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION)`);
+        await queryRunner.query(`INSERT INTO "profiles"("id", "username", "bio", "picture", "userId") SELECT "id", "displayName", "bio", "picture", "userId" FROM "temporary_profiles"`);
+        await queryRunner.query(`DROP TABLE "temporary_profiles"`);
+    }
+
 }
 
 ---
@@ -2387,16 +2519,15 @@ export class CommunityMembershipsService {
 
   async findMemberships(query: MembershipQuery): Promise<{ data: CommunityMembership[]; count: number }> {
     const where: any = {};
-    const relations: string[] = [];
+    const relations: string[] = ['user']; // Always push 'user' relation
 
     if (query.userId) {
       where.userId = query.userId;
-      relations.push('community');
+      relations.push('community'); 
     }
 
     if (query.communityId) {
       where.communityId = query.communityId;
-      relations.push('user');
     }
 
     const options: any = { where, relations };
@@ -2610,6 +2741,9 @@ export class CommunityMembershipResponseDto {
   role: CommunityMembershipRole;
 
   @Expose()
+  rank: number; // Add this line
+
+  @Expose()
   createdAt: Date;
 
   static fromEntity(
@@ -2711,10 +2845,10 @@ export class UsersService {
     if (search) {
       query.where(
         new Brackets((qb) => {
-          qb.where('user.name LIKE :search', {
+          qb.where('user.username LIKE :search', {
             search: `%${search}%`,
           }).orWhere('user.email LIKE :search', { search: `%${search}%` })
-          .orWhere('profile.username LIKE :search', { search: `%${search}%` }); // Search in profile username
+          .orWhere('profile.displayName LIKE :search', { search: `%${search}%` }); // Search in profile display name
         }),
       );
     }
@@ -2751,14 +2885,14 @@ export class UsersService {
 
 
 async createUser({
-  name,
+  username,
   email,
   password,
   provider,
   providerId,
   emailVerifiedAt,
 }: {
-  name: string;
+  username: string;
   email: string;
   password?: string | null;
   provider?: 'google' | 'github' | null;
@@ -2782,7 +2916,7 @@ async createUser({
   }
 
   const user = this.repo.create({
-    name,
+    username,
     email,
     provider: provider ?? null,
     providerId: providerId ?? null,
@@ -2797,7 +2931,7 @@ async createUser({
 }
  async updateUser({
   user,
-  name,
+  username,
   email,
   password,
   provider,
@@ -2805,7 +2939,7 @@ async createUser({
   emailVerifiedAt,
 }: {
   user: User;
-  name?: string;
+  username?: string;
   email?: string;
   password?: string | null;
   provider?: 'google' | 'github' | null;
@@ -2839,7 +2973,7 @@ async createUser({
   }
 
   Object.assign(user, {
-    ...(name !== undefined && { name }),
+    ...(username !== undefined && { username }),
     ...(email !== undefined && { email }),
     ...(provider !== undefined && { provider }),
     ...(providerId !== undefined && { providerId }),
@@ -2892,7 +3026,7 @@ import { User } from '../entities/user.entity';
 @Exclude()
 export class UserResponseDto {
   @Expose() readonly id: number;
-  @Expose() readonly name: string;
+  @Expose() readonly username: string;
   @Expose() readonly email: string;
   @Expose() readonly emailVerifiedAt: Date | null;
   @Expose() readonly provider: string | null;
@@ -2960,8 +3094,8 @@ export class User {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', length: 100 })
-  name: string;
+  @Column({ type: 'varchar', length: 100, unique: true })
+  username: string;
 
   @Column({ type: 'varchar', length: 100, unique: true })
   email: string;
@@ -3942,7 +4076,7 @@ export class ReactionsService {
         id: true,
         type: true,
         createdAt: true,
-        user: { id: true, name: true },
+        user: { id: true, username: true },
       },
       skip,
       take: limit,
@@ -3969,7 +4103,7 @@ export class ReactionsService {
         id: true,
         type: true,
         createdAt: true,
-        user: { id: true, name: true },
+        user: { id: true, username: true },
       },
       skip,
       take: limit,
@@ -5344,7 +5478,7 @@ export class EmailVerificationService {
         user.email,
         'Verify Your Email',
         'verify-email', // templateName (templates/verify-email.hbs)
-        { name: user.name, verifyUrl }, // context for the template
+        { username: user.username, verifyUrl }, // context for the template
       );
     } catch (err) {
       console.error('Error sending verification email:', err);
@@ -5825,6 +5959,8 @@ export class PostsService {
       query.orderBy('post.createdAt', 'DESC');
     } else if (sort === PostSort.OLDEST) {
       query.orderBy('post.createdAt', 'ASC');
+    } else if (sort === PostSort.PUBLISHED_AT) {
+      query.orderBy('post.publishedAt', 'DESC');
     } else {
       query.orderBy('post.createdAt', 'DESC');
     }
@@ -5979,6 +6115,9 @@ export class PostsService {
     await this.canManagePosts(userId, post.community.id);
 
     post.status = newStatus;
+    if (newStatus === PostStatus.APPROVED) {
+      post.publishedAt = new Date();
+    }
     return this.postsRepository.save(post);
   }
 
@@ -6161,6 +6300,9 @@ export class Post {
 
   @DeleteDateColumn()
   deletedAt: Date;
+
+  @Column({ type: 'datetime', nullable: true })
+  publishedAt: Date | null;
 }
 
 ---
@@ -6179,6 +6321,7 @@ import {
   Query,
   Req,
   NotFoundException,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { PostsService } from './posts.service';
 import { CreatePostDto } from './dto/create-post.dto';
@@ -6280,11 +6423,11 @@ export class PostsController {
   @Patch(':id/status')
   @UseGuards(JwtAuthGuard)
   async updatePostStatus(
-    @Param('id', PostPipe) post: PostEntity,
-    @Body() dto: UpdatePostStatusDto,
+@Param('id', ParseIntPipe) id: number, // Use ParseIntPipe instead of PostPipe   
+ @Body() dto: UpdatePostStatusDto,
     @GetUser() user: User,
   ): Promise<ResponseDto<PostResponseDto>> {
-    const updatedPost = await this.postsService.updatePostStatus(post.id, dto.status,user.id);
+    const updatedPost = await this.postsService.updatePostStatus(id, dto.status,user.id);
     return new ResponseDto(PostResponseDto.fromEntity(updatedPost));
   }
 
@@ -6371,6 +6514,7 @@ export enum PostSort {
   NEWEST = 'newest',
   POPULAR = 'popular',
   OLDEST = 'oldest',
+  PUBLISHED_AT = 'published_at',
 }
 
 export { PostStatus };
@@ -6428,6 +6572,8 @@ export class PostResponseDto {
   @Expose() readonly views: number;
   @Expose() readonly createdAt: Date;
   @Expose() readonly updatedAt: Date;
+  @Expose() readonly publishedAt: Date;
+
 
   @Expose() @Type(() => UserResponseDto) readonly author: UserResponseDto;
   
@@ -6503,9 +6649,9 @@ export class AuthService {
   // -------------------------------------------------------------------------
   // Register (local account)
   // -------------------------------------------------------------------------
-  async register(name: string, email: string, password: string): Promise<User> {
+  async register(username: string, email: string, password: string): Promise<User> {
     return this.userService.createUser(
-     { name,
+     { username,
       email,
       password, }
     );
@@ -6563,7 +6709,7 @@ async validateUser(email: string, password: string): Promise<User> {
     if (!user) {
       // First time → create new user
      return this.userService.createUser({
-  name: oauthUser.fullName ?? oauthUser.email.split('@')[0],
+  username: oauthUser.fullName ?? oauthUser.email.split('@')[0],
   email: oauthUser.email,
   password: undefined, // no password
   provider: 'google',
@@ -6575,7 +6721,7 @@ async validateUser(email: string, password: string): Promise<User> {
 
     // Existing user → make sure provider data is up-to-date
     return this.userService.updateUser({user ,
-      name: oauthUser.fullName ?? user.name,
+      username: oauthUser.fullName ?? user.username,
       provider: 'google',
       providerId: oauthUser.id,
       emailVerifiedAt: user.emailVerifiedAt ?? new Date(),
@@ -7064,7 +7210,7 @@ export class PasswordResetController {
         user.email,
         'Reset Your Password',
         'reset-password',
-        { name: user.name, resetLink },
+        { username: user.username, resetLink },
       );
 
       return { message: 'Email sent if account exists' };
@@ -7871,14 +8017,14 @@ import { User } from 'src/users/entities/user.entity';
 
 interface CreateProfileParams {
   user: User;
-  username: string;
+  displayName: string;
   bio?: string | null;
   picture?: string | null;
 }
 
 interface UpdateProfileParams {
   profile: Profile;
-  username?: string | null;
+  displayName?: string | null;
   bio?: string | null;
   picture?: string | null; // This will now be the file path
 }
@@ -7890,7 +8036,7 @@ export class ProfileService {
     private readonly profileRepo: Repository<Profile>,
   ) { }
 
-  async createProfile(params: CreateProfileParams): Promise<Profile> {
+  async createProfile(params: CreateProfileParams): Promise<Profile | null> {
 
     const existingProfile = await this
       .findOneByUserId(params.user.id)
@@ -7899,44 +8045,49 @@ export class ProfileService {
       throw new ConflictException('Profile already exists for this user.');
     }
 
-    const existingUsername = await this.profileRepo.findOne({
-      where: { username: params.username }, // exclude current profile
+    const existingDisplayname = await this.profileRepo.findOne({
+      where: { displayName: params.displayName }, // exclude current profile
     });
-    if (existingUsername) {
+    if (existingDisplayname) {
       throw new ConflictException('Username is already taken.');
     }
 
     const profile = this.profileRepo.create({
       user: params.user,
-      username: params.username ?? null,
+      displayName: params.displayName ?? null,
       bio: params.bio ?? null,
       picture: params.picture ?? null,
     });
-    return this.profileRepo.save(profile);
+    const savedProfile = await this.profileRepo.save(profile);
+    return this.profileRepo.findOne({ where: { id: savedProfile.id }, relations: ['user'] });
   }
 
-  async updateProfile(params: UpdateProfileParams): Promise<Profile> {
-    const { profile, username, bio, picture } = params;
+  async updateProfile(params: UpdateProfileParams): Promise<Profile | null> {
+    const { profile, displayName, bio, picture } = params;
 
-    if (username) {
-      const existingUsername = await this.profileRepo.findOne({
-        where: { username, id: Not(profile.id) }, // exclude current profile
+    if (displayName) {
+      const existingDisplayname = await this.profileRepo.findOne({
+        where: { displayName, id: Not(profile.id) }, // exclude current profile
       });
-      if (existingUsername) {
-        throw new ConflictException('Username is already taken.');
+      if (existingDisplayname) {
+        throw new ConflictException('Display name is already taken.');
       }
     }
 
     Object.assign(profile, {
-      ...(username !== undefined && { username }),
+      ...(displayName !== undefined && { displayName }),
       ...(bio !== undefined && { bio }),
       ...(picture !== undefined && { picture }), // Directly assign the path
     });
-    return this.profileRepo.save(profile);
+    const savedProfile = await this.profileRepo.save(profile);
+    return this.profileRepo.findOne({ where: { id: savedProfile.id }, relations: ['user'] });
   }
 
-  async findOneByUserId(userId: number): Promise<Profile> {
-    const profile = await this.profileRepo.findOne({ where: { user: { id: userId } } });
+  async findOneByUserId(userId: number): Promise<Profile | null> {
+    const profile = await this.profileRepo.findOne({
+      where: { user: { id: userId } },
+      relations: ['user'] // Eager load the user entity
+    });
     if (!profile) {
       throw new NotFoundException(`Profile for user with ID ${userId} not found.`);
     }
@@ -7955,7 +8106,7 @@ export class CreateProfileDto {
   @IsAlphanumeric()
   @MinLength(3)
   @MaxLength(20)
-  username: string;
+  displayName: string;
 
   @IsOptional()
   @IsString()
@@ -7974,7 +8125,7 @@ export class UpdateProfileDto {
   @IsAlphanumeric()
   @MinLength(3)
   @MaxLength(20)
-  username?: string;
+  displayName?: string;
 
   @IsOptional()
   @IsString()
@@ -7994,7 +8145,7 @@ export class ProfileResponseDto {
   id: number;
 
   @Expose()
-  username: string;
+  displayName: string;
 
   @Expose()
   bio: string | null;
@@ -8009,7 +8160,7 @@ export class ProfileResponseDto {
   static fromEntity(entity: Profile): ProfileResponseDto {
     const dto = new ProfileResponseDto();
     dto.id = entity.id;
-    dto.username = entity.username;
+    dto.displayName = entity.displayName;
     dto.bio = entity.bio ?? null;
     dto.picture = entity.picture ?? null;
     return dto;
@@ -8062,6 +8213,8 @@ import {
   UploadedFile,
   Post,
   ConflictException,
+  Param, // NEW
+  ParseIntPipe, // NEW
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ProfileService } from './profile.service';
@@ -8075,6 +8228,7 @@ import { extname } from 'path';
 import { ProfileResponseDto } from './dtos/profile-response.dto';
 import { ConfigService } from '@nestjs/config';
 import { PictureInterceptor } from './interceptors/picture.interceptor';
+import { ResponseDto } from 'src/common/dto/response.dto';
 
 @Controller('profile')
 export class ProfileController {
@@ -8083,9 +8237,16 @@ export class ProfileController {
   ) { }
   @UseGuards(JwtAuthGuard)
   @Get()
-  async getMyProfile(@GetUser() user: User): Promise<ProfileResponseDto> {
+  async getMyProfile(@GetUser() user: User): Promise<ResponseDto<ProfileResponseDto>> {
     const profile = await this.profileService.findOneByUserId(user.id);
-    return ProfileResponseDto.fromEntity(profile);
+    return new ResponseDto(ProfileResponseDto.fromEntity(profile));
+  }
+
+  // New endpoint to get a profile by user ID
+  @Get('user/:userId')
+  async getProfileByUserId(@Param('userId', ParseIntPipe) userId: number): Promise<ResponseDto<ProfileResponseDto>> {
+    const profile = await this.profileService.findOneByUserId(userId);
+    return new ResponseDto(ProfileResponseDto.fromEntity(profile));
   }
 
   @UseGuards(JwtAuthGuard)
@@ -8096,16 +8257,16 @@ export class ProfileController {
     @GetUser() user: User,
     @Body() createProfileDto: CreateProfileDto,
     @UploadedFile() file: Express.Multer.File,
-  ): Promise<ProfileResponseDto> {
+  ): Promise<ResponseDto<ProfileResponseDto>> {
 
     const profile = await this.profileService.createProfile({
       user,
-      username: createProfileDto.username,
+      displayName: createProfileDto.displayName,
       bio: createProfileDto.bio,
       picture: file ? file.path : undefined,
     });
 
-    return ProfileResponseDto.fromEntity(profile);
+    return new ResponseDto(ProfileResponseDto.fromEntity(profile));
   }
 
   @UseGuards(JwtAuthGuard)
@@ -8115,17 +8276,17 @@ export class ProfileController {
     @GetUser() user: User,
     @Body() updateProfileDto: UpdateProfileDto,
     @UploadedFile() file: Express.Multer.File,
-  ): Promise<ProfileResponseDto> {
+  ): Promise<ResponseDto<ProfileResponseDto>> {
     const profile = await this.profileService.findOneByUserId(user.id);
 
     const updatedProfile = await this.profileService.updateProfile({
       profile,
-      username: updateProfileDto.username,
+      displayName: updateProfileDto.displayName,
       bio: updateProfileDto.bio,
       picture: file ? file.path : undefined,
     });
 
-    return ProfileResponseDto.fromEntity(updatedProfile);
+    return new ResponseDto(ProfileResponseDto.fromEntity(updatedProfile));
   }
 }
 ---
@@ -8142,7 +8303,7 @@ export class Profile { // Updated class name
   id: number;
 
   @Column({ type: 'varchar', unique: true })
-  username: string;
+  displayName: string;
 
   @Column({ type: 'text', nullable: true })
   bio: string | null;
@@ -8581,6 +8742,7 @@ console.log(data.expiresAt);
 import { Expose, Transform, Type } from 'class-transformer';
 import { CommunityRestrictionType } from '../community-restrictions.types';
 import { CommunityRestriction } from '../entities/community-restriction.entity';
+import { UserResponseDto } from '../../users/dtos/user-response.dto'; // Import UserResponseDto
 
 export class CommunityRestrictionResponseDto {
   @Expose()
@@ -8604,7 +8766,10 @@ export class CommunityRestrictionResponseDto {
   @Transform(({ obj }) => obj.user.id)
   userId: number;
 
-  
+  @Expose()
+  @Type(() => UserResponseDto) // Expose the full user object
+  user: UserResponseDto | null; // Add user property
+
   @Expose()
   @Transform(({ obj }) => obj.createdBy.id)
   createdById: number;
@@ -8614,10 +8779,11 @@ export class CommunityRestrictionResponseDto {
   createdAt: Date;
 
   static fromEntity(entity: CommunityRestriction): CommunityRestrictionResponseDto {
-    return Object.assign(
-      new CommunityRestrictionResponseDto(),
-      entity,
-    );
+    const dto = new CommunityRestrictionResponseDto();
+    Object.assign(dto, entity);
+    // Manually map the user entity to UserResponseDto
+    dto.user = entity.user ? UserResponseDto.fromEntity(entity.user) : null;
+    return dto;
   }
 }
 
@@ -9174,7 +9340,8 @@ import {
   Body,
   UseGuards,
   Query,
-  NotFoundException, // Added
+  NotFoundException,
+  ParseIntPipe, // Added
 } from '@nestjs/common';
 import { CommentsService } from './comments.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
@@ -9228,13 +9395,13 @@ export class CommentsController {
   @Get('posts/:postId/comments')
   @UseGuards(OptionalJwtAuthGuard) // Add guard to get user
   async findByPost(
-    @Param('postId', PostPipe) post: PostEntity,
+@Param('postId', ParseIntPipe) postId: number   ,
     @Query() query: CommentQueryDto,
     @GetUser() user: User, // Get current user
   ): Promise<PaginatedResponseDto<CommentResponseDto>> {
     const { data, count } = await this.commentsService.findAll(
       {
-        postId: post.id,
+        postId: postId,
         page: query.page,
         limit: query.limit,
         currentUserId: user?.id, // Pass currentUserId
@@ -9547,6 +9714,7 @@ import { FaHome, FaSignInAlt, FaUserPlus, FaSignOutAlt, FaBell, FaPlus, FaCaretD
 const Header = () => {
   const { isAuthenticated, user } = useAuth();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+console.log(user);
 
   const toggleDropdown = () => {
     setIsDropdownOpen(!isDropdownOpen);
@@ -9589,8 +9757,11 @@ const Header = () => {
                 </button>
                 {isDropdownOpen && (
                   <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-700 rounded-md shadow-lg py-1 text-gray-800 dark:text-gray-200 z-10">
-                    <Link to="/profile" className="block px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-600">
-                      Profile ({user?.name})
+                    <Link
+                      to={`/profile/${user.id}`}
+                      className="block px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-600"
+                    >
+                      Profile (@{user.username})
                     </Link>
                     <Link to="/settings" className="block px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-600">
                       Settings
@@ -9794,9 +9965,17 @@ export interface CommunityMembership {
     userId: number;
     communityId: number;
     role: CommunityRole; // Add this
-    // user: UserResponseDto; // Assuming UserResponseDto exists
+    user: User; // Add the user object
+    rank: number; // Add rank
     // community: CommunityResponseDto; // Assuming CommunityResponseDto exists
     createdAt: string;
+  }
+
+  export interface User {
+    id: number;
+    username: string;
+    email: string;
+    // Add other user properties if needed from UserResponseDto
   }
   
   export interface CommunityMembershipQueryDto {
@@ -9825,6 +10004,7 @@ export const communityMembershipsApi = apiSlice.injectEndpoints({
       }),
       providesTags: ['CommunityMemberships'],
     }),
+
     deleteMembership: builder.mutation<
       ResponseDto<boolean>,
       number // communityId
@@ -9833,7 +10013,18 @@ export const communityMembershipsApi = apiSlice.injectEndpoints({
         url: `/users/me/communities/${communityId}/memberships`,
         method: 'DELETE',
       }),
-      invalidatesTags: ['CommunityMemberships', 'Communities'], // Invalidate communities to update subscriber count
+      invalidatesTags: ['CommunityMemberships', 'Communities'],
+    }),
+
+    removeCommunityMember: builder.mutation<
+      ResponseDto<boolean>,
+      { communityId: number; targetUserId: number }
+    >({
+      query: ({ communityId, targetUserId }) => ({
+        url: `/communities/${communityId}/members/${targetUserId}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['CommunityMemberships', 'Communities'],
     }),
   }),
 });
@@ -9841,6 +10032,7 @@ export const communityMembershipsApi = apiSlice.injectEndpoints({
 export const {
   useGetCommunityMembershipsQuery,
   useDeleteMembershipMutation,
+  useRemoveCommunityMemberMutation,
 } = communityMembershipsApi;
 
 ---
@@ -9963,7 +10155,7 @@ import React from 'react';
 import { Button } from '../../../shared/components/ui/Button';
 import { Input } from '../../../shared/components/ui/Input';
 import type { PostQueryDto } from '../../posts/types';
-import { FaSearch, FaSortAmountDownAlt, FaFire } from 'react-icons/fa';
+import { FaSearch, FaSortAmountDownAlt, FaFire, FaCalendarAlt } from 'react-icons/fa';
 
 interface FeedFiltersProps {
   queryParams: PostQueryDto;
@@ -10010,6 +10202,14 @@ console.log(queryParams);
         >
           <FaFire /> <span>Popular</span>
         </Button>
+        <Button
+          variant={queryParams.sort === 'published_at' ? 'default' : 'outline'}
+          onClick={() => handleSortChange('published_at')}
+          disabled={isLoading}
+          className="flex items-center space-x-1"
+        >
+          <FaCalendarAlt /> <span>Published</span>
+        </Button>
       </div>
     </div>
   );
@@ -10036,10 +10236,20 @@ export const CommunityMembershipRequestStatus = {
 } as const;
 
 export type CommunityMembershipRequestStatus = (typeof CommunityMembershipRequestStatus)[keyof typeof CommunityMembershipRequestStatus];
+
+// Define a basic User interface for the frontend
+export interface User {
+  id: number;
+  name: string;
+  email: string;
+  // Add other user properties if needed from UserResponseDto
+}
+
 export interface CommunityMembershipRequest {
     id: number;
     userId: number;
     communityId: number;
+    user: User; // Add the user object
     status: 'pending' | 'accepted' | 'rejected';
     createdAt: string;
     updatedAt: string;
@@ -10589,12 +10799,12 @@ export const {
 ### FILE: frontend/src/features/posts/types.ts ###
 import type { ReactionType } from "../reactions/types/types";
 
-export enum PostStatus {
-  PENDING = 'pending',
-  APPROVED = 'approved',
-  REJECTED = 'rejected',
-}
-
+export const PostStatus = {
+  PENDING: 'pending',
+  APPROVED: 'approved',
+  REJECTED: 'rejected',
+} as const;
+export type PostStatus = typeof PostStatus[keyof typeof PostStatus];
 export interface Post {
   id: number;
   title: string;
@@ -10616,6 +10826,7 @@ export interface Post {
   status: PostStatus;
   createdAt: string;
   updatedAt: string;
+  publishedAt?: string;
 }
 
 export interface CreatePostDto {
@@ -10743,30 +10954,18 @@ import { Link } from 'react-router-dom';
 import { FaUser, FaUsers, FaEye } from 'react-icons/fa';
 import { PostReactionButtons } from '../../reactions/components/PostReactionButtons';
 import PostActionButtons from './PostCardFooter'; // Assuming it's in the same directory
-import { timeAgo } from '../../../shared/utils/date'; // Import timeAgo from shared utils
+import PostMetaData from './PostMetaData';
+import PostCardFooter from './PostCardFooter';
+
+interface PostDetailCardProps {
+  post: Post;
+}
 
 const PostDetailCard: React.FC<PostDetailCardProps> = ({ post }) => {
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg  p-6 mb-6 border border-gray-300">
+    <div className="bg-white dark:bg-gray-800 rounded-lg   mb-20 ">
       {/* Post Metadata */}
-      <div className="flex items-center text-sm text-gray-500 dark:text-gray-400 mb-3 space-x-1">
-        {post.community && (
-          <>
-            <FaUsers className="mr-1" />
-            <Link
-              to={`/communities/${post.community.id}`}
-              className="font-semibold hover:underline mr-1"
-            >
-              c/{post.community.name}
-            </Link>
-            <span className="mx-1">•</span>
-          </>
-        )}
-        <FaUser className="mr-1" />
-        <span>u/{post.author.name}</span>
-        <span className="mx-1">•</span>
-        <span className='text-xs'>{timeAgo(post.createdAt)}</span>
-      </div>
+     <PostMetaData post={post} />
 
       {/* Post Title */}
       <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 leading-tight mb-4">
@@ -10774,28 +10973,66 @@ const PostDetailCard: React.FC<PostDetailCardProps> = ({ post }) => {
       </h1>
 
       {/* Post Content */}
-      <p className="text-gray-700 dark:text-gray-300 text-base mb-6">
+      <p className="text-gray-700 dark:text-gray-300 text-base mb-6  leading-[1.8] ">
         {post.content}
       </p>
 
       {/* Actions */}
-      <div className="flex items-center justify-between border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
-        <div className="flex items-center space-x-4">
-          <PostReactionButtons post={post} />
-          <PostActionButtons post={post} />
-        </div>
+       <PostCardFooter post={post}/>
 
-        {/* Views */}
-        <div className="flex items-center space-x-1 text-sm text-gray-500 dark:text-gray-400">
-          <FaEye />
-          <span>{post.views} Views</span>
-        </div>
-      </div>
     </div>
   );
 };
 
 export default PostDetailCard;
+
+---
+
+
+### FILE: frontend/src/features/posts/components/PostMetaData.tsx ###
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { FaUsers, FaUser } from 'react-icons/fa';
+
+import type { Post } from '../types';
+import { timeAgo } from '../../../shared/utils/date';
+
+interface PostMetaProps {
+  post: Post;
+}
+
+const PostMetaData: React.FC<PostMetaProps> = ({ post }) => {
+  return (
+    <div className="flex items-center text-xs md:text-sm text-gray-500 dark:text-gray-400 mb-2 space-x-1">
+      {post.community && (
+        <>
+          <FaUsers className="mr-1" />
+          <Link
+            to={`/communities/${post.community.id}`}
+            className="font-semibold hover:underline mr-1"
+          >
+            c/{post.community.name}
+          </Link>
+          <span className="mx-1">•</span>
+        </>
+      )}
+
+      <FaUser className="mr-1" />
+      <span>u/{post.author.name}</span>
+
+      {post.publishedAt && (
+        <>
+          <span className="mx-1">•</span>
+          <span className="text-xs">
+            Published {timeAgo(post.publishedAt)}
+          </span>
+        </>
+      )}
+    </div>
+  );
+};
+
+export default PostMetaData;
 
 ---
 
@@ -11327,6 +11564,7 @@ import {
 import { timeAgo } from '../../../shared/utils/date'; // Import timeAgo from shared utils
 import PostDropdown from './PostCardDropdown'; // Import PostDropdown component
 import PostCardFooter from './PostCardFooter';
+import PostMetaData from './PostMetaData';
 
 interface PostCardProps {
   post: Post;
@@ -11341,24 +11579,8 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
       <PostDropdown post={post} />
 
       {/* Post Metadata */}
-      <div className="flex items-center text-xs md:text-sm text-gray-500 dark:text-gray-400 mb-2 space-x-1">
-        {post.community && (
-          <>
-            <FaUsers className="mr-1" />
-            <Link
-              to={`/communities/${post.community.id}`}
-              className="font-semibold hover:underline mr-1"
-            >
-              c/{post.community.name}
-            </Link>
-            <span className="mx-1">•</span>
-          </>
-        )}
-        <FaUser className="mr-1" />
-        <span>u/{post.author.name}</span>
-        <span className="mx-1">•</span>
-        <span className="text-xs">{timeAgo(post.createdAt)}</span>
-      </div>
+           <PostMetaData post={post} />
+
 
       {/* Post Title */}
       <Link to={`/posts/${post.id}`}>
@@ -12025,16 +12247,41 @@ export const ModMembersPage = () => {
 ### FILE: frontend/src/features/communities/pages/ModeratorsPage.tsx ###
 // frontend/src/features/communities/pages/mod/ModModeratorsPage.tsx
 import { useParams } from 'react-router-dom';
-import { useGetCommunityMembershipsQuery } from '../../community-memberships/services/communityMembershipsApi';
+import { useGetCommunityMembershipsQuery, useRemoveCommunityMemberMutation } from '../../community-memberships/services/communityMembershipsApi'; // Changed import
 import { FaUserShield } from 'react-icons/fa';
+import { useAuth } from '../../auth/hooks/useAuth';
+import { Button } from '../../../shared/components/ui/Button'; // Assuming Button component is available
 
 export const ModModeratorsPage = () => {
   const { communityId } = useParams();
-  const { data: response, isLoading } = useGetCommunityMembershipsQuery({ communityId: Number(communityId) });
+  const { user: currentUser } = useAuth(); // Get the current logged-in user
+  const parsedCommunityId = Number(communityId);
 
-  const moderators = response?.data.filter(m => m.role === 'admin' || m.role === 'moderator');
+  // Fetch all community memberships (including current user's)
+  const { data: allMembershipsResponse, isLoading: isLoadingMemberships } = useGetCommunityMembershipsQuery({ communityId: parsedCommunityId, limit: 100 });
 
-  if (isLoading) return <div className="p-4">Loading moderation team...</div>;
+  // Filter for moderators (only 'moderator' role)
+  const moderators = allMembershipsResponse?.data.filter(m => m.role === 'moderator');
+
+  // Find the current user's membership in this community
+  const currentUserMembership = allMembershipsResponse?.data.find(
+    (member) => member.userId === currentUser?.id
+  );
+
+  const [removeCommunityMember, { isLoading: isRemovingMember }] = useRemoveCommunityMemberMutation(); // Changed hook and constant name
+
+  const handleRemoveModerator = async (targetUserId: number) => {
+    if (!communityId) return;
+    try {
+      await removeCommunityMember({ communityId: parsedCommunityId, targetUserId }).unwrap(); // Changed call
+      // Optionally, add a success notification
+    } catch (err) {
+      console.error('Failed to remove member:', err);
+      // Optionally, add an error notification
+    }
+  };
+
+  if (isLoadingMemberships) return <div className="p-4">Loading moderation team...</div>;
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -12042,20 +12289,69 @@ export const ModModeratorsPage = () => {
         <FaUserShield className="text-orange-600" />
         Moderation Team
       </h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-        {moderators?.map((mod) => (
-          <div key={mod.userId} className="flex items-center p-4 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow">
-            <div className={`w-14 h-14 rounded-full flex items-center justify-center mr-4 font-black ${
-              mod.role === 'admin' ? 'bg-red-100 text-red-600' : 'bg-orange-100 text-orange-600'
-            }`}>
-              {mod.role[0].toUpperCase()}
-            </div>
-            <div>
-              <p className="font-bold text-gray-900 text-lg">User #{mod.userId}</p>
-              <p className="text-xs font-black text-gray-500 uppercase tracking-widest">{mod.role}</p>
-            </div>
-          </div>
-        ))}
+      <div className="overflow-x-auto bg-white rounded-lg shadow-sm border border-gray-200">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Moderator
+              </th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Role
+              </th>
+              <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Actions
+              </th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {moderators?.map((mod) => {
+              // Determine if the current user can remove this moderator
+              const canRemove = currentUser && currentUserMembership &&
+                                currentUserMembership.userId !== mod.userId && // Cannot remove self
+                                currentUserMembership.rank < mod.rank; // Can only remove mods with lower rank
+
+              return (
+                <tr key={mod.user.id}>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center">
+                      <div className="flex-shrink-0 h-10 w-10">
+                        {/* Avatar Placeholder */}
+                        <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 font-bold">
+                          {mod.user.username.charAt(0).toUpperCase()}
+                        </div>
+                      </div>
+                      <div className="ml-4">
+                        <div className="text-sm font-medium text-gray-900">
+                          {mod.user.username}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {mod.user.email}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-orange-100 text-orange-800`}>
+                      {mod.role}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleRemoveModerator(mod.userId)}
+                      disabled={isRemovingMember || !canRemove}
+                      className="ml-2"
+                    >
+                      Remove
+                    </Button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   );
@@ -12166,7 +12462,6 @@ import { useAcceptMembershipRequestMutation, useGetCommunityMembershipRequestsQu
 import { Button } from '../../../shared/components/ui/Button';
 import { CommunityMembershipRequestStatus } from '../../community-membership-requests/types';
 import { ReportsQueue } from '../../reports/components/ReportsQueue';
-import { BannedUsersQueue } from '../../community-restrictions/components/BannedUsersQueue';
 import { PendingPostsQueue } from '../../posts/components/PendingPostsQueue';
 import { RejectedPostsQueue } from '../../posts/components/RejectedPostsQueue';
 
@@ -12192,15 +12487,23 @@ const JoinRequestsQueue = () => {
       ) : (
         <div className="space-y-3">
           {requests?.data.map((req) => (
-            <div key={req.id} className="flex justify-between items-center p-4 bg-white rounded-lg border border-gray-200">
-              <div>
-                <span className="font-medium text-gray-900 text-lg">User #{req.userId}</span>
+            <div key={req.id} className="flex items-center p-4 bg-white rounded-lg border border-gray-200 shadow-sm">
+              <div className="flex-shrink-0 mr-4">
+                {/* Placeholder for avatar - could be replaced with actual avatar later */}
+                <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 font-bold">
+                  {req.user.username.charAt(0).toUpperCase()}
+                </div>
+              </div>
+              <div className="flex-grow">
+                <a href={`/profile/${req.userId}`} className="font-medium text-blue-600 hover:underline text-lg">
+                  {req.user.username}
+                </a>
                 <p className="text-xs text-gray-500 italic">Requested on {new Date(req.createdAt).toLocaleDateString()}</p>
               </div>
               <div className="flex gap-2">
                 <Button size="sm" onClick={() => approve({communityId: req.communityId,
-                  userId:req.userId})} className="bg-green-600 hover:bg-green-700">Approve</Button>
-                <Button size="sm" variant="outline" onClick={() => reject({userId:req.userId ,communityId:req.communityId})} className="text-red-600 border-red-600 hover:bg-red-50">Reject</Button>
+                  userId:req.userId})} className="bg-green-600 hover:bg-green-700 rounded-full">Approve</Button>
+                <Button size="sm" variant="outline" onClick={() => reject({userId:req.userId ,communityId:req.communityId})} className="text-red-600 border-red-600 hover:bg-red-50 rounded-full">Reject</Button>
               </div>
             </div>
           ))}
@@ -12240,16 +12543,6 @@ export const ModQueuesPage = () => {
             Reports
           </button>
           <button
-            onClick={() => setActiveTab('banned-users')}
-            className={`${
-              activeTab === 'banned-users'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-          >
-            Banned Users
-          </button>
-          <button
             onClick={() => setActiveTab('pending-posts')}
             className={`${
               activeTab === 'pending-posts'
@@ -12275,7 +12568,6 @@ export const ModQueuesPage = () => {
       <div className="py-6">
         {activeTab === 'join-requests' && <JoinRequestsQueue />}
         {activeTab === 'reports' && <ReportsQueue />}
-        {activeTab === 'banned-users' && <BannedUsersQueue />}
         {activeTab === 'pending-posts' && <PendingPostsQueue />}
         {activeTab === 'rejected-posts' && <RejectedPostsQueue />}
       </div>
@@ -12934,6 +13226,365 @@ export const {
 ---
 
 
+### FILE: frontend/src/features/profile/types.ts ###
+// Assuming User is already defined in a shared types file or needs to be defined here.
+// For now, let's include a minimal User type if not already globally available.
+export interface User {
+  id: number;
+  name: string;
+  email: string;
+  // Add other user properties as needed
+}
+
+export interface Profile {
+  id: number;
+  username: string;
+  bio: string | null;
+  picture: string | null; // URL to the profile picture
+  user: User; // The associated user object
+}
+
+export interface UpdateProfilePayload {
+  username?: string;
+  bio?: string | null;
+  picture?: string | null;
+}
+
+export interface CreateProfilePayload {
+  username: string;
+  bio?: string | null;
+  picture?: string | null;
+}
+
+---
+
+
+### FILE: frontend/src/features/profile/pages/ProfilePage.tsx ###
+// frontend/src/pages/ProfilePage.tsx
+import { useState } from 'react'; // Import useState
+import { useParams } from 'react-router-dom';
+import { FaUserCircle, FaEdit } from 'react-icons/fa';
+import { useAuth } from '../../auth/hooks/useAuth';
+import { ProfileEditForm } from '../components/ProfileEditForm';
+import { useGetProfileByUserIdQuery } from '../services/profileApi';
+
+export const ProfilePage = () => {
+  const { userId } = useParams<{ userId: string }>();
+  const parsedUserId = Number(userId);
+  
+  const { data: profileResponse, isLoading, error, refetch } = useGetProfileByUserIdQuery(parsedUserId); // Add refetch
+  const { user: currentUser } = useAuth(); // Get current logged-in user
+
+  console.log(profileResponse,parsedUserId);
+  
+  const profile = profileResponse?.data;
+  const isMyProfile = currentUser?.id === parsedUserId;
+
+  const [isEditing, setIsEditing] = useState(false); // State to control edit mode
+
+  const handleEditSuccess = () => {
+    setIsEditing(false);
+    refetch(); // Refetch profile data after successful edit
+  };
+
+  const handleEditCancel = () => {
+    setIsEditing(false);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <p className="text-gray-600">Loading profile...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    let errorMessage = 'Failed to load profile';
+    if ('status' in error && 'data' in error) {
+      // You can check if 'data' is an object and has a message property
+      if (typeof error.data === 'object' && error.data !== null && 'message' in error.data) {
+        errorMessage = (error.data as { message: string }).message;
+      }
+    } else if ('message' in error) {
+      errorMessage = error.message;
+    }
+
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <p className="text-red-500">Error: {errorMessage}</p>
+      </div>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <p className="text-gray-600">Profile not found.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto my-8 p-6 bg-white shadow-lg rounded-lg">
+      {isEditing && isMyProfile ? (
+        <ProfileEditForm
+          currentProfile={profile}
+          onSuccess={handleEditSuccess}
+          onCancel={handleEditCancel}
+        />
+      ) : (
+        <>
+          <div className="flex items-center space-x-6">
+            <div className="flex-shrink-0">
+              {profile.picture ? (
+                <img
+                  className="h-24 w-24 rounded-full object-cover border-4 border-blue-300"
+                  src={profile.picture}
+                  alt={`${profile.username}'s profile picture`}
+                />
+              ) : (
+                <FaUserCircle className="h-24 w-24 text-gray-400 border-4 border-blue-300 rounded-full p-1" />
+              )}
+            </div>
+            <div>
+              <h1 className="text-4xl font-bold text-gray-800">{profile.username}</h1>
+              <p className="text-gray-600 text-lg">{profile.user.email}</p>
+              {isMyProfile && (
+                <button
+                  className="mt-2 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 flex items-center space-x-2"
+                  onClick={() => setIsEditing(true)}
+                >
+                  <FaEdit />
+                  <span>Edit Profile</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-8 border-t pt-6">
+            <h2 className="text-2xl font-semibold text-gray-800">About Me</h2>
+            <p className="mt-4 text-gray-700">
+              {profile.bio || 'No biography available yet.'}
+            </p>
+          </div>
+        </>
+      )}
+
+      {/* TODO: Add more sections like user's posts, communities, etc. */}
+    </div>
+  );
+};
+---
+
+
+### FILE: frontend/src/features/profile/components/ProfileEditForm.tsx ###
+// frontend/src/features/profile/components/ProfileEditForm.tsx
+import React, { useState, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { useUpdateMyProfileMutation } from '../services/profileApi';
+import type { Profile } from '../types';
+import { Input } from '../../../shared/components/ui/Input'; // Assuming an Input component exists
+import { Textarea } from '../../../shared/components/ui/TextArea'; // Assuming a TextArea component exists
+import { Button } from '../../../shared/components/ui/Button'; // Assuming a Button component exists
+import { Label } from '../../../shared/components/ui/Label'; // Assuming a Label component exists
+
+interface ProfileEditFormProps {
+  currentProfile: Profile;
+  onSuccess: () => void;
+  onCancel: () => void;
+}
+
+const profileSchema = z.object({
+  username: z.string().min(3, 'Username must be at least 3 characters.').max(50, 'Username cannot exceed 50 characters.'),
+  bio: z.string().max(500, 'Bio cannot exceed 500 characters.').nullable(),
+  pictureFile: z.any().optional(), // For file upload
+});
+
+type ProfileFormValues = z.infer<typeof profileSchema>;
+
+export const ProfileEditForm = ({ currentProfile, onSuccess, onCancel }: ProfileEditFormProps) => {
+  const { register, handleSubmit, formState: { errors }, reset } = useForm<ProfileFormValues>({
+    resolver: zodResolver(profileSchema),
+    defaultValues: {
+      username: currentProfile.username,
+      bio: currentProfile.bio,
+    },
+  });
+
+  const [updateMyProfile, { isLoading, isSuccess, isError, error }] = useUpdateMyProfileMutation();
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  useEffect(() => {
+    if (isSuccess) {
+      onSuccess();
+    }
+    if (isError) {
+      // Handle error, e.g., display a toast notification
+      console.error('Profile update failed:', error);
+    }
+  }, [isSuccess, isError, onSuccess, error]);
+
+  const onSubmit = async (data: ProfileFormValues) => {
+    const payload: Partial<Profile> & { pictureFile?: File } = {
+      username: data.username,
+      bio: data.bio === '' ? null : data.bio, // Ensure empty string becomes null for bio
+    };
+
+    if (selectedFile) {
+      payload.pictureFile = selectedFile;
+    }
+
+    try {
+      await updateMyProfile(payload).unwrap();
+    } catch (err) {
+      // Error handled by useEffect, but can add specific form-level error here
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setSelectedFile(e.target.files[0]);
+    } else {
+      setSelectedFile(null);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <div>
+        <Label htmlFor="username">Username</Label>
+        <Input
+          id="username"
+          {...register('username')}
+          className="w-full"
+        />
+        {errors.username && <p className="text-red-500 text-sm mt-1">{errors.username.message}</p>}
+      </div>
+
+      <div>
+        <Label htmlFor="bio">Bio</Label>
+        <Textarea
+          id="bio"
+          {...register('bio')}
+          className="w-full"
+          rows={5}
+        />
+        {errors.bio && <p className="text-red-500 text-sm mt-1">{errors.bio.message}</p>}
+      </div>
+
+      <div>
+        <Label htmlFor="picture">Profile Picture</Label>
+        <Input
+          id="picture"
+          type="file"
+          accept="image/*"
+          onChange={handleFileChange}
+          className="w-full"
+        />
+        {selectedFile && <p className="text-sm text-gray-500 mt-1">File selected: {selectedFile.name}</p>}
+        {/* Potentially show current picture preview here */}
+      </div>
+
+      <div className="flex justify-end space-x-2">
+        <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={isLoading}>
+          {isLoading ? 'Saving...' : 'Save Changes'}
+        </Button>
+      </div>
+    </form>
+  );
+};
+
+---
+
+
+### FILE: frontend/src/features/profile/services/profileApi.ts ###
+import { apiSlice } from '../../../shared/services/apiSlice';
+import type { ResponseDto } from '../../../shared/types';
+import type { Profile } from '../types'; // Assuming types.ts defines Profile
+
+export const profileApi = apiSlice.injectEndpoints({
+  endpoints: (builder) => ({
+    getProfileByUserId: builder.query<
+      ResponseDto<Profile>, // Adjust response type if needed
+      number // userId
+    >({
+      query: (userId) => `/profile/user/${userId}`,
+      providesTags: (result, error, userId) => [{ type: 'Profile', id: userId }],
+    }),
+    getMyProfile: builder.query<
+      ResponseDto<Profile>, // Adjust response type if needed
+      void
+    >({
+      query: () => `/profile`,
+      providesTags: ['MyProfile'],
+    }),
+    updateMyProfile: builder.mutation<
+      ResponseDto<Profile>,
+      Partial<Profile> & { pictureFile?: File }
+    >({
+      query: ({ pictureFile, ...patch }) => {
+        const formData = new FormData();
+        if (pictureFile) {
+          formData.append('file', pictureFile);
+        }
+        Object.keys(patch).forEach(key => {
+          if (patch[key] !== undefined) {
+            formData.append(key, patch[key]);
+          }
+        });
+
+        return {
+          url: `/profile`,
+          method: 'PATCH',
+          body: formData,
+          // If you're sending FormData, ensure content-type is not set to application/json
+          // 'Content-Type': 'multipart/form-data', // This is usually set automatically by the browser
+        };
+      },
+      invalidatesTags: ['MyProfile'],
+    }),
+    createMyProfile: builder.mutation<
+      ResponseDto<Profile>,
+      Partial<Profile> & { pictureFile?: File }
+    >({
+      query: ({ pictureFile, ...patch }) => {
+        const formData = new FormData();
+        if (pictureFile) {
+          formData.append('file', pictureFile);
+        }
+        Object.keys(patch).forEach(key => {
+          if (patch[key] !== undefined) {
+            formData.append(key, patch[key]);
+          }
+        });
+
+        return {
+          url: `/profile`,
+          method: 'POST',
+          body: formData,
+        };
+      },
+      invalidatesTags: ['MyProfile'],
+    }),
+  }),
+});
+
+export const {
+  useGetProfileByUserIdQuery,
+  useGetMyProfileQuery,
+  useUpdateMyProfileMutation,
+  useCreateMyProfileMutation,
+} = profileApi;
+
+---
+
+
 ### FILE: frontend/src/features/community-restrictions/types.ts ###
 // Enum compatible with React/TS
 export const CommunityRestrictionType = {
@@ -12943,11 +13594,20 @@ export const CommunityRestrictionType = {
 
 export type CommunityRestrictionType = typeof CommunityRestrictionType[keyof typeof CommunityRestrictionType];
 
+// Define a basic User interface for the frontend (copied from community-membership-requests/types.ts)
+export interface User {
+  id: number;
+  name: string;
+  email: string;
+  // Add other user properties if needed from UserResponseDto
+}
+
 // Interface for a Community Restriction (matches backend DTO)
 export interface CommunityRestriction {
   id: number;
   communityId: number;
   userId: number;
+  user: User; // Add the user object
   createdById: number;
   restrictionType: CommunityRestrictionType;
   reason?: string;
@@ -13071,6 +13731,54 @@ export const RestrictedUsersPage = () => {
 ---
 
 
+### FILE: frontend/src/features/community-restrictions/pages/ModRestrictionsPage.tsx ###
+import { useState } from 'react';
+import { BannedUsersQueue } from '../components/BannedUsersQueue';
+import { MutedUsersQueue } from '../components/MutedUsersQueue'; // Will create this next
+
+export const ModRestrictionsPage = () => {
+  const [activeTab, setActiveTab] = useState('banned-users');
+
+  return (
+    <div className="max-w-4xl mx-auto">
+      <h2 className="text-2xl font-bold mb-6">Moderation Restrictions</h2>
+
+      <div className="border-b border-gray-200">
+        <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+          <button
+            onClick={() => setActiveTab('banned-users')}
+            className={`${
+              activeTab === 'banned-users'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+          >
+            Banned Users
+          </button>
+          <button
+            onClick={() => setActiveTab('muted-users')}
+            className={`${
+              activeTab === 'muted-users'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+          >
+            Muted Users
+          </button>
+        </nav>
+      </div>
+
+      <div className="py-6">
+        {activeTab === 'banned-users' && <BannedUsersQueue />}
+        {activeTab === 'muted-users' && <MutedUsersQueue />}
+      </div>
+    </div>
+  );
+};
+
+---
+
+
 ### FILE: frontend/src/features/community-restrictions/components/CreateRestrictionForm.tsx ###
 import { useState } from 'react';
 import { CommunityRestrictionType } from '../types';
@@ -13142,7 +13850,7 @@ console.log(expiresAt);
   const allMembers = membersResponse?.data || [];
   const searchableMembers: SearchableUser[] = allMembers.map(member => ({
     id: member.userId,
-    label: `User ID: ${member.userId}`
+    label: member.user.username
   }));
 
   const filteredMembers = searchableMembers.filter(member =>
@@ -13225,6 +13933,54 @@ console.log(expiresAt);
 ---
 
 
+### FILE: frontend/src/features/community-restrictions/components/MutedUsersQueue.tsx ###
+import { useParams } from "react-router-dom";
+import { useGetCommunityRestrictionsQuery, useDeleteCommunityRestrictionMutation } from "../services/communityRestrictionsApi";
+import { Button } from "../../../shared/components/ui/Button";
+import { CommunityRestrictionType } from "../types";
+
+export const MutedUsersQueue = () => {
+  const { communityId } = useParams();
+  const { data: restrictions, isLoading } = useGetCommunityRestrictionsQuery({
+    communityId: +communityId,
+    restrictionType: CommunityRestrictionType.MUTE,
+    page: 1,
+    limit: 10,
+  });
+  const [unmute] = useDeleteCommunityRestrictionMutation(); // Assuming 'unmute' uses the same deletion endpoint
+
+  if (isLoading) return <div className="p-4">Loading muted users...</div>;
+
+  return (
+    <div className="space-y-3">
+      {restrictions?.data.length === 0 ? (
+        <div className="text-center py-10 bg-gray-50 rounded-lg border">
+          <p className="text-gray-500 italic">No muted users in this community.</p>
+        </div>
+      ) : (
+        restrictions?.data.map((restriction) => (
+          <div key={restriction.id} className="flex justify-between items-center p-4 bg-white rounded-lg border border-gray-200">
+            <div>
+              <p className="font-medium text-gray-900 text-lg">{restriction.user.username}</p>
+              <p className="text-sm text-gray-700">{restriction.reason}</p>
+              <p className="text-xs text-gray-500 italic">
+                Muted on {new Date(restriction.createdAt).toLocaleDateString()}
+                {restriction.expiresAt && ` - Expires on ${new Date(restriction.expiresAt).toLocaleDateString()}`}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" onClick={() => unmute(restriction.id)} className="bg-green-600 hover:bg-green-700">Unmute</Button>
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+};
+
+---
+
+
 ### FILE: frontend/src/features/community-restrictions/components/BannedUsersQueue.tsx ###
 import { useParams } from "react-router-dom";
 import { useGetCommunityRestrictionsQuery, useDeleteCommunityRestrictionMutation } from "../services/communityRestrictionsApi";
@@ -13253,7 +14009,7 @@ export const BannedUsersQueue = () => {
         restrictions?.data.map((restriction) => (
           <div key={restriction.id} className="flex justify-between items-center p-4 bg-white rounded-lg border border-gray-200">
             <div>
-              <p className="font-medium text-gray-900 text-lg">User #{restriction.userId}</p>
+              <p className="font-medium text-gray-900 text-lg">{restriction.user.username}</p>
               <p className="text-sm text-gray-700">{restriction.reason}</p>
               <p className="text-xs text-gray-500 italic">
                 Banned on {new Date(restriction.createdAt).toLocaleDateString()}
@@ -13793,6 +14549,7 @@ import { ModQueuesPage } from './features/communities/pages/QueuesPage';
 import { ModMembersPage } from './features/communities/pages/MembersPage';
 import { ModModeratorsPage } from './features/communities/pages/ModeratorsPage';
 import { RestrictedUsersPage } from './features/community-restrictions/pages/RestrictedUsersPage';
+import { ProfilePage } from './features/profile/pages/ProfilePage';
 // ... other imports
 
 export default function App() {
@@ -13813,6 +14570,7 @@ export default function App() {
           <Route path="/communities/:communityId" element={<AuthGuard><CommunityPage /></AuthGuard>} />
           <Route path="/my-communities" element={<AuthGuard><MyCommunitiesPage /></AuthGuard>} />
           <Route path="/explore-communities" element={<AuthGuard><ExploreCommunitiesPage /></AuthGuard>} />
+          <Route path="/profile/:userId" element={<AuthGuard><ProfilePage /></AuthGuard>} /> {/* Changed Route */}
         </Route>
 
         {/* --- Moderation Routes (with ModSidebar) --- */}
