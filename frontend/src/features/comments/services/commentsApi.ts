@@ -4,7 +4,7 @@ import type { Comment, CreateCommentDto, UpdateCommentDto, CommentQueryDto, Pagi
 export const commentsApi = apiSlice.injectEndpoints({
     overrideExisting: false, // Ensure this is not overriding existing endpoints
     endpoints: (builder) => ({
-        getCommentsByPostId: builder.infiniteQuery<
+        getComments: builder.infiniteQuery<
             PaginatedResponse<Comment>,
             CommentQueryDto, // Simplified type parameter
             number
@@ -17,7 +17,7 @@ export const commentsApi = apiSlice.injectEndpoints({
                 },
             },
             query: ({ queryArg, pageParam }) => ({ // postId taken from queryArg
-                url: `/posts/${queryArg.postId}/comments`, // Access postId from queryArg
+                url: `/comments`, // Generic URL
                 params: {
                     ...(queryArg ?? {}),
                     page: pageParam,
@@ -25,7 +25,7 @@ export const commentsApi = apiSlice.injectEndpoints({
                 },
             }),
            
-            providesTags: ['Comments']
+            providesTags: ["Comments"],
         }),
         createComment: builder.mutation<ResponseDto<Comment>, { postId: number; data: CreateCommentDto }>({
             query: ({ postId, data }) => ({
@@ -54,7 +54,7 @@ export const commentsApi = apiSlice.injectEndpoints({
 });
 
 export const {
-    useGetCommentsByPostIdInfiniteQuery,
+    useGetCommentsInfiniteQuery, // RENAMED EXPORT
     useCreateCommentMutation,
     useUpdateCommentMutation,
     useDeleteCommentMutation,

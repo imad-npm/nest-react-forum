@@ -15,5 +15,10 @@ export class CommentQueryDto extends PaginationDto {
   @IsOptional()
   @IsInt()
   @Type(() => Number)
+  postId?: number; // NEW FIELD: Filter by Post ID
+
+  @IsOptional()
+  @IsInt()
+  @Type(() => Number)
   parentId?: number;
   }

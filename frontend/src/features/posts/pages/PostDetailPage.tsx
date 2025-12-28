@@ -16,6 +16,7 @@ import { AboutCommunity } from '../../communities/components/AboutCommunity';
 import { PostReactionButtons } from '../../reactions/components/PostReactionButtons';
 import { PostSuggestionsList } from '../components/PostSuggestionsList';
 import PostDetailCard from '../components/PostDetailCard'; // Import PostDetailCard
+import { useGetCommentsInfiniteQuery } from '../../comments/services/commentsApi'; // NEW IMPORT
 
 const PostDetailPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -23,6 +24,15 @@ const PostDetailPage = () => {
   const { data, error, isLoading } = useGetPostByIdQuery(postId);
   const { showToast } = useToastContext();
 
+  const {
+    data: commentsData,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading: isLoadingComments,
+  } = useGetCommentsInfiniteQuery({ postId }); // Use the hook to fetch comments
+
+  const comments = commentsData?.pages?.flatMap((page) => page.data) || [];
  
   if (isLoading) {
     return <div className="text-center mt-8">Loading post...</div>;
@@ -49,7 +59,13 @@ const PostDetailPage = () => {
             <div className="md:w-[70%]">
               <PostDetailCard post={post} />
               {/* Comments Section */}
-              <CommentList postId={postId} />
+              <CommentList
+                comments={comments}
+                fetchNextPage={fetchNextPage}
+                hasNextPage={hasNextPage}
+                isFetchingNextPage={isFetchingNextPage}
+                isLoading={isLoadingComments}
+              />
             </div>
 
       {/* Sidebar Area (Right) */}

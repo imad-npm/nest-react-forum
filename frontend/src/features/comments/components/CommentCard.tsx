@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import type { Comment } from '../types';
 import { FaUser, FaReply } from 'react-icons/fa';
 import { CommentReactionButtons } from '../../reactions/components/CommentReactionButtons';
-import { useGetCommentsByPostIdInfiniteQuery } from '../services/commentsApi';
+import { useGetCommentsInfiniteQuery } from '../services/commentsApi'; // UPDATED IMPORT
 import { Button } from '../../../shared/components/ui/Button';
 import { CommentInput } from './CommentInput'; // Import CommentInput
 import { timeAgo } from '../../../shared/utils/date';
@@ -43,15 +43,11 @@ useEffect(() => {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useGetCommentsByPostIdInfiniteQuery(
+  } = useGetCommentsInfiniteQuery( // UPDATED HOOK CALL
+    { postId, parentId: comment.id, limit: REPLIES_LIMIT }, // Pass queryArg object
     {
-      postId,
-      parentId: comment.id,
-      limit: REPLIES_LIMIT,
-    },
-    {
+      initialPageParam: initialQueryPageParam,
       skip: !showReplies || !hasMoreRepliesThanInitial,
-      initialPageParam: initialQueryPageParam, // Set the initial page to start fetching from
     }
   );
 
@@ -78,7 +74,7 @@ useEffect(() => {
       <div className="rounded-lg border border-gray-300 bg-white p-4 ">
         <div className="mb-2 flex items-center text-sm text-gray-500">
           <FaUser className="mr-1" />
-          <span>u/{comment.author.name}</span>
+          <span>u/{comment.author.name}</span> {/* CHANGED TO USERNAME */}
           <span className="mx-1">•</span>
           <span className='text-xs'>
             {timeAgo(comment.createdAt)}
@@ -165,3 +161,5 @@ useEffect(() => {
 };
 
 export default CommentCard;
+
+

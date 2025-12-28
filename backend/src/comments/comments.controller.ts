@@ -46,6 +46,7 @@ export class CommentsController {
       limit :query.limit,
       search :query.search,
       authorId :query.authorId,
+      postId :query.postId, // Ensure postId is passed to service
       currentUserId: user?.id, // Pass currentUserId
     }
     );
@@ -57,33 +58,6 @@ export class CommentsController {
       data.length,
     );
 
-    return new PaginatedResponseDto(data.map(CommentResponseDto.fromEntity), paginationMeta);
-  }
-
-  @Get('posts/:postId/comments')
-  @UseGuards(OptionalJwtAuthGuard) // Add guard to get user
-  async findByPost(
-@Param('postId', ParseIntPipe) postId: number   ,
-    @Query() query: CommentQueryDto,
-    @GetUser() user: User, // Get current user
-  ): Promise<PaginatedResponseDto<CommentResponseDto>> {
-    const { data, count } = await this.commentsService.findAll(
-      {
-        postId: postId,
-        page: query.page,
-        limit: query.limit,
-        currentUserId: user?.id, // Pass currentUserId
-        parentId: query.parentId,
-      }
-    );
-
-    const paginationMeta = new PaginationMetaDto(
-      query.page,
-      query.limit,
-      count,
-      data.length,
-    );
-    
     return new PaginatedResponseDto(data.map(CommentResponseDto.fromEntity), paginationMeta);
   }
 

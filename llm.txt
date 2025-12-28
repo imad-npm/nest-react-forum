@@ -8036,17 +8036,15 @@ export class ProfileService {
     private readonly profileRepo: Repository<Profile>,
   ) { }
 
-  async createProfile(params: CreateProfileParams): Promise<Profile | null> {
-
-    const existingProfile = await this
-      .findOneByUserId(params.user.id)
-      .catch(() => null);
+async createProfile(params: CreateProfileParams): Promise<Profile> {
+  try {
+    const existingProfile = await this.findOneByUserId(params.user.id).catch(() => null);
     if (existingProfile) {
       throw new ConflictException('Profile already exists for this user.');
     }
 
     const existingDisplayname = await this.profileRepo.findOne({
-      where: { displayName: params.displayName }, // exclude current profile
+      where: { displayName: params.displayName },
     });
     if (existingDisplayname) {
       throw new ConflictException('Username is already taken.');
@@ -8058,32 +8056,58 @@ export class ProfileService {
       bio: params.bio ?? null,
       picture: params.picture ?? null,
     });
+
     const savedProfile = await this.profileRepo.save(profile);
-    return this.profileRepo.findOne({ where: { id: savedProfile.id }, relations: ['user'] });
-  }
 
-  async updateProfile(params: UpdateProfileParams): Promise<Profile | null> {
-    const { profile, displayName, bio, picture } = params;
+    const fullProfile = await this.profileRepo.findOne({
+      where: { id: savedProfile.id },
+      relations: ['user'],
+    });
 
-    if (displayName) {
-      const existingDisplayname = await this.profileRepo.findOne({
-        where: { displayName, id: Not(profile.id) }, // exclude current profile
-      });
-      if (existingDisplayname) {
-        throw new ConflictException('Display name is already taken.');
-      }
+    if (!fullProfile) {
+      throw new NotFoundException('Failed to retrieve the created profile.');
     }
 
-    Object.assign(profile, {
-      ...(displayName !== undefined && { displayName }),
-      ...(bio !== undefined && { bio }),
-      ...(picture !== undefined && { picture }), // Directly assign the path
+    return fullProfile;
+  } catch (err) {
+    // Optional: log error here
+    throw err;
+  }
+}
+
+async updateProfile(params: UpdateProfileParams): Promise<Profile> {
+  const { profile, displayName, bio, picture } = params;
+
+  if (displayName) {
+    const existingDisplayname = await this.profileRepo.findOne({
+      where: { displayName, id: Not(profile.id) },
     });
-    const savedProfile = await this.profileRepo.save(profile);
-    return this.profileRepo.findOne({ where: { id: savedProfile.id }, relations: ['user'] });
+    if (existingDisplayname) {
+      throw new ConflictException('Display name is already taken.');
+    }
   }
 
-  async findOneByUserId(userId: number): Promise<Profile | null> {
+  Object.assign(profile, {
+    ...(displayName !== undefined && { displayName }),
+    ...(bio !== undefined && { bio }),
+    ...(picture !== undefined && { picture }),
+  });
+
+  const savedProfile = await this.profileRepo.save(profile);
+
+  const fullProfile = await this.profileRepo.findOne({
+    where: { id: savedProfile.id },
+    relations: ['user'],
+  });
+
+  if (!fullProfile) {
+    throw new NotFoundException('Failed to retrieve the updated profile.');
+  }
+
+  return fullProfile;
+}
+
+  async findOneByUserId(userId: number): Promise<Profile > {
     const profile = await this.profileRepo.findOne({
       where: { user: { id: userId } },
       relations: ['user'] // Eager load the user entity
@@ -8137,8 +8161,9 @@ export class UpdateProfileDto {
 
 
 ### FILE: backend/src/profile/dtos/profile-response.dto.ts ###
-import { Expose } from 'class-transformer';
+import { Expose, Type } from 'class-transformer'; // Add Type
 import { Profile } from '../entities/profile.entity';
+import { UserResponseDto } from '../../users/dtos/user-response.dto'; // Import UserResponseDto
 
 export class ProfileResponseDto {
   @Expose()
@@ -8153,6 +8178,10 @@ export class ProfileResponseDto {
   @Expose()
   picture: string | null;
 
+  @Expose()
+  @Type(() => UserResponseDto) // Specify the type for nesting
+  user: UserResponseDto; // Nested user object
+
   /**
    * Factory method: converts a Profile entity into this DTO.
    * Purely copies values; no business or environment logic.
@@ -8163,6 +8192,14 @@ export class ProfileResponseDto {
     dto.displayName = entity.displayName;
     dto.bio = entity.bio ?? null;
     dto.picture = entity.picture ?? null;
+
+    // Populate nested user object
+    if (entity.user) {
+      dto.user = UserResponseDto.fromEntity(entity.user);
+    } else {
+      console.warn('Profile entity passed to ProfileResponseDto.fromEntity is missing the user relation.');
+    }
+
     return dto;
   }
 }
@@ -9378,6 +9415,7 @@ export class CommentsController {
       limit :query.limit,
       search :query.search,
       authorId :query.authorId,
+      postId :query.postId, // Ensure postId is passed to service
       currentUserId: user?.id, // Pass currentUserId
     }
     );
@@ -9389,33 +9427,6 @@ export class CommentsController {
       data.length,
     );
 
-    return new PaginatedResponseDto(data.map(CommentResponseDto.fromEntity), paginationMeta);
-  }
-
-  @Get('posts/:postId/comments')
-  @UseGuards(OptionalJwtAuthGuard) // Add guard to get user
-  async findByPost(
-@Param('postId', ParseIntPipe) postId: number   ,
-    @Query() query: CommentQueryDto,
-    @GetUser() user: User, // Get current user
-  ): Promise<PaginatedResponseDto<CommentResponseDto>> {
-    const { data, count } = await this.commentsService.findAll(
-      {
-        postId: postId,
-        page: query.page,
-        limit: query.limit,
-        currentUserId: user?.id, // Pass currentUserId
-        parentId: query.parentId,
-      }
-    );
-
-    const paginationMeta = new PaginationMetaDto(
-      query.page,
-      query.limit,
-      count,
-      data.length,
-    );
-    
     return new PaginatedResponseDto(data.map(CommentResponseDto.fromEntity), paginationMeta);
   }
 
@@ -9650,6 +9661,11 @@ export class CommentQueryDto extends PaginationDto {
   @IsInt()
   @Type(() => Number)
   authorId?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Type(() => Number)
+  postId?: number; // NEW FIELD: Filter by Post ID
 
   @IsOptional()
   @IsInt()
@@ -13231,7 +13247,7 @@ export const {
 // For now, let's include a minimal User type if not already globally available.
 export interface User {
   id: number;
-  name: string;
+  username: string;
   email: string;
   // Add other user properties as needed
 }
@@ -13261,35 +13277,65 @@ export interface CreateProfilePayload {
 
 ### FILE: frontend/src/features/profile/pages/ProfilePage.tsx ###
 // frontend/src/pages/ProfilePage.tsx
-import { useState } from 'react'; // Import useState
+import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { FaUserCircle, FaEdit } from 'react-icons/fa';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { ProfileEditForm } from '../components/ProfileEditForm';
 import { useGetProfileByUserIdQuery } from '../services/profileApi';
+import { Modal } from '../../../shared/components/ui/Modal';
+import { useGetPostsInfiniteQuery } from '../../posts/services/postsApi';
+import { PostList } from '../../posts/components/PostList';
+import { useGetCommentsInfiniteQuery } from '../../comments/services/commentsApi';
+import { UserCommentList } from '../../comments/components/UserCommentList'; // NEW IMPORT
+import { Button } from '../../../shared/components/ui/Button';
 
 export const ProfilePage = () => {
   const { userId } = useParams<{ userId: string }>();
   const parsedUserId = Number(userId);
   
-  const { data: profileResponse, isLoading, error, refetch } = useGetProfileByUserIdQuery(parsedUserId); // Add refetch
-  const { user: currentUser } = useAuth(); // Get current logged-in user
+  const { data: profileResponse, isLoading, error, refetch } = useGetProfileByUserIdQuery(parsedUserId);
+  const { user: currentUser } = useAuth();
 
   console.log(profileResponse,parsedUserId);
   
   const profile = profileResponse?.data;
   const isMyProfile = currentUser?.id === parsedUserId;
 
-  const [isEditing, setIsEditing] = useState(false); // State to control edit mode
+  const [isEditing, setIsEditing] = useState(false);
+  const [activeTab, setActiveTab] = useState<'posts' | 'comments'>('posts');
 
   const handleEditSuccess = () => {
     setIsEditing(false);
-    refetch(); // Refetch profile data after successful edit
+    refetch();
   };
 
   const handleEditCancel = () => {
     setIsEditing(false);
   };
+
+  // Fetch Posts by User
+  const {
+    data: postsData,
+    fetchNextPage: fetchNextPostsPage,
+    hasNextPage: hasNextPostsPage,
+    isFetchingNextPage: isFetchingNextPostsPage,
+    isLoading: isLoadingPosts,
+  } = useGetPostsInfiniteQuery({ queryArg: { authorId: parsedUserId } });
+
+  const posts = postsData?.pages.flatMap(page => page.data) ?? [];
+
+  // Fetch Comments by User
+  const {
+    data: commentsData,
+    fetchNextPage: fetchNextCommentsPage,
+    hasNextPage: hasNextCommentsPage,
+    isFetchingNextPage: isFetchingNextCommentsPage,
+    isLoading: isLoadingComments,
+  } = useGetCommentsInfiniteQuery({ queryArg: { authorId: parsedUserId } });
+
+  const comments = commentsData?.pages.flatMap(page => page.data) ?? [];
+
 
   if (isLoading) {
     return (
@@ -13302,7 +13348,6 @@ export const ProfilePage = () => {
   if (error) {
     let errorMessage = 'Failed to load profile';
     if ('status' in error && 'data' in error) {
-      // You can check if 'data' is an object and has a message property
       if (typeof error.data === 'object' && error.data !== null && 'message' in error.data) {
         errorMessage = (error.data as { message: string }).message;
       }
@@ -13327,51 +13372,125 @@ export const ProfilePage = () => {
 
   return (
     <div className="max-w-4xl mx-auto my-8 p-6 bg-white shadow-lg rounded-lg">
-      {isEditing && isMyProfile ? (
-        <ProfileEditForm
-          currentProfile={profile}
-          onSuccess={handleEditSuccess}
-          onCancel={handleEditCancel}
-        />
-      ) : (
-        <>
-          <div className="flex items-center space-x-6">
-            <div className="flex-shrink-0">
-              {profile.picture ? (
-                <img
-                  className="h-24 w-24 rounded-full object-cover border-4 border-blue-300"
-                  src={profile.picture}
-                  alt={`${profile.username}'s profile picture`}
-                />
-              ) : (
-                <FaUserCircle className="h-24 w-24 text-gray-400 border-4 border-blue-300 rounded-full p-1" />
-              )}
-            </div>
-            <div>
-              <h1 className="text-4xl font-bold text-gray-800">{profile.username}</h1>
-              <p className="text-gray-600 text-lg">{profile.user.email}</p>
-              {isMyProfile && (
-                <button
-                  className="mt-2 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 flex items-center space-x-2"
-                  onClick={() => setIsEditing(true)}
-                >
-                  <FaEdit />
-                  <span>Edit Profile</span>
-                </button>
-              )}
-            </div>
+      {/* Profile Display Section */}
+      <>
+        <div className="flex items-center space-x-6">
+          <div className="flex-shrink-0">
+            {profile.picture ? (
+              <img
+                className="h-24 w-24 rounded-full object-cover border-4 border-blue-300"
+                src={profile.picture}
+                alt={`${profile.username}'s profile picture`}
+              />
+            ) : (
+              <FaUserCircle className="h-24 w-24 text-gray-400 border-4 border-blue-300 rounded-full p-1" />
+            )}
           </div>
+          <div>
+            <h1 className="text-4xl font-bold text-gray-800">{profile.username}</h1>
+            <p className="text-gray-600 text-lg">{profile.user.email}</p>
+            {isMyProfile && (
+              <button
+                className="mt-2 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 flex items-center space-x-2"
+                onClick={() => setIsEditing(true)}
+              >
+                <FaEdit />
+                <span>Edit Profile</span>
+              </button>
+            )}
+          </div>
+        </div>
 
-          <div className="mt-8 border-t pt-6">
-            <h2 className="text-2xl font-semibold text-gray-800">About Me</h2>
-            <p className="mt-4 text-gray-700">
-              {profile.bio || 'No biography available yet.'}
-            </p>
-          </div>
-        </>
+        <div className="mt-8 border-t pt-6">
+          <h2 className="text-2xl font-semibold text-gray-800">About Me</h2>
+          <p className="mt-4 text-gray-700">
+            {profile.bio || 'No biography available yet.'}
+          </p>
+        </div>
+      </>
+
+      {/* Profile Edit Modal */}
+      {isMyProfile && (
+        <Modal
+          isOpen={isEditing}
+          onClose={handleEditCancel}
+          title="Edit Your Profile"
+        >
+          <ProfileEditForm
+            currentProfile={profile}
+            onSuccess={handleEditSuccess}
+            onCancel={handleEditCancel}
+          />
+        </Modal>
       )}
 
-      {/* TODO: Add more sections like user's posts, communities, etc. */}
+      {/* Posts and Comments Sections */}
+      <div className="mt-8 border-t pt-6">
+        <div className="flex space-x-4 mb-4">
+          <Button
+            variant={activeTab === 'posts' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('posts')}
+          >
+            Posts ({postsData?.pages[0]?.meta?.total ?? 0})
+          </Button>
+          <Button
+            variant={activeTab === 'comments' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('comments')}
+          >
+            Comments ({commentsData?.pages[0]?.meta?.total ?? 0})
+          </Button>
+        </div>
+
+        {activeTab === 'posts' && (
+          <div>
+            <h2 className="text-2xl font-semibold text-gray-800 mb-4">Posts</h2>
+            {isLoadingPosts ? (
+              <p>Loading posts...</p>
+            ) : posts.length > 0 ? (
+              <>
+                <PostList posts={posts} />
+                {hasNextPostsPage && (
+                  <div className="flex justify-center mt-4">
+                    <Button onClick={() => fetchNextPostsPage()} disabled={isFetchingNextPostsPage}>
+                      {isFetchingNextPostsPage ? 'Loading more...' : 'Load More Posts'}
+                    </Button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <p>No posts found.</p>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'comments' && (
+          <div>
+            <h2 className="text-2xl font-semibold text-gray-800 mb-4">Comments</h2>
+            {isLoadingComments ? (
+              <p>Loading comments...</p>
+            ) : comments.length > 0 ? (
+              <>
+                <UserCommentList // Use UserCommentList
+                  comments={comments}
+                  fetchNextPage={fetchNextCommentsPage}
+                  hasNextPage={hasNextCommentsPage}
+                  isFetchingNextPage={isFetchingNextCommentsPage}
+                  isLoading={isLoadingComments}
+                />
+                {hasNextCommentsPage && (
+                  <div className="flex justify-center mt-4">
+                    <Button onClick={() => fetchNextCommentsPage()} disabled={isFetchingNextCommentsPage}>
+                      {isFetchingNextCommentsPage ? 'Loading more...' : 'Load More Comments'}
+                    </Button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <p>No comments found.</p>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
@@ -14239,7 +14358,7 @@ import { useState, useMemo, useEffect } from 'react';
 import type { Comment } from '../types';
 import { FaUser, FaReply } from 'react-icons/fa';
 import { CommentReactionButtons } from '../../reactions/components/CommentReactionButtons';
-import { useGetCommentsByPostIdInfiniteQuery } from '../services/commentsApi';
+import { useGetCommentsInfiniteQuery } from '../services/commentsApi'; // UPDATED IMPORT
 import { Button } from '../../../shared/components/ui/Button';
 import { CommentInput } from './CommentInput'; // Import CommentInput
 import { timeAgo } from '../../../shared/utils/date';
@@ -14280,15 +14399,13 @@ useEffect(() => {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useGetCommentsByPostIdInfiniteQuery(
+  } = useGetCommentsInfiniteQuery( // UPDATED HOOK CALL
     {
-      postId,
-      parentId: comment.id,
-      limit: REPLIES_LIMIT,
+      queryArg: { postId, parentId: comment.id, limit: REPLIES_LIMIT }, // Pass queryArg object
+      initialPageParam: initialQueryPageParam,
     },
     {
       skip: !showReplies || !hasMoreRepliesThanInitial,
-      initialPageParam: initialQueryPageParam, // Set the initial page to start fetching from
     }
   );
 
@@ -14315,7 +14432,7 @@ useEffect(() => {
       <div className="rounded-lg border border-gray-300 bg-white p-4 ">
         <div className="mb-2 flex items-center text-sm text-gray-500">
           <FaUser className="mr-1" />
-          <span>u/{comment.author.name}</span>
+          <span>u/{comment.author.username}</span> {/* CHANGED TO USERNAME */}
           <span className="mx-1">•</span>
           <span className='text-xs'>
             {timeAgo(comment.createdAt)}
@@ -14403,55 +14520,95 @@ useEffect(() => {
 
 export default CommentCard;
 
+
+
 ---
 
 
-### FILE: frontend/src/features/comments/components/CommentList.tsx ###
+### FILE: frontend/src/features/comments/components/UserCommentList.tsx ###
 import { Button } from '../../../shared/components/ui/Button';
-import { useGetCommentsByPostIdInfiniteQuery } from '../services/commentsApi';
-import CommentCard from './CommentCard';
-import { CommentInput } from './CommentInput'; // Import CommentInput
+import UserCommentCard from './UserCommentCard'; // Import the new UserCommentCard
+import type { Comment } from '../types'; // Import Comment type
 
-interface CommentListProps {
-    postId: number;
+interface UserCommentListProps {
+    comments: Comment[]; // Accept comments as a prop
+    fetchNextPage: () => void;
+    hasNextPage: boolean;
+    isFetchingNextPage: boolean;
+    isLoading?: boolean; // Optional loading state from parent
 }
 
-const CommentList: React.FC<CommentListProps> = ({ postId }) => {
-    const {
-        data,
-        error,
-        isLoading,
-        fetchNextPage,
-        hasNextPage,
-        isFetchingNextPage,
-    } = useGetCommentsByPostIdInfiniteQuery(
-        { postId, limit: 10 }, // Pass postId and queryArg with limit
-    );
-
-    const allComments = data?.pages?.flatMap((page) => page.data) || [];
-
-   
-    
-    console.log(allComments);
-    
+const UserCommentList: React.FC<UserCommentListProps> = ({
+    comments,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading,
+}) => {
     if (isLoading) return <div>Loading comments...</div>;
-    if (error) return <div>Error: {error.message}</div>;
 
     return (
         <div className="space-y-4">
-            <CommentInput postId={postId} 
-         />
-            {allComments.length === 0 ? (
-                <p>No comments yet. Be the first to comment!</p>
+            {comments.length === 0 ? (
+                <p>No comments found.</p>
             ) : (
-                allComments.map((comment) => (
-                    <CommentCard key={comment.id} comment={comment} level={0} postId={postId} />
+                comments.map((comment) => (
+                    // Render UserCommentCard instead of CommentCard
+                    <UserCommentCard key={comment.id} comment={comment} />
                 ))
             )}
             {hasNextPage && (
                 <div className="flex justify-center mt-4">
                     <Button onClick={() => fetchNextPage()} disabled={isFetchingNextPage}>
-                        {isFetchingNextPage ? 'Loading more...' : 'Load More'}
+                        {isFetchingNextPage ? 'Loading more...' : 'Load More Comments'}
+                    </Button>
+                </div>
+            )}
+        </div>
+    );
+};
+
+export default UserCommentList;
+
+---
+
+
+### FILE: frontend/src/features/comments/components/CommentList.tsx ###
+import { Button } from '../../../shared/components/ui/Button';
+import CommentCard from './CommentCard';
+import type { Comment } from '../types'; // Import Comment type
+ // Import Comment type
+
+interface CommentListProps {
+    comments: Comment[]; // Accept comments as a prop
+    fetchNextPage: () => void;
+    hasNextPage: boolean;
+    isFetchingNextPage: boolean;
+    isLoading?: boolean; // Optional loading state from parent
+}
+
+const CommentList: React.FC<CommentListProps> = ({
+    comments,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading,
+}) => {
+    if (isLoading) return <div>Loading comments...</div>;
+
+    return (
+        <div className="space-y-4">
+            {comments.length === 0 ? (
+                <p>No comments found.</p>
+            ) : (
+                comments.map((comment) => (
+                    <CommentCard key={comment.id} comment={comment} level={0} postId={0} />
+                ))
+            )}
+            {hasNextPage && (
+                <div className="flex justify-center mt-4">
+                    <Button onClick={() => fetchNextPage()} disabled={isFetchingNextPage}>
+                        {isFetchingNextPage ? 'Loading more...' : 'Load More Comments'}
                     </Button>
                 </div>
             )}
@@ -14464,6 +14621,61 @@ export default CommentList;
 ---
 
 
+### FILE: frontend/src/features/comments/components/UserCommentCard.tsx ###
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import type { Comment } from '../types';
+import { FaUser, FaQuoteLeft } from 'react-icons/fa';
+import { timeAgo } from '../../../shared/utils/date';
+
+interface UserCommentCardProps {
+  comment: Comment;
+}
+
+const UserCommentCard: React.FC<UserCommentCardProps> = ({ comment }) => {
+  const navigate = useNavigate();
+
+  const handleCardClick = () => {
+    if (comment.post?.id) {
+      navigate(`/posts/${comment.post.id}`);
+    }
+  };
+
+  return (
+    <div
+      className="mb-3 cursor-pointer rounded-lg border border-gray-300 bg-white p-4 hover:bg-gray-50 transition-colors duration-150 ease-in-out"
+      onClick={handleCardClick}
+    >
+      <div className="mb-2 flex items-center text-sm text-gray-500">
+        <FaUser className="mr-1" />
+        <span>u/{comment.author.username}</span>
+        <span className="mx-1">•</span>
+        <span className="text-xs">
+          {timeAgo(comment.createdAt)}
+        </span>
+        {comment.post && (
+          <>
+            <span className="mx-1">•</span>
+            <FaQuoteLeft className="mr-1 text-xs" />
+            <span className="text-xs font-semibold">on "{comment.post.title}"</span>
+          </>
+        )}
+      </div>
+
+      <p className="mb-3 text-sm text-gray-800 line-clamp-2">
+        {comment.content}
+      </p>
+
+      {/* No reply buttons or reaction buttons here, just a simple display */}
+    </div>
+  );
+};
+
+export default UserCommentCard;
+
+---
+
+
 ### FILE: frontend/src/features/comments/services/commentsApi.ts ###
 import { apiSlice } from '../../../shared/services/apiSlice';
 import type { Comment, CreateCommentDto, UpdateCommentDto, CommentQueryDto, PaginatedResponse, ResponseDto } from '../types';
@@ -14471,7 +14683,7 @@ import type { Comment, CreateCommentDto, UpdateCommentDto, CommentQueryDto, Pagi
 export const commentsApi = apiSlice.injectEndpoints({
     overrideExisting: false, // Ensure this is not overriding existing endpoints
     endpoints: (builder) => ({
-        getCommentsByPostId: builder.infiniteQuery<
+        getComments: builder.infiniteQuery<
             PaginatedResponse<Comment>,
             CommentQueryDto, // Simplified type parameter
             number
@@ -14484,7 +14696,7 @@ export const commentsApi = apiSlice.injectEndpoints({
                 },
             },
             query: ({ queryArg, pageParam }) => ({ // postId taken from queryArg
-                url: `/posts/${queryArg.postId}/comments`, // Access postId from queryArg
+                url: `/comments`, // Generic URL
                 params: {
                     ...(queryArg ?? {}),
                     page: pageParam,
@@ -14492,7 +14704,7 @@ export const commentsApi = apiSlice.injectEndpoints({
                 },
             }),
            
-            providesTags: ['Comments']
+            providesTags: ["Comments"],
         }),
         createComment: builder.mutation<ResponseDto<Comment>, { postId: number; data: CreateCommentDto }>({
             query: ({ postId, data }) => ({
@@ -14521,7 +14733,7 @@ export const commentsApi = apiSlice.injectEndpoints({
 });
 
 export const {
-    useGetCommentsByPostIdInfiniteQuery,
+    useGetCommentsInfiniteQuery, // RENAMED EXPORT
     useCreateCommentMutation,
     useUpdateCommentMutation,
     useDeleteCommentMutation,

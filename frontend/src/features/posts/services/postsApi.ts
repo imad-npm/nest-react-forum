@@ -48,7 +48,7 @@ export const postsApi = apiSlice.injectEndpoints({
                 method: 'PATCH',
                 body: data,
             }),
-            invalidatesTags: (result, error, { id }) => [{ type: 'Posts', id }],
+          invalidatesTags: ['Posts'],
         }),
         updatePostStatus: builder.mutation<ResponseDto<Post>, { id: number; status: PostStatus }>({
           query: ({ id, status }) => ({

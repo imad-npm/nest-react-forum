@@ -17,8 +17,7 @@ export class PostsService {
     private readonly communityRepository: Repository<Community>,
 
     @InjectRepository(CommunityMembership)
-    private readonly membershipRepository: Repository<CommunityMembership>)
-    { }
+    private readonly membershipRepository: Repository<CommunityMembership>) { }
   async findAll(
     options: {
       page?: number;
@@ -64,9 +63,9 @@ export class PostsService {
       }
       const isCommunityModerator = await this.isModerator(currentUserId, communityId);
       const isAuthor = authorId === currentUserId; // Assuming authorId is passed if filtering by author
-      
+
       if (!isCommunityModerator && !isAuthor) {
-          throw new ForbiddenException('You do not have permission to view this type of post in this community.');
+        throw new ForbiddenException('You do not have permission to view this type of post in this community.');
       }
 
       // If user is author, they can see their own pending/rejected posts
@@ -77,7 +76,7 @@ export class PostsService {
         query.andWhere('post.status = :status', { status: PostStatus.REJECTED });
       }
     } else { // status === PostStatus.APPROVED
-        query.andWhere('post.status = :status', { status: PostStatus.APPROVED });
+      query.andWhere('post.status = :status', { status: PostStatus.APPROVED });
     }
 
     if (currentUserId) {
@@ -139,7 +138,7 @@ export class PostsService {
       query.andWhere('community.communityType != :privateType', {
         privateType: 'private',
       });
-    } else if(status === PostStatus.APPROVED && currentUserId) {
+    } else if (status === PostStatus.APPROVED && currentUserId) {
       query.andWhere(
         new Brackets((qb) => {
           qb.where('community.communityType != :privateType', {
@@ -195,31 +194,31 @@ export class PostsService {
 
     // Authorization for PENDING/REJECTED posts in findOne
     if (post.status === PostStatus.PENDING || post.status === PostStatus.REJECTED) {
-        if (!currentUserId) {
-            throw new ForbiddenException('You must be logged in to view this post.');
-        }
-        const isCommunityModerator = post.communityId ? await this.isModerator(currentUserId, post.communityId) : false;
-        const isAuthor = post.authorId === currentUserId;
-        
-        if (!isCommunityModerator && !isAuthor) {
-            throw new ForbiddenException('You do not have permission to view this post.');
-        }
+      if (!currentUserId) {
+        throw new ForbiddenException('You must be logged in to view this post.');
+      }
+      const isCommunityModerator = post.communityId ? await this.isModerator(currentUserId, post.communityId) : false;
+      const isAuthor = post.authorId === currentUserId;
+
+      if (!isCommunityModerator && !isAuthor) {
+        throw new ForbiddenException('You do not have permission to view this post.');
+      }
     }
 
 
     // Community visibility rules for APPROVED posts
     if (post.status === PostStatus.APPROVED && !currentUserId) {
-        // Not logged in and post is in a private community
-        if (post.community?.communityType === CommunityType.PRIVATE) {
-            return null; // Hide private community posts
-        }
+      // Not logged in and post is in a private community
+      if (post.community?.communityType === CommunityType.PRIVATE) {
+        return null; // Hide private community posts
+      }
     } else if (post.status === PostStatus.APPROVED && currentUserId && post.community?.communityType === CommunityType.PRIVATE) {
-        const isMember = await this.membershipRepository.exist({
-            where: { communityId: post.communityId, userId: currentUserId },
-        });
-        if (!isMember) {
-            throw new ForbiddenException('You are not a member of this private community.');
-        }
+      const isMember = await this.membershipRepository.exist({
+        where: { communityId: post.communityId, userId: currentUserId },
+      });
+      if (!isMember) {
+        throw new ForbiddenException('You are not a member of this private community.');
+      }
     }
 
 
@@ -235,14 +234,23 @@ export class PostsService {
     }
     // Check if user can contribute based on community rules
     await this.assertUserCanPostToCommunity(authorId, community);
+    const membership = await this.membershipRepository.findOne({
+      where: { userId: authorId, communityId },
+    });
+
+    const isModerator = membership?.role === CommunityMembershipRole.MODERATOR;
+    const shouldAutoApprove =
+      isModerator || community.communityType === CommunityType.PUBLIC;
 
     const post = this.postsRepository.create({
       title,
       content,
       authorId,
       community,
-      status: PostStatus.PENDING,
+      status: shouldAutoApprove ? PostStatus.APPROVED : PostStatus.PENDING,
+      publishedAt: shouldAutoApprove ? new Date() : null,
     });
+
     return this.postsRepository.save(post);
   }
   async update(
@@ -352,14 +360,14 @@ export class PostsService {
 
       case CommunityType.RESTRICTED:
       case CommunityType.PRIVATE:
-        const isActive = await this.membershipRepository.exist({
+        const isMember = await this.membershipRepository.exist({
           where: {
             userId,
             communityId: community.id,
           },
         });
 
-        if (!isActive) {
+        if (!isMember) {
           throw new ForbiddenException('You cannot post in this community');
         }
         return;

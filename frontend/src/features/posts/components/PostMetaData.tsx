@@ -26,7 +26,7 @@ const PostMetaData: React.FC<PostMetaProps> = ({ post }) => {
       )}
 
       <FaUser className="mr-1" />
-      <span>u/{post.author.name}</span>
+      <span>u/{post.author.username}</span>
 
       {post.publishedAt && (
         <>

@@ -1,9 +1,8 @@
 import { Button } from '../../../shared/components/ui/Button';
-import CommentCard from './CommentCard';
+import UserCommentCard from './UserCommentCard'; // Import the new UserCommentCard
 import type { Comment } from '../types'; // Import Comment type
- // Import Comment type
 
-interface CommentListProps {
+interface UserCommentListProps {
     comments: Comment[]; // Accept comments as a prop
     fetchNextPage: () => void;
     hasNextPage: boolean;
@@ -11,7 +10,7 @@ interface CommentListProps {
     isLoading?: boolean; // Optional loading state from parent
 }
 
-const CommentList: React.FC<CommentListProps> = ({
+const UserCommentList: React.FC<UserCommentListProps> = ({
     comments,
     fetchNextPage,
     hasNextPage,
@@ -26,7 +25,8 @@ const CommentList: React.FC<CommentListProps> = ({
                 <p>No comments found.</p>
             ) : (
                 comments.map((comment) => (
-                    <CommentCard key={comment.id} comment={comment} level={0} postId={comment.postId} />
+                    // Render UserCommentCard instead of CommentCard
+                    <UserCommentCard key={comment.id} comment={comment} />
                 ))
             )}
             {hasNextPage && (
@@ -40,4 +40,4 @@ const CommentList: React.FC<CommentListProps> = ({
     );
 };
 
-export default CommentList;
+export default UserCommentList;

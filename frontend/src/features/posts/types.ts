@@ -11,6 +11,7 @@ export interface Post {
   title: string;
   content: string;
   author: {
+    username: string;
     id: number;
     name: string;
   };
