@@ -90,4 +90,7 @@ export class Post {
 
   @DeleteDateColumn()
   deletedAt: Date;
+
+  @Column({ type: 'datetime', nullable: true })
+  publishedAt: Date | null;
 }

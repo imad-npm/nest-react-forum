@@ -13,6 +13,8 @@ export class PostResponseDto {
   @Expose() readonly views: number;
   @Expose() readonly createdAt: Date;
   @Expose() readonly updatedAt: Date;
+  @Expose() readonly publishedAt: Date;
+
 
   @Expose() @Type(() => UserResponseDto) readonly author: UserResponseDto;
   

@@ -2,7 +2,7 @@ import React from 'react';
 import { Button } from '../../../shared/components/ui/Button';
 import { Input } from '../../../shared/components/ui/Input';
 import type { PostQueryDto } from '../../posts/types';
-import { FaSearch, FaSortAmountDownAlt, FaFire } from 'react-icons/fa';
+import { FaSearch, FaSortAmountDownAlt, FaFire, FaCalendarAlt } from 'react-icons/fa';
 
 interface FeedFiltersProps {
   queryParams: PostQueryDto;
@@ -48,6 +48,14 @@ console.log(queryParams);
           className="flex items-center space-x-1"
         >
           <FaFire /> <span>Popular</span>
+        </Button>
+        <Button
+          variant={queryParams.sort === 'published_at' ? 'default' : 'outline'}
+          onClick={() => handleSortChange('published_at')}
+          disabled={isLoading}
+          className="flex items-center space-x-1"
+        >
+          <FaCalendarAlt /> <span>Published</span>
         </Button>
       </div>
     </div>

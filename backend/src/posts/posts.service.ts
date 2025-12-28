@@ -127,6 +127,8 @@ export class PostsService {
       query.orderBy('post.createdAt', 'DESC');
     } else if (sort === PostSort.OLDEST) {
       query.orderBy('post.createdAt', 'ASC');
+    } else if (sort === PostSort.PUBLISHED_AT) {
+      query.orderBy('post.publishedAt', 'DESC');
     } else {
       query.orderBy('post.createdAt', 'DESC');
     }
@@ -281,6 +283,9 @@ export class PostsService {
     await this.canManagePosts(userId, post.community.id);
 
     post.status = newStatus;
+    if (newStatus === PostStatus.APPROVED) {
+      post.publishedAt = new Date();
+    }
     return this.postsRepository.save(post);
   }
 

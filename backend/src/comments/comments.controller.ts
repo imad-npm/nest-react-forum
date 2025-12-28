@@ -8,7 +8,8 @@ import {
   Body,
   UseGuards,
   Query,
-  NotFoundException, // Added
+  NotFoundException,
+  ParseIntPipe, // Added
 } from '@nestjs/common';
 import { CommentsService } from './comments.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
@@ -62,13 +63,13 @@ export class CommentsController {
   @Get('posts/:postId/comments')
   @UseGuards(OptionalJwtAuthGuard) // Add guard to get user
   async findByPost(
-    @Param('postId', PostPipe) post: PostEntity,
+@Param('postId', ParseIntPipe) postId: number   ,
     @Query() query: CommentQueryDto,
     @GetUser() user: User, // Get current user
   ): Promise<PaginatedResponseDto<CommentResponseDto>> {
     const { data, count } = await this.commentsService.findAll(
       {
-        postId: post.id,
+        postId: postId,
         page: query.page,
         limit: query.limit,
         currentUserId: user?.id, // Pass currentUserId

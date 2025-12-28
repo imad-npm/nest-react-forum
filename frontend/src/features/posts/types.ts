@@ -1,11 +1,11 @@
 import type { ReactionType } from "../reactions/types/types";
 
-export enum PostStatus {
-  PENDING = 'pending',
-  APPROVED = 'approved',
-  REJECTED = 'rejected',
-}
-
+export const PostStatus = {
+  PENDING: 'pending',
+  APPROVED: 'approved',
+  REJECTED: 'rejected',
+} as const;
+export type PostStatus = typeof PostStatus[keyof typeof PostStatus];
 export interface Post {
   id: number;
   title: string;
@@ -27,6 +27,7 @@ export interface Post {
   status: PostStatus;
   createdAt: string;
   updatedAt: string;
+  publishedAt?: string;
 }
 
 export interface CreatePostDto {

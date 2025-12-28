@@ -10,6 +10,7 @@ import {
 import { timeAgo } from '../../../shared/utils/date'; // Import timeAgo from shared utils
 import PostDropdown from './PostCardDropdown'; // Import PostDropdown component
 import PostCardFooter from './PostCardFooter';
+import PostMetaData from './PostMetaData';
 
 interface PostCardProps {
   post: Post;
@@ -24,24 +25,8 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
       <PostDropdown post={post} />
 
       {/* Post Metadata */}
-      <div className="flex items-center text-xs md:text-sm text-gray-500 dark:text-gray-400 mb-2 space-x-1">
-        {post.community && (
-          <>
-            <FaUsers className="mr-1" />
-            <Link
-              to={`/communities/${post.community.id}`}
-              className="font-semibold hover:underline mr-1"
-            >
-              c/{post.community.name}
-            </Link>
-            <span className="mx-1">•</span>
-          </>
-        )}
-        <FaUser className="mr-1" />
-        <span>u/{post.author.name}</span>
-        <span className="mx-1">•</span>
-        <span className="text-xs">{timeAgo(post.createdAt)}</span>
-      </div>
+           <PostMetaData post={post} />
+
 
       {/* Post Title */}
       <Link to={`/posts/${post.id}`}>

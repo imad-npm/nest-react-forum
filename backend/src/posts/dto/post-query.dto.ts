@@ -7,6 +7,7 @@ export enum PostSort {
   NEWEST = 'newest',
   POPULAR = 'popular',
   OLDEST = 'oldest',
+  PUBLISHED_AT = 'published_at',
 }
 
 export { PostStatus };
