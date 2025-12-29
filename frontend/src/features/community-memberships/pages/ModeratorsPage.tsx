@@ -1,9 +1,10 @@
 // frontend/src/features/communities/pages/mod/ModModeratorsPage.tsx
 import { useParams } from 'react-router-dom';
-import { useGetCommunityMembershipsQuery, useRemoveCommunityMemberMutation } from '../../community-memberships/services/communityMembershipsApi'; // Changed import
+import { useGetCommunityMembershipsQuery, useRemoveCommunityMemberMutation } from '../services/communityMembershipsApi'; // Changed import
 import { FaUserShield } from 'react-icons/fa';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { Button } from '../../../shared/components/ui/Button'; // Assuming Button component is available
+import type { User, CommunityMembership } from '../types';
 
 export const ModModeratorsPage = () => {
   const { communityId } = useParams();
@@ -20,6 +21,22 @@ export const ModModeratorsPage = () => {
   const currentUserMembership = allMembershipsResponse?.data.find(
     (member) => member.userId === currentUser?.id
   );
+
+  function canRemoveModerator(
+    currentUser: User | null | undefined,
+    currentUserMembership: CommunityMembership | null | undefined,
+    targetMod: CommunityMembership
+  ): boolean {
+    if (!currentUser || !currentUserMembership) return false;
+
+    const isSelf = currentUserMembership.userId === targetMod.userId;
+    const hasLowerRank = currentUserMembership.rank < targetMod.rank;
+
+    return isSelf || hasLowerRank;
+  }
+
+
+
 
   const [removeCommunityMember, { isLoading: isRemovingMember }] = useRemoveCommunityMemberMutation(); // Changed hook and constant name
 
@@ -60,9 +77,7 @@ export const ModModeratorsPage = () => {
           <tbody className="bg-white divide-y divide-gray-200">
             {moderators?.map((mod) => {
               // Determine if the current user can remove this moderator
-              const canRemove = currentUser && currentUserMembership &&
-                                currentUserMembership.userId !== mod.userId && // Cannot remove self
-                                currentUserMembership.rank < mod.rank; // Can only remove mods with lower rank
+              const canRemove = canRemoveModerator(currentUser, currentUserMembership, mod);
 
               return (
                 <tr key={mod.user.id}>

@@ -13,8 +13,8 @@ import PostDetailPage from './features/posts/pages/PostDetailPage';
 import MainLayout from './layout/MainLayout';
 import ModLayout from './layout/ModLayout';
 import { ModQueuesPage } from './features/communities/pages/QueuesPage';
-import { ModMembersPage } from './features/communities/pages/MembersPage';
-import { ModModeratorsPage } from './features/communities/pages/ModeratorsPage';
+import { ModMembersPage } from './features/community-memberships/pages/MembersPage';
+import { ModModeratorsPage } from './features/community-memberships/pages/ModeratorsPage';
 import { RestrictedUsersPage } from './features/community-restrictions/pages/RestrictedUsersPage';
 import { ProfilePage } from './features/profile/pages/ProfilePage';
 // ... other imports

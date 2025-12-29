@@ -121,7 +121,7 @@ export class CommunityMembershipsService {
       if (!targetMembership) throw new NotFoundException(`Target user is not a member of this community`);
 
       // --- Rank check: lower number = higher rank ---
-      if (
+      if (actorMembership.userId !== targetMembership.userId &&
         targetMembership.role === CommunityMembershipRole.MODERATOR &&
         actorMembership.rank && targetMembership.rank && actorMembership.rank >= targetMembership.rank // actor.rank higher or equal number = lower/equal authority
       ) {

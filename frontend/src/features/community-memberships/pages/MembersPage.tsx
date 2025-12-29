@@ -1,6 +1,6 @@
 // frontend/src/features/communities/pages/mod/ModMembersPage.tsx
 import { useParams } from 'react-router-dom';
-import { useGetCommunityMembershipsQuery } from '../../community-memberships/services/communityMembershipsApi';
+import { useGetCommunityMembershipsQuery } from '../services/communityMembershipsApi';
 
 export const ModMembersPage = () => {
   const { communityId } = useParams();
