@@ -980,6 +980,55 @@ export class AddPictureFieldToUser1765627185088 implements MigrationInterface {
 ---
 
 
+### FILE: backend/src/database/migrations/1766966515318-AddExplicitPostIdToComments.ts ###
+import { MigrationInterface, QueryRunner } from "typeorm";
+
+export class AddExplicitPostIdToComments1766966515318 implements MigrationInterface {
+    name = 'AddExplicitPostIdToComments1766966515318'
+
+    public async up(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`CREATE TABLE "temporary_comments" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "content" varchar NOT NULL, "authorId" integer NOT NULL, "likesCount" integer NOT NULL DEFAULT (0), "dislikesCount" integer NOT NULL DEFAULT (0), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, "postId" integer, "parentId" integer, "repliesCount" integer NOT NULL DEFAULT (0), CONSTRAINT "FK_8770bd9030a3d13c5f79a7d2e81" FOREIGN KEY ("parentId") REFERENCES "comments" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_4548cc4a409b8651ec75f70e280" FOREIGN KEY ("authorId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_e44ddaaa6d058cb4092f83ad61f" FOREIGN KEY ("postId") REFERENCES "posts" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`);
+        await queryRunner.query(`INSERT INTO "temporary_comments"("id", "content", "authorId", "likesCount", "dislikesCount", "createdAt", "updatedAt", "deletedAt", "postId", "parentId", "repliesCount") SELECT "id", "content", "authorId", "likesCount", "dislikesCount", "createdAt", "updatedAt", "deletedAt", "postId", "parentId", "repliesCount" FROM "comments"`);
+        await queryRunner.query(`DROP TABLE "comments"`);
+        await queryRunner.query(`ALTER TABLE "temporary_comments" RENAME TO "comments"`);
+        await queryRunner.query(`CREATE TABLE "temporary_comments" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "content" varchar NOT NULL, "authorId" integer NOT NULL, "likesCount" integer NOT NULL DEFAULT (0), "dislikesCount" integer NOT NULL DEFAULT (0), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, "postId" integer, "parentId" integer, "repliesCount" integer NOT NULL DEFAULT (0))`);
+        await queryRunner.query(`INSERT INTO "temporary_comments"("id", "content", "authorId", "likesCount", "dislikesCount", "createdAt", "updatedAt", "deletedAt", "postId", "parentId", "repliesCount") SELECT "id", "content", "authorId", "likesCount", "dislikesCount", "createdAt", "updatedAt", "deletedAt", "postId", "parentId", "repliesCount" FROM "comments"`);
+        await queryRunner.query(`DROP TABLE "comments"`);
+        await queryRunner.query(`ALTER TABLE "temporary_comments" RENAME TO "comments"`);
+        await queryRunner.query(`CREATE TABLE "temporary_comments" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "content" varchar NOT NULL, "authorId" integer NOT NULL, "likesCount" integer NOT NULL DEFAULT (0), "dislikesCount" integer NOT NULL DEFAULT (0), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, "postId" integer NOT NULL, "parentId" integer, "repliesCount" integer NOT NULL DEFAULT (0))`);
+        await queryRunner.query(`INSERT INTO "temporary_comments"("id", "content", "authorId", "likesCount", "dislikesCount", "createdAt", "updatedAt", "deletedAt", "postId", "parentId", "repliesCount") SELECT "id", "content", "authorId", "likesCount", "dislikesCount", "createdAt", "updatedAt", "deletedAt", "postId", "parentId", "repliesCount" FROM "comments"`);
+        await queryRunner.query(`DROP TABLE "comments"`);
+        await queryRunner.query(`ALTER TABLE "temporary_comments" RENAME TO "comments"`);
+        await queryRunner.query(`CREATE TABLE "temporary_comments" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "content" varchar NOT NULL, "authorId" integer NOT NULL, "likesCount" integer NOT NULL DEFAULT (0), "dislikesCount" integer NOT NULL DEFAULT (0), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, "postId" integer NOT NULL, "parentId" integer, "repliesCount" integer NOT NULL DEFAULT (0), CONSTRAINT "FK_e44ddaaa6d058cb4092f83ad61f" FOREIGN KEY ("postId") REFERENCES "posts" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_4548cc4a409b8651ec75f70e280" FOREIGN KEY ("authorId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_8770bd9030a3d13c5f79a7d2e81" FOREIGN KEY ("parentId") REFERENCES "comments" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`);
+        await queryRunner.query(`INSERT INTO "temporary_comments"("id", "content", "authorId", "likesCount", "dislikesCount", "createdAt", "updatedAt", "deletedAt", "postId", "parentId", "repliesCount") SELECT "id", "content", "authorId", "likesCount", "dislikesCount", "createdAt", "updatedAt", "deletedAt", "postId", "parentId", "repliesCount" FROM "comments"`);
+        await queryRunner.query(`DROP TABLE "comments"`);
+        await queryRunner.query(`ALTER TABLE "temporary_comments" RENAME TO "comments"`);
+    }
+
+    public async down(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`ALTER TABLE "comments" RENAME TO "temporary_comments"`);
+        await queryRunner.query(`CREATE TABLE "comments" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "content" varchar NOT NULL, "authorId" integer NOT NULL, "likesCount" integer NOT NULL DEFAULT (0), "dislikesCount" integer NOT NULL DEFAULT (0), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, "postId" integer NOT NULL, "parentId" integer, "repliesCount" integer NOT NULL DEFAULT (0))`);
+        await queryRunner.query(`INSERT INTO "comments"("id", "content", "authorId", "likesCount", "dislikesCount", "createdAt", "updatedAt", "deletedAt", "postId", "parentId", "repliesCount") SELECT "id", "content", "authorId", "likesCount", "dislikesCount", "createdAt", "updatedAt", "deletedAt", "postId", "parentId", "repliesCount" FROM "temporary_comments"`);
+        await queryRunner.query(`DROP TABLE "temporary_comments"`);
+        await queryRunner.query(`ALTER TABLE "comments" RENAME TO "temporary_comments"`);
+        await queryRunner.query(`CREATE TABLE "comments" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "content" varchar NOT NULL, "authorId" integer NOT NULL, "likesCount" integer NOT NULL DEFAULT (0), "dislikesCount" integer NOT NULL DEFAULT (0), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, "postId" integer, "parentId" integer, "repliesCount" integer NOT NULL DEFAULT (0))`);
+        await queryRunner.query(`INSERT INTO "comments"("id", "content", "authorId", "likesCount", "dislikesCount", "createdAt", "updatedAt", "deletedAt", "postId", "parentId", "repliesCount") SELECT "id", "content", "authorId", "likesCount", "dislikesCount", "createdAt", "updatedAt", "deletedAt", "postId", "parentId", "repliesCount" FROM "temporary_comments"`);
+        await queryRunner.query(`DROP TABLE "temporary_comments"`);
+        await queryRunner.query(`ALTER TABLE "comments" RENAME TO "temporary_comments"`);
+        await queryRunner.query(`CREATE TABLE "comments" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "content" varchar NOT NULL, "authorId" integer NOT NULL, "likesCount" integer NOT NULL DEFAULT (0), "dislikesCount" integer NOT NULL DEFAULT (0), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, "postId" integer, "parentId" integer, "repliesCount" integer NOT NULL DEFAULT (0), CONSTRAINT "FK_e44ddaaa6d058cb4092f83ad61f" FOREIGN KEY ("postId") REFERENCES "posts" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`);
+        await queryRunner.query(`INSERT INTO "comments"("id", "content", "authorId", "likesCount", "dislikesCount", "createdAt", "updatedAt", "deletedAt", "postId", "parentId", "repliesCount") SELECT "id", "content", "authorId", "likesCount", "dislikesCount", "createdAt", "updatedAt", "deletedAt", "postId", "parentId", "repliesCount" FROM "temporary_comments"`);
+        await queryRunner.query(`DROP TABLE "temporary_comments"`);
+        await queryRunner.query(`ALTER TABLE "comments" RENAME TO "temporary_comments"`);
+        await queryRunner.query(`CREATE TABLE "comments" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "content" varchar NOT NULL, "authorId" integer NOT NULL, "likesCount" integer NOT NULL DEFAULT (0), "dislikesCount" integer NOT NULL DEFAULT (0), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "deletedAt" datetime, "postId" integer, "parentId" integer, "repliesCount" integer NOT NULL DEFAULT (0), CONSTRAINT "FK_8770bd9030a3d13c5f79a7d2e81" FOREIGN KEY ("parentId") REFERENCES "comments" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_4548cc4a409b8651ec75f70e280" FOREIGN KEY ("authorId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION, CONSTRAINT "FK_e44ddaaa6d058cb4092f83ad61f" FOREIGN KEY ("postId") REFERENCES "posts" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`);
+        await queryRunner.query(`INSERT INTO "comments"("id", "content", "authorId", "likesCount", "dislikesCount", "createdAt", "updatedAt", "deletedAt", "postId", "parentId", "repliesCount") SELECT "id", "content", "authorId", "likesCount", "dislikesCount", "createdAt", "updatedAt", "deletedAt", "postId", "parentId", "repliesCount" FROM "temporary_comments"`);
+        await queryRunner.query(`DROP TABLE "temporary_comments"`);
+    }
+
+}
+
+---
+
+
 ### FILE: backend/src/database/migrations/1766443444048-AddCommentsLockedToPost.ts ###
 import { MigrationInterface, QueryRunner } from "typeorm";
 
@@ -5849,8 +5898,7 @@ export class PostsService {
     private readonly communityRepository: Repository<Community>,
 
     @InjectRepository(CommunityMembership)
-    private readonly membershipRepository: Repository<CommunityMembership>)
-    { }
+    private readonly membershipRepository: Repository<CommunityMembership>) { }
   async findAll(
     options: {
       page?: number;
@@ -5896,9 +5944,9 @@ export class PostsService {
       }
       const isCommunityModerator = await this.isModerator(currentUserId, communityId);
       const isAuthor = authorId === currentUserId; // Assuming authorId is passed if filtering by author
-      
+
       if (!isCommunityModerator && !isAuthor) {
-          throw new ForbiddenException('You do not have permission to view this type of post in this community.');
+        throw new ForbiddenException('You do not have permission to view this type of post in this community.');
       }
 
       // If user is author, they can see their own pending/rejected posts
@@ -5909,7 +5957,7 @@ export class PostsService {
         query.andWhere('post.status = :status', { status: PostStatus.REJECTED });
       }
     } else { // status === PostStatus.APPROVED
-        query.andWhere('post.status = :status', { status: PostStatus.APPROVED });
+      query.andWhere('post.status = :status', { status: PostStatus.APPROVED });
     }
 
     if (currentUserId) {
@@ -5971,7 +6019,7 @@ export class PostsService {
       query.andWhere('community.communityType != :privateType', {
         privateType: 'private',
       });
-    } else if(status === PostStatus.APPROVED && currentUserId) {
+    } else if (status === PostStatus.APPROVED && currentUserId) {
       query.andWhere(
         new Brackets((qb) => {
           qb.where('community.communityType != :privateType', {
@@ -6027,31 +6075,31 @@ export class PostsService {
 
     // Authorization for PENDING/REJECTED posts in findOne
     if (post.status === PostStatus.PENDING || post.status === PostStatus.REJECTED) {
-        if (!currentUserId) {
-            throw new ForbiddenException('You must be logged in to view this post.');
-        }
-        const isCommunityModerator = post.communityId ? await this.isModerator(currentUserId, post.communityId) : false;
-        const isAuthor = post.authorId === currentUserId;
-        
-        if (!isCommunityModerator && !isAuthor) {
-            throw new ForbiddenException('You do not have permission to view this post.');
-        }
+      if (!currentUserId) {
+        throw new ForbiddenException('You must be logged in to view this post.');
+      }
+      const isCommunityModerator = post.communityId ? await this.isModerator(currentUserId, post.communityId) : false;
+      const isAuthor = post.authorId === currentUserId;
+
+      if (!isCommunityModerator && !isAuthor) {
+        throw new ForbiddenException('You do not have permission to view this post.');
+      }
     }
 
 
     // Community visibility rules for APPROVED posts
     if (post.status === PostStatus.APPROVED && !currentUserId) {
-        // Not logged in and post is in a private community
-        if (post.community?.communityType === CommunityType.PRIVATE) {
-            return null; // Hide private community posts
-        }
+      // Not logged in and post is in a private community
+      if (post.community?.communityType === CommunityType.PRIVATE) {
+        return null; // Hide private community posts
+      }
     } else if (post.status === PostStatus.APPROVED && currentUserId && post.community?.communityType === CommunityType.PRIVATE) {
-        const isMember = await this.membershipRepository.exist({
-            where: { communityId: post.communityId, userId: currentUserId },
-        });
-        if (!isMember) {
-            throw new ForbiddenException('You are not a member of this private community.');
-        }
+      const isMember = await this.membershipRepository.exist({
+        where: { communityId: post.communityId, userId: currentUserId },
+      });
+      if (!isMember) {
+        throw new ForbiddenException('You are not a member of this private community.');
+      }
     }
 
 
@@ -6067,14 +6115,23 @@ export class PostsService {
     }
     // Check if user can contribute based on community rules
     await this.assertUserCanPostToCommunity(authorId, community);
+    const membership = await this.membershipRepository.findOne({
+      where: { userId: authorId, communityId },
+    });
+
+    const isModerator = membership?.role === CommunityMembershipRole.MODERATOR;
+    const shouldAutoApprove =
+      isModerator || community.communityType === CommunityType.PUBLIC;
 
     const post = this.postsRepository.create({
       title,
       content,
       authorId,
       community,
-      status: PostStatus.PENDING,
+      status: shouldAutoApprove ? PostStatus.APPROVED : PostStatus.PENDING,
+      publishedAt: shouldAutoApprove ? new Date() : null,
     });
+
     return this.postsRepository.save(post);
   }
   async update(
@@ -6184,14 +6241,14 @@ export class PostsService {
 
       case CommunityType.RESTRICTED:
       case CommunityType.PRIVATE:
-        const isActive = await this.membershipRepository.exist({
+        const isMember = await this.membershipRepository.exist({
           where: {
             userId,
             communityId: community.id,
           },
         });
 
-        if (!isActive) {
+        if (!isMember) {
           throw new ForbiddenException('You cannot post in this community');
         }
         return;
@@ -9520,7 +9577,10 @@ export class Comment {
 
   @ManyToOne(() => Post, (post) => post.comments, { onDelete: 'CASCADE' })
   post: Post;
-
+ // FK explicite
+  @Column()
+  postId: number;
+  
   @ManyToOne(() => User, (user) => user.comments, {
     nullable: false,
     onDelete: 'CASCADE',
@@ -10826,6 +10886,7 @@ export interface Post {
   title: string;
   content: string;
   author: {
+    username: string;
     id: number;
     name: string;
   };
@@ -10909,6 +10970,7 @@ import { AboutCommunity } from '../../communities/components/AboutCommunity';
 import { PostReactionButtons } from '../../reactions/components/PostReactionButtons';
 import { PostSuggestionsList } from '../components/PostSuggestionsList';
 import PostDetailCard from '../components/PostDetailCard'; // Import PostDetailCard
+import { useGetCommentsInfiniteQuery } from '../../comments/services/commentsApi'; // NEW IMPORT
 
 const PostDetailPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -10916,6 +10978,17 @@ const PostDetailPage = () => {
   const { data, error, isLoading } = useGetPostByIdQuery(postId);
   const { showToast } = useToastContext();
 
+  const {
+    data: commentsData,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading: isLoadingComments,
+  } = 
+  useGetCommentsInfiniteQuery(        { postId, limit: 10 }, // Pass postId and queryArg with limit
+); // Use the hook to fetch comments
+
+  const comments = commentsData?.pages?.flatMap((page) => page.data) || [];
  
   if (isLoading) {
     return <div className="text-center mt-8">Loading post...</div>;
@@ -10942,7 +11015,13 @@ const PostDetailPage = () => {
             <div className="md:w-[70%]">
               <PostDetailCard post={post} />
               {/* Comments Section */}
-              <CommentList postId={postId} />
+              <CommentList
+                comments={comments}
+                fetchNextPage={fetchNextPage}
+                hasNextPage={hasNextPage}
+                isFetchingNextPage={isFetchingNextPage}
+                isLoading={isLoadingComments}
+              />
             </div>
 
       {/* Sidebar Area (Right) */}
@@ -11034,7 +11113,7 @@ const PostMetaData: React.FC<PostMetaProps> = ({ post }) => {
       )}
 
       <FaUser className="mr-1" />
-      <span>u/{post.author.name}</span>
+      <span>u/{post.author.username}</span>
 
       {post.publishedAt && (
         <>
@@ -11672,7 +11751,7 @@ export const postsApi = apiSlice.injectEndpoints({
                 method: 'PATCH',
                 body: data,
             }),
-            invalidatesTags: (result, error, { id }) => [{ type: 'Posts', id }],
+          invalidatesTags: ['Posts'],
         }),
         updatePostStatus: builder.mutation<ResponseDto<Post>, { id: number; status: PostStatus }>({
           query: ({ id, status }) => ({
@@ -13285,10 +13364,10 @@ import { ProfileEditForm } from '../components/ProfileEditForm';
 import { useGetProfileByUserIdQuery } from '../services/profileApi';
 import { Modal } from '../../../shared/components/ui/Modal';
 import { useGetPostsInfiniteQuery } from '../../posts/services/postsApi';
-import { PostList } from '../../posts/components/PostList';
 import { useGetCommentsInfiniteQuery } from '../../comments/services/commentsApi';
-import { UserCommentList } from '../../comments/components/UserCommentList'; // NEW IMPORT
+import UserCommentList from '../../comments/components/UserCommentList'; // NEW IMPORT
 import { Button } from '../../../shared/components/ui/Button';
+import PostList from '../../posts/components/PostList';
 
 export const ProfilePage = () => {
   const { userId } = useParams<{ userId: string }>();
@@ -13321,7 +13400,7 @@ export const ProfilePage = () => {
     hasNextPage: hasNextPostsPage,
     isFetchingNextPage: isFetchingNextPostsPage,
     isLoading: isLoadingPosts,
-  } = useGetPostsInfiniteQuery({ queryArg: { authorId: parsedUserId } });
+  } = useGetPostsInfiniteQuery({ authorId: parsedUserId } );
 
   const posts = postsData?.pages.flatMap(page => page.data) ?? [];
 
@@ -13412,9 +13491,8 @@ export const ProfilePage = () => {
       {/* Profile Edit Modal */}
       {isMyProfile && (
         <Modal
-          isOpen={isEditing}
+          open={isEditing}
           onClose={handleEditCancel}
-          title="Edit Your Profile"
         >
           <ProfileEditForm
             currentProfile={profile}
@@ -13448,7 +13526,7 @@ export const ProfilePage = () => {
               <p>Loading posts...</p>
             ) : posts.length > 0 ? (
               <>
-                <PostList posts={posts} />
+                <PostList posts={posts} isLoading={false} error={undefined} />
                 {hasNextPostsPage && (
                   <div className="flex justify-center mt-4">
                     <Button onClick={() => fetchNextPostsPage()} disabled={isFetchingNextPostsPage}>
@@ -14393,6 +14471,7 @@ useEffect(() => {
   // Calculate the initial page parameter for the infinite query
   // If we already have initial replies, start fetching from the next page
   const initialQueryPageParam = 1
+console.log(postId);
 
   const {
     data,
@@ -14400,11 +14479,9 @@ useEffect(() => {
     hasNextPage,
     isFetchingNextPage,
   } = useGetCommentsInfiniteQuery( // UPDATED HOOK CALL
+    { postId, parentId: comment.id, limit: REPLIES_LIMIT }, // Pass queryArg object
     {
-      queryArg: { postId, parentId: comment.id, limit: REPLIES_LIMIT }, // Pass queryArg object
       initialPageParam: initialQueryPageParam,
-    },
-    {
       skip: !showReplies || !hasMoreRepliesThanInitial,
     }
   );
@@ -14432,7 +14509,7 @@ useEffect(() => {
       <div className="rounded-lg border border-gray-300 bg-white p-4 ">
         <div className="mb-2 flex items-center text-sm text-gray-500">
           <FaUser className="mr-1" />
-          <span>u/{comment.author.username}</span> {/* CHANGED TO USERNAME */}
+          <span>u/{comment.author.name}</span> {/* CHANGED TO USERNAME */}
           <span className="mx-1">•</span>
           <span className='text-xs'>
             {timeAgo(comment.createdAt)}
@@ -14595,6 +14672,7 @@ const CommentList: React.FC<CommentListProps> = ({
     isLoading,
 }) => {
     if (isLoading) return <div>Loading comments...</div>;
+console.log(comments);
 
     return (
         <div className="space-y-4">
@@ -14602,7 +14680,7 @@ const CommentList: React.FC<CommentListProps> = ({
                 <p>No comments found.</p>
             ) : (
                 comments.map((comment) => (
-                    <CommentCard key={comment.id} comment={comment} level={0} postId={0} />
+                    <CommentCard key={comment.id} comment={comment} level={0} postId={comment.postId} />
                 ))
             )}
             {hasNextPage && (

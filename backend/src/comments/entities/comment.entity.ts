@@ -7,6 +7,7 @@ import {
   UpdateDateColumn,
   DeleteDateColumn,
   OneToMany,
+  Check,
 } from 'typeorm';
 import { Post } from '../../posts/entities/post.entity';
 import { User } from '../../users/entities/user.entity';
@@ -15,7 +16,7 @@ import { ReactionType } from 'src/reactions/reactions.types';
 import { CommentReport } from '../../reports/entities/comment-report.entity';
 
 @Entity('comments')
-export class Comment {
+@Check(`id <> parentId`) export class Comment {
   @PrimaryGeneratedColumn()
   id: number;
 
@@ -24,7 +25,10 @@ export class Comment {
 
   @ManyToOne(() => Post, (post) => post.comments, { onDelete: 'CASCADE' })
   post: Post;
-
+ // FK explicite
+  @Column()
+  postId: number;
+  
   @ManyToOne(() => User, (user) => user.comments, {
     nullable: false,
     onDelete: 'CASCADE',

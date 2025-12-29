@@ -30,7 +30,9 @@ const PostDetailPage = () => {
     hasNextPage,
     isFetchingNextPage,
     isLoading: isLoadingComments,
-  } = useGetCommentsInfiniteQuery({ postId }); // Use the hook to fetch comments
+  } = 
+  useGetCommentsInfiniteQuery(        { postId, limit: 10 }, // Pass postId and queryArg with limit
+); // Use the hook to fetch comments
 
   const comments = commentsData?.pages?.flatMap((page) => page.data) || [];
  
@@ -51,7 +53,7 @@ const PostDetailPage = () => {
 
   const post = data.data;
 
-  console.log(post);
+  console.log(comments);
   
   return (
     <div className="container mx-auto p-4 flex flex-col md:flex-row gap-6">

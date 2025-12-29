@@ -19,6 +19,7 @@ const CommentList: React.FC<CommentListProps> = ({
     isLoading,
 }) => {
     if (isLoading) return <div>Loading comments...</div>;
+console.log(comments);
 
     return (
         <div className="space-y-4">

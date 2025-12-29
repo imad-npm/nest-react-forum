@@ -46,6 +46,7 @@ export class CommentsController {
       limit :query.limit,
       search :query.search,
       authorId :query.authorId,
+      parentId:query.parentId ,
       postId :query.postId, // Ensure postId is passed to service
       currentUserId: user?.id, // Pass currentUserId
     }

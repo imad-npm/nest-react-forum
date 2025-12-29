@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import type { Comment } from '../types';
 import { FaUser, FaReply } from 'react-icons/fa';
 import { CommentReactionButtons } from '../../reactions/components/CommentReactionButtons';
@@ -21,7 +21,6 @@ const CommentCard: React.FC<CommentCardProps> = ({
   level,
 }) => {
 const [showReplies, setShowReplies] = useState(false);
-
 useEffect(() => {
   if (comment.repliesCount > 0) {
     setShowReplies(true);
@@ -37,6 +36,12 @@ useEffect(() => {
   // Calculate the initial page parameter for the infinite query
   // If we already have initial replies, start fetching from the next page
   const initialQueryPageParam = 1
+  const MAX_DEPTH = 2;
+
+if (level > MAX_DEPTH) {
+  return null;
+}
+
 
   const {
     data,
