@@ -16,11 +16,11 @@ export const commentsApi = apiSlice.injectEndpoints({
                     return page < totalPages ? page + 1 : undefined;
                 },
             },
-            query: ({ queryArg, pageParam }) => ({ // postId taken from queryArg
-                url: `/comments`, // Generic URL
+            query: ({ queryArg, pageParam }) => ({
+                url: `/comments`,
                 params: {
-                    ...(queryArg ?? {}),
-                    page: pageParam,
+                    ...queryArg, // Pass other query arguments
+                    page: pageParam, // Explicitly use pageParam for the page number
                     limit: queryArg?.limit ?? 10,
                 },
             }),

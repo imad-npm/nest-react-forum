@@ -1,57 +1,19 @@
-// features/feed/pages/FeedPage.tsx
-import React, { useEffect, useRef, useCallback, useState } from 'react';
-import { useGetPostsInfiniteQuery } from '../../posts/services/postsApi';
 import PostList from '../../posts/components/PostList';
-import { useToastContext } from '../../../shared/providers/ToastProvider';
-import type { PostQueryDto } from '../../posts/types';
 import FeedFilters from '../components/FeedFilters';
 import SuggestedCommunities from '../../communities/components/SuggestedCommunities';
+import { useFeed } from '../hooks/useFeed';
 
 const FeedPage = () => {
-  const [queryParams, setQueryParams] = useState<Omit<PostQueryDto, 'page'>>({
-    limit: 10,
-  });
-
   const {
-    data,
-    error,
+    queryParams,
+    setQueryParams,
+    posts,
     isLoading,
     isFetching,
-    fetchNextPage,
     hasNextPage,
-  } = useGetPostsInfiniteQuery(queryParams);
-
-  
-  const posts = data?.pages.flatMap((page) => page.data) ?? [];
-  console.log(posts);
-
-  const { showToast } = useToastContext();
-  const observer = useRef<IntersectionObserver | null>(null);
-
-  // Show error toast
-  useEffect(() => {
-    if (error) {
-      showToast('Failed to load posts', 'error');
-    }
-  }, [error, showToast]);
-
-  // Infinite scroll observer
-  const lastPostElementRef = useCallback(
-    (node: HTMLDivElement) => {
-      if (isLoading || isFetching || !hasNextPage) return;
-
-      if (observer.current) observer.current.disconnect();
-
-      observer.current = new IntersectionObserver((entries) => {
-        if (entries[0].isIntersecting && hasNextPage) {
-          fetchNextPage();
-        }
-      });
-
-      if (node) observer.current.observe(node);
-    },
-    [isLoading, isFetching, hasNextPage, fetchNextPage]
-  );
+    error,
+    lastPostElementRef,
+  } = useFeed();
 
   return (
     <div className="container mx-auto p-4 flex flex-col md:flex-row gap-6">

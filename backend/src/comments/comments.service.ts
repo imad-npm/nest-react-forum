@@ -27,6 +27,7 @@ export class CommentsService {
     parentId?: number;
   }): Promise<{ data: Comment[]; count: number }> {
     const { postId, authorId, search, page = 1, limit = 10, currentUserId, parentId } = options;
+console.error('e',postId);
 
     const query = this.commentRepo
       .createQueryBuilder('comment')

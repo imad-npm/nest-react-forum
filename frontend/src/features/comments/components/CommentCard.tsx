@@ -1,77 +1,39 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
-import type { Comment } from '../types';
 import { FaUser, FaReply } from 'react-icons/fa';
+import type { Comment } from '../types';
 import { CommentReactionButtons } from '../../reactions/components/CommentReactionButtons';
-import { useGetCommentsInfiniteQuery } from '../services/commentsApi'; // UPDATED IMPORT
 import { Button } from '../../../shared/components/ui/Button';
-import { CommentInput } from './CommentInput'; // Import CommentInput
+import { CommentInput } from './CommentInput';
 import { timeAgo } from '../../../shared/utils/date';
+import { useCommentCard } from '../hooks/useCommentCard';
 
 interface CommentCardProps {
   comment: Comment;
   postId: number;
-  level: number; // Ensure level is passed
+  level: number;
 }
-
-const REPLIES_LIMIT = 2;
 
 const CommentCard: React.FC<CommentCardProps> = ({
   comment,
   postId,
   level,
 }) => {
-const [showReplies, setShowReplies] = useState(false);
-useEffect(() => {
-  if (comment.repliesCount > 0) {
-    setShowReplies(true);
-  }
-}, [comment.repliesCount]);
-  const [showReplyInput, setShowReplyInput] = useState(false); // State for reply input visibility
-
-  const initialReplies = comment.replies ?? [];
-  const initialRepliesCount = initialReplies.length;
-
-  const hasMoreRepliesThanInitial = comment.repliesCount > initialRepliesCount;
-
-  // Calculate the initial page parameter for the infinite query
-  // If we already have initial replies, start fetching from the next page
-  const initialQueryPageParam = 1
-  const MAX_DEPTH = 2;
-
-if (level > MAX_DEPTH) {
-  return null;
-}
-
-
   const {
-    data,
+    showReplies,
+    setShowReplies,
+    showReplyInput,
+    setShowReplyInput,
+    allReplies,
+    remainingReplies,
+    handleReplyPosted,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useGetCommentsInfiniteQuery( // UPDATED HOOK CALL
-    { postId, parentId: comment.id, limit: REPLIES_LIMIT }, // Pass queryArg object
-    {
-      initialPageParam: initialQueryPageParam,
-      skip: !showReplies || !hasMoreRepliesThanInitial,
-    }
-  );
+    shouldRender,
+  } = useCommentCard({ comment, postId, level });
 
-  const allReplies = useMemo(() => {
-    const fetchedReplies = data?.pages.flatMap(page => page.data) || [];
-    const combinedReplies = [...initialReplies, ...fetchedReplies];
-
-    const map = new Map<number, Comment>();
-    combinedReplies.forEach(reply => map.set(reply.id, reply));
-
-    return [...map.values()].sort(
-      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-    );
-  }, [initialReplies, data]);
-  const remainingReplies = Math.max(0, comment.repliesCount - allReplies.length);
-  const handleReplyPosted = () => {
-    setShowReplyInput(false);
-    // Rely on RTK Query cache invalidation for UI update
-  };
+  if (!shouldRender) {
+    return null;
+  }
 
   return (
     <div className="mb-3">
@@ -79,44 +41,37 @@ if (level > MAX_DEPTH) {
       <div className="rounded-lg border border-gray-300 bg-white p-4 ">
         <div className="mb-2 flex items-center text-sm text-gray-500">
           <FaUser className="mr-1" />
-          <span>u/{comment.author.name}</span> {/* CHANGED TO USERNAME */}
+          <span>u/{comment.author.name}</span>
           <span className="mx-1">•</span>
-          <span className='text-xs'>
-            {timeAgo(comment.createdAt)}
-          </span>
+          <span className="text-xs">{timeAgo(comment.createdAt)}</span>
         </div>
 
         {/* DEBUG */}
         <div className="mb-1 text-xs text-gray-400">
-          id: {comment.id}, parentId:{' '}
-          {comment.parentId ?? 'null'}
-          { showReplies? " 1" : " 0"}
+          id: {comment.id}, parentId: {comment.parentId ?? 'null'}
+          {showReplies ? ' 1' : ' 0'}
         </div>
 
-        <p className="mb-3 text-sm text-gray-800">
-          {comment.content}
-        </p>
+        <p className="mb-3 text-sm text-gray-800">{comment.content}</p>
 
         <div className="flex items-center space-x-4 text-xs text-gray-500">
           <CommentReactionButtons comment={comment} />
 
           <button
-            onClick={() => setShowReplyInput(v => !v)} // Toggle reply input
+            onClick={() => setShowReplyInput((v) => !v)}
             className="flex items-center space-x-1 hover:text-primary-600"
           >
             <FaReply />
             <span>Reply</span>
           </button>
 
-            {comment.repliesCount > 0 && (
-            <Button onClick={() => setShowReplies(v => !v)} variant="link">
-              {showReplies ? (
-                `Hide replies (${comment.repliesCount})`
-              ) : remainingReplies > 0 ? (
-                `+ Load replies (${remainingReplies} remaining)`
-              ) : (
-                `View replies (${comment.repliesCount})`
-              )}
+          {comment.repliesCount > 0 && (
+            <Button onClick={() => setShowReplies((v) => !v)} variant="link">
+              {showReplies
+                ? `Hide replies (${comment.repliesCount})`
+                : remainingReplies > 0
+                ? `+ Load replies (${remainingReplies} remaining)`
+                : `View replies (${comment.repliesCount})`}
             </Button>
           )}
         </div>
@@ -137,7 +92,7 @@ if (level > MAX_DEPTH) {
       {/* REPLIES */}
       {showReplies && allReplies.length > 0 && (
         <div className="mt-3 ml-6 border-l border-gray-200 pl-4">
-          {allReplies.map(reply => (
+          {allReplies.map((reply) => (
             <CommentCard
               key={reply.id}
               comment={reply}
@@ -150,11 +105,7 @@ if (level > MAX_DEPTH) {
 
       {showReplies && hasNextPage && (
         <div className="flex justify-center mt-2 ml-6">
-          <Button
-            variant='link'
-            onClick={fetchNextPage}
-            disabled={isFetchingNextPage}
-          >
+          <Button variant="link" onClick={fetchNextPage} disabled={isFetchingNextPage}>
             {isFetchingNextPage
               ? 'Loading more replies…'
               : '+ Load more replies'}
@@ -166,5 +117,3 @@ if (level > MAX_DEPTH) {
 };
 
 export default CommentCard;
-
-

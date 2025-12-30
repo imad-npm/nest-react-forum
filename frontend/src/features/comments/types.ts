@@ -1,4 +1,5 @@
 import type { ReactionType } from "../reactions/types/types";
+import type { Post } from "../../posts/types";
 
 export interface Comment {
     id: number;
@@ -6,6 +7,7 @@ export interface Comment {
     author: {
         id: number;
         name: string;
+        username: string;
     };
     postId: number;
     parentId?: number; // For replies
@@ -14,6 +16,7 @@ export interface Comment {
     repliesCount: number;
     userReaction?: { id: number; type: ReactionType } | null;
     replies?: Comment[]; // Added for nested replies
+    post?: Post; // Re-added for UserCommentCard
 
     createdAt: string;
     updatedAt: string;

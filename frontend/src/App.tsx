@@ -13,8 +13,8 @@ import PostDetailPage from './features/posts/pages/PostDetailPage';
 import MainLayout from './layout/MainLayout';
 import ModLayout from './layout/ModLayout';
 import { ModQueuesPage } from './features/communities/pages/QueuesPage';
-import { ModMembersPage } from './features/community-memberships/pages/MembersPage';
-import { ModModeratorsPage } from './features/community-memberships/pages/ModeratorsPage';
+import { MembersPage } from './features/community-memberships/pages/MembersPage';
+import { ModeratorsPage } from './features/community-memberships/pages/ModeratorsPage';
 import { RestrictedUsersPage } from './features/community-restrictions/pages/RestrictedUsersPage';
 import { ProfilePage } from './features/profile/pages/ProfilePage';
 // ... other imports
@@ -44,8 +44,8 @@ export default function App() {
         <Route path="/mod/community/:communityId" element={<AuthGuard><ModLayout /></AuthGuard>}>
           <Route index element={<Navigate to="queues" replace />} />
           <Route path="queues" element={<ModQueuesPage />} />
-          <Route path="members" element={<ModMembersPage />} />
-          <Route path="moderators" element={<ModModeratorsPage />} />
+          <Route path="members" element={<MembersPage />} />
+          <Route path="moderators" element={<ModeratorsPage />} />
           <Route path="restricted-users" element={<RestrictedUsersPage />} /> {/* New Route */}
         </Route>
       </Routes>

@@ -1,57 +1,17 @@
-// frontend/src/features/communities/pages/mod/ModModeratorsPage.tsx
-import { useParams } from 'react-router-dom';
-import { useGetCommunityMembershipsQuery, useRemoveCommunityMemberMutation } from '../services/communityMembershipsApi'; // Changed import
 import { FaUserShield } from 'react-icons/fa';
-import { useAuth } from '../../auth/hooks/useAuth';
-import { Button } from '../../../shared/components/ui/Button'; // Assuming Button component is available
-import type { User, CommunityMembership } from '../types';
+import { Button } from '../../../shared/components/ui/Button';
+import { useModerators } from '../hooks/useModerators';
 
-export const ModModeratorsPage = () => {
-  const { communityId } = useParams();
-  const { user: currentUser } = useAuth(); // Get the current logged-in user
-  const parsedCommunityId = Number(communityId);
+export const ModeratorsPage = () => {
+  const {
+    moderators,
+    isLoading,
+    isRemovingMember,
+    canRemoveModerator,
+    handleRemoveModerator,
+  } = useModerators();
 
-  // Fetch all community memberships (including current user's)
-  const { data: allMembershipsResponse, isLoading: isLoadingMemberships } = useGetCommunityMembershipsQuery({ communityId: parsedCommunityId, limit: 100 });
-
-  // Filter for moderators (only 'moderator' role)
-  const moderators = allMembershipsResponse?.data.filter(m => m.role === 'moderator');
-
-  // Find the current user's membership in this community
-  const currentUserMembership = allMembershipsResponse?.data.find(
-    (member) => member.userId === currentUser?.id
-  );
-
-  function canRemoveModerator(
-    currentUser: User | null | undefined,
-    currentUserMembership: CommunityMembership | null | undefined,
-    targetMod: CommunityMembership
-  ): boolean {
-    if (!currentUser || !currentUserMembership) return false;
-
-    const isSelf = currentUserMembership.userId === targetMod.userId;
-    const hasLowerRank = currentUserMembership.rank < targetMod.rank;
-
-    return isSelf || hasLowerRank;
-  }
-
-
-
-
-  const [removeCommunityMember, { isLoading: isRemovingMember }] = useRemoveCommunityMemberMutation(); // Changed hook and constant name
-
-  const handleRemoveModerator = async (targetUserId: number) => {
-    if (!communityId) return;
-    try {
-      await removeCommunityMember({ communityId: parsedCommunityId, targetUserId }).unwrap(); // Changed call
-      // Optionally, add a success notification
-    } catch (err) {
-      console.error('Failed to remove member:', err);
-      // Optionally, add an error notification
-    }
-  };
-
-  if (isLoadingMemberships) return <div className="p-4">Loading moderation team...</div>;
+  if (isLoading) return <div className="p-4">Loading moderation team...</div>;
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -63,21 +23,29 @@ export const ModModeratorsPage = () => {
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th
+                scope="col"
+                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
                 Moderator
               </th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th
+                scope="col"
+                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
                 Role
               </th>
-              <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th
+                scope="col"
+                className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
                 Actions
               </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {moderators?.map((mod) => {
-              // Determine if the current user can remove this moderator
-              const canRemove = canRemoveModerator(currentUser, currentUserMembership, mod);
+            {moderators.map((mod) => {
+              const canRemove = canRemoveModerator(mod);
 
               return (
                 <tr key={mod.user.id}>
@@ -100,7 +68,9 @@ export const ModModeratorsPage = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-orange-100 text-orange-800`}>
+                    <span
+                      className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-orange-100 text-orange-800`}
+                    >
                       {mod.role}
                     </span>
                   </td>

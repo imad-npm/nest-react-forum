@@ -1,63 +1,26 @@
-// frontend/src/pages/ProfilePage.tsx
-import { useState } from 'react';
-import { useParams } from 'react-router-dom';
 import { FaUserCircle, FaEdit } from 'react-icons/fa';
-import { useAuth } from '../../auth/hooks/useAuth';
 import { ProfileEditForm } from '../components/ProfileEditForm';
-import { useGetProfileByUserIdQuery } from '../services/profileApi';
 import { Modal } from '../../../shared/components/ui/Modal';
-import { useGetPostsInfiniteQuery } from '../../posts/services/postsApi';
-import { useGetCommentsInfiniteQuery } from '../../comments/services/commentsApi';
-import UserCommentList from '../../comments/components/UserCommentList'; // NEW IMPORT
+import UserCommentList from '../../comments/components/UserCommentList';
 import { Button } from '../../../shared/components/ui/Button';
 import PostList from '../../posts/components/PostList';
+import { useProfile } from '../hooks/useProfile';
 
 export const ProfilePage = () => {
-  const { userId } = useParams<{ userId: string }>();
-  const parsedUserId = Number(userId);
-  
-  const { data: profileResponse, isLoading, error, refetch } = useGetProfileByUserIdQuery(parsedUserId);
-  const { user: currentUser } = useAuth();
-
-  console.log(profileResponse,parsedUserId);
-  
-  const profile = profileResponse?.data;
-  const isMyProfile = currentUser?.id === parsedUserId;
-
-  const [isEditing, setIsEditing] = useState(false);
-  const [activeTab, setActiveTab] = useState<'posts' | 'comments'>('posts');
-
-  const handleEditSuccess = () => {
-    setIsEditing(false);
-    refetch();
-  };
-
-  const handleEditCancel = () => {
-    setIsEditing(false);
-  };
-
-  // Fetch Posts by User
   const {
-    data: postsData,
-    fetchNextPage: fetchNextPostsPage,
-    hasNextPage: hasNextPostsPage,
-    isFetchingNextPage: isFetchingNextPostsPage,
-    isLoading: isLoadingPosts,
-  } = useGetPostsInfiniteQuery({ authorId: parsedUserId } );
-
-  const posts = postsData?.pages.flatMap(page => page.data) ?? [];
-
-  // Fetch Comments by User
-  const {
-    data: commentsData,
-    fetchNextPage: fetchNextCommentsPage,
-    hasNextPage: hasNextCommentsPage,
-    isFetchingNextPage: isFetchingNextCommentsPage,
-    isLoading: isLoadingComments,
-  } = useGetCommentsInfiniteQuery({ queryArg: { authorId: parsedUserId } });
-
-  const comments = commentsData?.pages.flatMap(page => page.data) ?? [];
-
+    profile,
+    isLoading,
+    error,
+    isMyProfile,
+    isEditing,
+    setIsEditing,
+    activeTab,
+    setActiveTab,
+    handleEditSuccess,
+    handleEditCancel,
+    posts,
+    comments,
+  } = useProfile();
 
   if (isLoading) {
     return (
@@ -68,18 +31,9 @@ export const ProfilePage = () => {
   }
 
   if (error) {
-    let errorMessage = 'Failed to load profile';
-    if ('status' in error && 'data' in error) {
-      if (typeof error.data === 'object' && error.data !== null && 'message' in error.data) {
-        errorMessage = (error.data as { message: string }).message;
-      }
-    } else if ('message' in error) {
-      errorMessage = error.message;
-    }
-
     return (
       <div className="flex justify-center items-center h-screen">
-        <p className="text-red-500">Error: {errorMessage}</p>
+        <p className="text-red-500">Error: {error}</p>
       </div>
     );
   }
@@ -109,7 +63,9 @@ export const ProfilePage = () => {
             )}
           </div>
           <div>
-            <h1 className="text-4xl font-bold text-gray-800">{profile.username}</h1>
+            <h1 className="text-4xl font-bold text-gray-800">
+              {profile.username}
+            </h1>
             <p className="text-gray-600 text-lg">{profile.user.email}</p>
             {isMyProfile && (
               <button
@@ -133,10 +89,7 @@ export const ProfilePage = () => {
 
       {/* Profile Edit Modal */}
       {isMyProfile && (
-        <Modal
-          open={isEditing}
-          onClose={handleEditCancel}
-        >
+        <Modal open={isEditing} onClose={handleEditCancel}>
           <ProfileEditForm
             currentProfile={profile}
             onSuccess={handleEditSuccess}
@@ -152,28 +105,39 @@ export const ProfilePage = () => {
             variant={activeTab === 'posts' ? 'default' : 'outline'}
             onClick={() => setActiveTab('posts')}
           >
-            Posts ({postsData?.pages[0]?.meta?.total ?? 0})
+            Posts ({posts.total})
           </Button>
           <Button
             variant={activeTab === 'comments' ? 'default' : 'outline'}
             onClick={() => setActiveTab('comments')}
           >
-            Comments ({commentsData?.pages[0]?.meta?.total ?? 0})
+            Comments ({comments.total})
           </Button>
         </div>
 
         {activeTab === 'posts' && (
           <div>
-            <h2 className="text-2xl font-semibold text-gray-800 mb-4">Posts</h2>
-            {isLoadingPosts ? (
+            <h2 className="text-2xl font-semibold text-gray-800 mb-4">
+              Posts
+            </h2>
+            {posts.isLoading ? (
               <p>Loading posts...</p>
-            ) : posts.length > 0 ? (
+            ) : posts.data.length > 0 ? (
               <>
-                <PostList posts={posts} isLoading={false} error={undefined} />
-                {hasNextPostsPage && (
+                <PostList
+                  posts={posts.data}
+                  isLoading={false}
+                  error={undefined}
+                />
+                {posts.hasNextPage && (
                   <div className="flex justify-center mt-4">
-                    <Button onClick={() => fetchNextPostsPage()} disabled={isFetchingNextPostsPage}>
-                      {isFetchingNextPostsPage ? 'Loading more...' : 'Load More Posts'}
+                    <Button
+                      onClick={() => posts.fetchNextPage()}
+                      disabled={posts.isFetchingNextPage}
+                    >
+                      {posts.isFetchingNextPage
+                        ? 'Loading more...'
+                        : 'Load More Posts'}
                     </Button>
                   </div>
                 )}
@@ -186,22 +150,29 @@ export const ProfilePage = () => {
 
         {activeTab === 'comments' && (
           <div>
-            <h2 className="text-2xl font-semibold text-gray-800 mb-4">Comments</h2>
-            {isLoadingComments ? (
+            <h2 className="text-2xl font-semibold text-gray-800 mb-4">
+              Comments
+            </h2>
+            {comments.isLoading ? (
               <p>Loading comments...</p>
-            ) : comments.length > 0 ? (
+            ) : comments.data.length > 0 ? (
               <>
                 <UserCommentList // Use UserCommentList
-                  comments={comments}
-                  fetchNextPage={fetchNextCommentsPage}
-                  hasNextPage={hasNextCommentsPage}
-                  isFetchingNextPage={isFetchingNextCommentsPage}
-                  isLoading={isLoadingComments}
+                  comments={comments.data}
+                  fetchNextPage={comments.fetchNextPage}
+                  hasNextPage={comments.hasNextPage}
+                  isFetchingNextPage={comments.isFetchingNextPage}
+                  isLoading={comments.isLoading}
                 />
-                {hasNextCommentsPage && (
+                {comments.hasNextPage && (
                   <div className="flex justify-center mt-4">
-                    <Button onClick={() => fetchNextCommentsPage()} disabled={isFetchingNextCommentsPage}>
-                      {isFetchingNextCommentsPage ? 'Loading more...' : 'Load More Comments'}
+                    <Button
+                      onClick={() => comments.fetchNextPage()}
+                      disabled={_comments.isFetchingNextPage_}
+                    >
+                      {comments.isFetchingNextPage
+                        ? 'Loading more...'
+                        : 'Load More Comments'}
                     </Button>
                   </div>
                 )}

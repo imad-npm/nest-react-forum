@@ -1,14 +1,11 @@
-import { useState } from 'react';
 import { CommunityRestrictionType } from '../types';
-import { useGetCommunityMembershipsQuery } from '../../community-memberships/services/communityMembershipsApi';
-import type { CommunityMembershipQueryDto } from '../../community-memberships/types';
-import { useCreateCommunityRestrictionMutation } from '../services/communityRestrictionsApi';
 import { Button } from '../../../shared/components/ui/Button';
 import { Input } from '../../../shared/components/ui/Input';
 import { Label } from '../../../shared/components/ui/Label';
 import { Select, type SelectOption } from '../../../shared/components/ui/Select';
 import SearchableSelect from '../../../shared/components/ui/SearchableSelect';
 import { Textarea } from '../../../shared/components/ui/TextArea';
+import { useCreateRestriction } from '../hooks/useCreateRestriction';
 
 interface CreateRestrictionFormProps {
   communityId: number;
@@ -21,59 +18,34 @@ interface SearchableUser {
   label: string;
 }
 
-export const CreateRestrictionForm = ({ communityId, onSuccess, onCancel }: CreateRestrictionFormProps) => {
-  const [selectedUser, setSelectedUser] = useState<SearchableUser | null>(null);
-  const [userSearchTerm, setUserSearchTerm] = useState<string>('');
-  const [restrictionType, setRestrictionType] = useState<CommunityRestrictionType>(CommunityRestrictionType.BAN);
-  const [reason, setReason] = useState<string>('');
-  const [expiresAt, setExpiresAt] = useState<string>('');
-  const [formError, setFormError] = useState<string | null>(null);
-
-  const communityMembershipsQueryParams: CommunityMembershipQueryDto = {
-    communityId: communityId,
-    limit: 100,
-  };
-  const { data: membersResponse, isLoading: isLoadingMembers } = useGetCommunityMembershipsQuery(communityMembershipsQueryParams);
-  const [createRestriction, { isLoading: isCreating }] = useCreateCommunityRestrictionMutation();
-console.log(expiresAt);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setFormError(null);
-
-    if (!selectedUser) {
-      setFormError('Please select a user.');
-      return;
-    }
-console.log(expiresAt);
-
-    try {
-      await createRestriction({
-        communityId,
-        userId: selectedUser.id,
-        restrictionType,
-        reason: reason || undefined,
-        expiresAt: expiresAt ? new Date(expiresAt).toISOString() : undefined,
-      }).unwrap();
-      onSuccess();
-    } catch (err: any) {
-      setFormError(err.data?.message || 'Failed to create restriction.');
-    }
-  };
+export const CreateRestrictionForm = ({
+  communityId,
+  onSuccess,
+  onCancel,
+}: CreateRestrictionFormProps) => {
+  const { form, members, submission } = useCreateRestriction({
+    communityId,
+    onSuccess,
+  });
+  const {
+    selectedUser,
+    setSelectedUser,
+    userSearchTerm,
+    setUserSearchTerm,
+    restrictionType,
+    setRestrictionType,
+    reason,
+    setReason,
+    expiresAt,
+    setExpiresAt,
+    formError,
+  } = form;
+  const { isLoadingMembers, filteredMembers } = members;
+  const { handleSubmit, isCreating } = submission;
 
   if (isLoadingMembers) {
     return <div className="p-4">Loading members...</div>;
   }
-
-  const allMembers = membersResponse?.data || [];
-  const searchableMembers: SearchableUser[] = allMembers.map(member => ({
-    id: member.userId,
-    label: member.user.username
-  }));
-
-  const filteredMembers = searchableMembers.filter(member =>
-    member.label.toLowerCase().includes(userSearchTerm.toLowerCase())
-  );
 
   const restrictionTypeOptions: SelectOption[] = [
     { value: CommunityRestrictionType.BAN, label: 'Ban' },
@@ -104,7 +76,9 @@ console.log(expiresAt);
           <Select
             id="restriction-type-select"
             value={restrictionType}
-            onChange={(value) => setRestrictionType(value as CommunityRestrictionType)}
+            onChange={(value) =>
+              setRestrictionType(value as CommunityRestrictionType)
+            }
             className="w-full"
             options={restrictionTypeOptions}
           />
@@ -115,7 +89,9 @@ console.log(expiresAt);
           <Textarea
             id="reason"
             value={reason}
-            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setReason(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+              setReason(e.target.value)
+            }
             placeholder="Reason for restriction (optional)"
             className="w-full"
             rows={3}
@@ -128,7 +104,9 @@ console.log(expiresAt);
             type="datetime-local"
             id="expires-at"
             value={expiresAt}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setExpiresAt(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+              setExpiresAt(e.target.value)
+            }
             className="w-full"
           />
         </div>
@@ -136,7 +114,12 @@ console.log(expiresAt);
         {formError && <p className="text-red-500 text-sm">{formError}</p>}
 
         <div className="flex justify-end space-x-2">
-          <Button type="button" variant="outline" onClick={onCancel} disabled={isCreating}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onCancel}
+            disabled={isCreating}
+          >
             Cancel
           </Button>
           <Button type="submit" disabled={isCreating}>

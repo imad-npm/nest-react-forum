@@ -1,14 +1,13 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useLoginMutation } from '../services/authApi';
 import type { LoginDto } from '../types';
-import { useNavigate } from 'react-router-dom';
 import GoogleLogin from '../components/GoogleLogin';
 import { Button } from '../../../shared/components/ui/Button';
 import { Input } from '../../../shared/components/ui/Input';
 import { Label } from '../../../shared/components/ui/Label';
 import { InputError } from '../../../shared/components/ui/InputError';
+import { useAuth } from '../hooks/useAuth';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -16,8 +15,7 @@ const loginSchema = z.object({
 });
 
 const Login = () => {
-  const [login, { isLoading, error }] = useLoginMutation();
-  const navigate = useNavigate();
+  const { handleLogin, isLoggingIn, loginError } = useAuth();
   const {
     register: formRegister,
     handleSubmit,
@@ -26,20 +24,11 @@ const Login = () => {
     resolver: zodResolver(loginSchema),
   });
 
-  const onSubmit = async (data: LoginDto) => {
-    try {
-      await login(data).unwrap();
-      navigate('/');
-    } catch (err: any) {
-      console.error('Failed to login: ', err);
-    }
-  };
-
   return (
     <div className="flex flex-col items-center justify-center min-h-screen">
       <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-lg shadow-lg border border-gray-300">
         <h1 className="text-2xl font-bold text-center">Login</h1>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={handleSubmit(handleLogin)} className="space-y-6">
           <div>
             <Label htmlFor="email">Email</Label>
             <Input id="email" {...formRegister('email')} />
@@ -50,13 +39,15 @@ const Login = () => {
             <Input id="password" type="password" {...formRegister('password')} />
             <InputError message={errors.password?.message} />
           </div>
-          <Button type="submit" disabled={isLoading} className="w-full">
-            {isLoading ? 'Logging in...' : 'Login'}
+          <Button type="submit" disabled={isLoggingIn} className="w-full">
+            {isLoggingIn ? 'Logging in...' : 'Login'}
           </Button>
-          {error && (
+          {loginError && (
             <InputError
               message={
-                (error as any).data?.message || (error as any).message || 'Unknown error'
+                (loginError as any).data?.message ||
+                (loginError as any).message ||
+                'Unknown error'
               }
             />
           )}

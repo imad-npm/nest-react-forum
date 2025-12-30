@@ -24,18 +24,8 @@ const PostDetailPage = () => {
   const { data, error, isLoading } = useGetPostByIdQuery(postId);
   const { showToast } = useToastContext();
 
-  const {
-    data: commentsData,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-    isLoading: isLoadingComments,
-  } = 
-  useGetCommentsInfiniteQuery(        { postId, limit: 10 }, // Pass postId and queryArg with limit
-); // Use the hook to fetch comments
-
-  const comments = commentsData?.pages?.flatMap((page) => page.data) || [];
  
+
   if (isLoading) {
     return <div className="text-center mt-8">Loading post...</div>;
   }
@@ -53,22 +43,17 @@ const PostDetailPage = () => {
 
   const post = data.data;
 
-  console.log(comments);
-  
+
   return (
     <div className="container mx-auto p-4 flex flex-col md:flex-row gap-6">
-            {/* Main Content Area */}
-            <div className="md:w-[70%]">
-              <PostDetailCard post={post} />
-              {/* Comments Section */}
-              <CommentList
-                comments={comments}
-                fetchNextPage={fetchNextPage}
-                hasNextPage={hasNextPage}
-                isFetchingNextPage={isFetchingNextPage}
-                isLoading={isLoadingComments}
-              />
-            </div>
+      {/* Main Content Area */}
+      <div className="md:w-[70%]">
+        <PostDetailCard post={post} />
+        {/* Comments Section */}
+        <CommentList
+          postId={post.id}
+        />
+      </div>
 
       {/* Sidebar Area (Right) */}
       <div className="md:w-[30%]">
