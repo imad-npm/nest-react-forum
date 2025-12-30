@@ -11,10 +11,10 @@ interface UseProfileEditFormProps {
 }
 
 const profileSchema = z.object({
-  username: z
+  displayName: z
     .string()
-    .min(3, 'Username must be at least 3 characters.')
-    .max(50, 'Username cannot exceed 50 characters.'),
+    .min(3, 'Display name must be at least 3 characters.')
+    .max(20, 'Display name cannot exceed 20 characters.'),
   bio: z.string().max(500, 'Bio cannot exceed 500 characters.').nullable(),
   pictureFile: z.any().optional(),
 });
@@ -33,7 +33,7 @@ export const useProfileEditForm = ({
   } = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
-      username: currentProfile.username,
+      displayName: currentProfile.displayName,
       bio: currentProfile.bio,
     },
   });
@@ -53,7 +53,7 @@ export const useProfileEditForm = ({
 
   const onSubmit = async (data: ProfileFormValues) => {
     const payload: Partial<Profile> & { pictureFile?: File } = {
-      username: data.username,
+      displayName: data.displayName,
       bio: data.bio === '' ? null : data.bio,
     };
 

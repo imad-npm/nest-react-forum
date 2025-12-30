@@ -27,11 +27,11 @@ export const ProfileEditForm = ({
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       <div>
-        <Label htmlFor="username">Username</Label>
-        <Input id="username" {...register('username')} className="w-full" />
-        {errors.username && (
+        <Label htmlFor="displayName">Display Name</Label>
+        <Input id="displayName" {...register('displayName')} className="w-full" />
+        {errors.displayName && (
           <p className="text-red-500 text-sm mt-1">
-            {errors.username.message}
+            {errors.displayName.message}
           </p>
         )}
       </div>
