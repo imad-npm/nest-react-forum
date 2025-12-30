@@ -3,6 +3,7 @@ import { UserResponseDto } from '../../users/dtos/user-response.dto';
 import { Comment } from '../entities/comment.entity';
 import { CommentReaction } from 'src/reactions/entities/comment-reaction.entity';
 import { ReactionResponseDto } from 'src/reactions/dto/reaction-response.dto';
+import { PostResponseDto } from 'src/posts/dto/post-response.dto';
 
 @Exclude()
 export class CommentResponseDto {
@@ -13,6 +14,10 @@ export class CommentResponseDto {
 
   @Expose() @Type(() => UserResponseDto) readonly author: UserResponseDto;
   @Expose() readonly postId: number;
+  @Expose()
+@Type(() => PostResponseDto)
+readonly post?: PostResponseDto;
+
   @Expose() readonly parentId?: number;
   @Expose() readonly likesCount: number;
   @Expose() readonly dislikesCount: number;
@@ -36,6 +41,9 @@ export class CommentResponseDto {
         userReaction: entity.userReaction
           ? ReactionResponseDto.fromEntity(entity.userReaction)
           : null,
+           post: entity.post
+        ? PostResponseDto.fromEntity(entity.post)
+        : null,
       },
       { excludeExtraneousValues: true },
     );

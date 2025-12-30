@@ -47,7 +47,7 @@ export const ProfilePage = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto my-8 p-6 bg-white shadow-lg rounded-lg">
+    <div className="max-w-4xl mx-auto my-8 p-6 bg-white border border-gray-300 rounded-lg">
       {/* Profile Display Section */}
       <>
         <div className="flex items-center space-x-6">
@@ -68,18 +68,18 @@ export const ProfilePage = () => {
             </h1>
             <p className="text-gray-600 text-lg">{profile.user.email}</p>
             {isMyProfile && (
-              <button
-                className="mt-2 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 flex items-center space-x-2"
+              <Button
+              
                 onClick={() => setIsEditing(true)}
               >
                 <FaEdit />
-                <span>Edit Profile</span>
-              </button>
+                <span className='mx-2'>Edit Profile</span>
+              </Button>
             )}
           </div>
         </div>
 
-        <div className="mt-8 border-t pt-6">
+        <div className="mt-8 border-t border-gray-300 pt-6">
           <h2 className="text-2xl font-semibold text-gray-800">About Me</h2>
           <p className="mt-4 text-gray-700">
             {profile.bio || 'No biography available yet.'}
@@ -99,7 +99,7 @@ export const ProfilePage = () => {
       )}
 
       {/* Posts and Comments Sections */}
-      <div className="mt-8 border-t pt-6">
+      <div className="mt-8 border-t border-gray-300 pt-6">
         <div className="flex space-x-4 mb-4">
           <Button
             variant={activeTab === 'posts' ? 'default' : 'outline'}
@@ -164,18 +164,6 @@ export const ProfilePage = () => {
                   isFetchingNextPage={comments.isFetchingNextPage}
                   isLoading={comments.isLoading}
                 />
-                {comments.hasNextPage && (
-                  <div className="flex justify-center mt-4">
-                    <Button
-                      onClick={() => comments.fetchNextPage()}
-                      disabled={_comments.isFetchingNextPage_}
-                    >
-                      {comments.isFetchingNextPage
-                        ? 'Loading more...'
-                        : 'Load More Comments'}
-                    </Button>
-                  </div>
-                )}
               </>
             ) : (
               <p>No comments found.</p>

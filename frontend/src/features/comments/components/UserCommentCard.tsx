@@ -10,7 +10,8 @@ interface UserCommentCardProps {
 
 const UserCommentCard: React.FC<UserCommentCardProps> = ({ comment }) => {
   const navigate = useNavigate();
-
+  console.log(comment.post);
+  
   const handleCardClick = () => {
     if (comment.post?.id) {
       navigate(`/posts/${comment.post.id}`);
@@ -33,7 +34,10 @@ const UserCommentCard: React.FC<UserCommentCardProps> = ({ comment }) => {
           <>
             <span className="mx-1">•</span>
             <FaQuoteLeft className="mr-1 text-xs" />
-            <span className="text-xs font-semibold">on "{comment.post.title}"</span>
+            <span className="text-xs font-semibold">
+              on "{comment.post.title}"
+              {comment.post.community && ` in c/${comment.post.community.name}`}
+            </span>
           </>
         )}
       </div>

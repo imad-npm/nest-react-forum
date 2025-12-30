@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { useGetProfileByUserIdQuery } from '../services/profileApi';
@@ -50,7 +50,7 @@ export const useProfile = () => {
     hasNextPage: hasNextCommentsPage,
     isFetchingNextPage: isFetchingNextCommentsPage,
     isLoading: isLoadingComments,
-  } = useGetCommentsInfiniteQuery({ queryArg: { authorId: parsedUserId } });
+  } = useGetCommentsInfiniteQuery({ authorId: parsedUserId });
 
   const comments = commentsData?.pages.flatMap((page) => page.data) ?? [];
 
@@ -65,7 +65,7 @@ export const useProfile = () => {
         errorMessage = (error.data as { message: string }).message;
       }
     } else if ('message' in error) {
-      errorMessage = error.message;
+      errorMessage = error.message ?? null;
     } else {
       errorMessage = 'Failed to load profile';
     }
@@ -88,7 +88,7 @@ export const useProfile = () => {
       hasNextPage: hasNextPostsPage,
       isFetchingNextPage: isFetchingNextPostsPage,
       isLoading: isLoadingPosts,
-      total: postsData?.pages[0]?.meta?.total ?? 0,
+      total: postsData?.pages[0]?.meta?.totalItems ?? 0,
     },
     comments: {
       data: comments,
@@ -96,7 +96,7 @@ export const useProfile = () => {
       hasNextPage: hasNextCommentsPage,
       isFetchingNextPage: isFetchingNextCommentsPage,
       isLoading: isLoadingComments,
-      total: commentsData?.pages[0]?.meta?.total ?? 0,
+      total: commentsData?.pages[0]?.meta?.totalItems ?? 0,
     },
   };
 };

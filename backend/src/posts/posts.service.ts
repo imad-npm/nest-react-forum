@@ -47,7 +47,6 @@ export class PostsService {
       communityId,
       status = PostStatus.APPROVED,
     } = options;
-
     const query = this.postsRepository
       .createQueryBuilder('post')
       .leftJoinAndSelect('post.author', 'author')
