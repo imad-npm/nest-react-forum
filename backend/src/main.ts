@@ -6,8 +6,12 @@ import { useContainer } from 'class-validator';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 
+import cookieParser from 'cookie-parser';
+
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  app.use(cookieParser());
 
   // Use validation pipe globally
   app.useGlobalPipes(
@@ -19,11 +23,12 @@ async function bootstrap() {
       },
     }),
   );
-     app.setGlobalPrefix('api'); // all routes will now start with /api
+  app.setGlobalPrefix('api'); // all routes will now start with /api
 
-app.enableCors({
-  origin: '*', // allow any origin
-});
+  app.enableCors({
+    origin: 'http://localhost:5173', // Change this to your frontend URL  
+    credentials: true,
+  });
 
   // Get ConfigService instance
   const configService = app.get(ConfigService);

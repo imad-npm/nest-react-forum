@@ -4,6 +4,10 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { UsersService } from 'src/users/users.service';
 
+import { Request } from 'express';
+
+// ... (other imports)
+
 @Injectable()
 export class JwtRefreshStrategy extends PassportStrategy(
   Strategy,
@@ -14,7 +18,12 @@ export class JwtRefreshStrategy extends PassportStrategy(
     private readonly userService: UsersService,
   ) {
     super({
-      jwtFromRequest: ExtractJwt.fromBodyField('refreshToken'),
+      jwtFromRequest: (req: Request) => {
+        if (req && req.cookies) {
+          return req.cookies.refreshToken;
+        }
+        return null;
+      },
       secretOrKey: config.getOrThrow<string>('JWT_REFRESH_SECRET'),
     });
   }

@@ -167,6 +167,47 @@ async createUser({
 
   return this.repo.save(user);
 }
+ async updateEmail(userId: number, email: string): Promise<User> {
+    const user = await this.findOneById(userId);
+    if (email === user.email) {
+      return user; // No change
+    }
+
+    const emailExists = await this.repo.exists({
+      where: {
+        email,
+        id: Not(user.id),
+      },
+    });
+
+    if (emailExists) {
+      throw new ConflictException('Email already in use');
+    }
+
+    user.email = email;
+    user.emailVerifiedAt = null; // Email needs re-verification
+    return this.repo.save(user);
+  }
+
+  async updatePassword(userId: number, currentPassword, newPassword): Promise<User> {
+    const user = await this.findOneById(userId);
+
+    if (!user.password) {
+      throw new BadRequestException('User does not have a password set.');
+    }
+
+    const isPasswordMatching = await bcrypt.compare(
+      currentPassword,
+      user.password,
+    );
+
+    if (!isPasswordMatching) {
+      throw new BadRequestException('Incorrect current password');
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    return this.repo.save(user);
+  }
 
 
   async markEmailAsVerified(id: number): Promise<void> {

@@ -1,12 +1,11 @@
+import type { Post } from "../posts/types";
 import type { ReactionType } from "../reactions/types/types";
-import type { Post } from "../../posts/types";
 
 export interface Comment {
     id: number;
     content: string;
     author: {
         id: number;
-        name: string;
         username: string;
     };
     postId: number;

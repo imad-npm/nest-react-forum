@@ -12,6 +12,7 @@ const baseQuery = fetchBaseQuery({
     
     return headers;
   },
+  credentials: 'include',
 });
 
 // Create a base API slice that other API slices can extend

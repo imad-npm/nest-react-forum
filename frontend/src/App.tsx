@@ -17,38 +17,52 @@ import { MembersPage } from './features/community-memberships/pages/MembersPage'
 import { ModeratorsPage } from './features/community-memberships/pages/ModeratorsPage';
 import { RestrictedUsersPage } from './features/community-restrictions/pages/RestrictedUsersPage';
 import { ProfilePage } from './features/profile/pages/ProfilePage';
-// ... other imports
+import { useGetProfileQuery } from './features/auth/services/authApi';
+import { useEffect } from 'react';
+
+const SessionLoader = ({ children }: { children: React.ReactNode }) => {
+  const { isLoading } = useGetProfileQuery();
+
+  if (isLoading) {
+    return <div>Loading session...</div>;
+  }
+
+  return <>{children}</>;
+};
+
 
 export default function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        {/* --- Public Auth Routes (No Sidebars) --- */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/email-verification" element={<EmailVerification />} />
-        <Route path="/verify-email" element={<VerificationResult />} />
+      <SessionLoader>
+        <Routes>
+          {/* --- Public Auth Routes (No Sidebars) --- */}
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/email-verification" element={<EmailVerification />} />
+          <Route path="/verify-email" element={<VerificationResult />} />
 
-        {/* --- Standard User Routes (with LeftSidebar) --- */}
-        <Route element={<MainLayout />}>
-          <Route path="/" element={<AuthGuard><FeedPage /></AuthGuard>} />
-          <Route path="/posts/:id" element={<AuthGuard><PostDetailPage /></AuthGuard>} />
-          <Route path="/submit" element={<AuthGuard><CreatePostPage /></AuthGuard>} />
-          <Route path="/communities/:communityId" element={<AuthGuard><CommunityPage /></AuthGuard>} />
-          <Route path="/my-communities" element={<AuthGuard><MyCommunitiesPage /></AuthGuard>} />
-          <Route path="/explore-communities" element={<AuthGuard><ExploreCommunitiesPage /></AuthGuard>} />
-          <Route path="/profile/:userId" element={<AuthGuard><ProfilePage /></AuthGuard>} /> {/* Changed Route */}
-        </Route>
+          {/* --- Standard User Routes (with LeftSidebar) --- */}
+          <Route element={<MainLayout />}>
+            <Route path="/" element={<AuthGuard><FeedPage /></AuthGuard>} />
+            <Route path="/posts/:id" element={<AuthGuard><PostDetailPage /></AuthGuard>} />
+            <Route path="/submit" element={<AuthGuard><CreatePostPage /></AuthGuard>} />
+            <Route path="/communities/:communityId" element={<AuthGuard><CommunityPage /></AuthGuard>} />
+            <Route path="/my-communities" element={<AuthGuard><MyCommunitiesPage /></AuthGuard>} />
+            <Route path="/explore-communities" element={<AuthGuard><ExploreCommunitiesPage /></AuthGuard>} />
+            <Route path="/profile/:userId" element={<AuthGuard><ProfilePage /></AuthGuard>} /> {/* Changed Route */}
+          </Route>
 
-        {/* --- Moderation Routes (with ModSidebar) --- */}
-        <Route path="/mod/community/:communityId" element={<AuthGuard><ModLayout /></AuthGuard>}>
-          <Route index element={<Navigate to="queues" replace />} />
-          <Route path="queues" element={<ModQueuesPage />} />
-          <Route path="members" element={<MembersPage />} />
-          <Route path="moderators" element={<ModeratorsPage />} />
-          <Route path="restricted-users" element={<RestrictedUsersPage />} /> {/* New Route */}
-        </Route>
-      </Routes>
+          {/* --- Moderation Routes (with ModSidebar) --- */}
+          <Route path="/mod/community/:communityId" element={<AuthGuard><ModLayout /></AuthGuard>}>
+            <Route index element={<Navigate to="queues" replace />} />
+            <Route path="queues" element={<ModQueuesPage />} />
+            <Route path="members" element={<MembersPage />} />
+            <Route path="moderators" element={<ModeratorsPage />} />
+            <Route path="restricted-users" element={<RestrictedUsersPage />} /> {/* New Route */}
+          </Route>
+        </Routes>
+      </SessionLoader>
     </BrowserRouter>
   );
 }

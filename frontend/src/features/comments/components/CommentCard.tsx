@@ -41,7 +41,7 @@ const CommentCard: React.FC<CommentCardProps> = ({
       <div className="rounded-lg border border-gray-300 bg-white p-4 ">
         <div className="mb-2 flex items-center text-sm text-gray-500">
           <FaUser className="mr-1" />
-          <span>u/{comment.author.name}</span>
+          <span>u/{comment.author.username}</span>
           <span className="mx-1">•</span>
           <span className="text-xs">{timeAgo(comment.createdAt)}</span>
         </div>

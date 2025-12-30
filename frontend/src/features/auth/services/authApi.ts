@@ -10,19 +10,21 @@ export const authApi = apiSlice.injectEndpoints({
         body: credentials,
       }),
     }),
-    login: builder.mutation<ResponseDto<{ user: UserResponseDto, accessToken: string, refreshToken: string }>, LoginDto>({
+    login: builder.mutation<ResponseDto<{ user: UserResponseDto, accessToken: string }>, LoginDto>({
       query: (credentials) => ({
         url: 'auth/login',
         method: 'POST',
         body: credentials,
       }),
     }),
-    refresh: builder.mutation<ResponseDto<{ user: UserResponseDto, accessToken: string, refreshToken: string }>, { refreshToken: string }>({
-        query: ({refreshToken}) => ({
-            url: 'auth/refresh',
-            method: 'POST',
-            body: {refreshToken}
-        })
+    logout: builder.mutation<ResponseDto<null>, void>({
+      query: () => ({
+        url: 'auth/logout',
+        method: 'POST',
+      }),
+    }),
+    getProfile: builder.query<ResponseDto<{ user: UserResponseDto, accessToken: string }>, void>({
+      query: () => 'auth/refresh', // This endpoint on the backend uses the HttpOnly cookie to get a new access token and user
     }),
     resendEmailVerification: builder.mutation<ResponseDto<null>, { email: string }>({
       query: ({ email }) => ({
@@ -33,4 +35,4 @@ export const authApi = apiSlice.injectEndpoints({
     }),
   }),
 });
-export const { useRegisterMutation, useLoginMutation, useRefreshMutation, useResendEmailVerificationMutation } = authApi;
+export const { useRegisterMutation, useLoginMutation, useLogoutMutation, useGetProfileQuery, useResendEmailVerificationMutation } = authApi;

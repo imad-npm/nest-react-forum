@@ -5,6 +5,7 @@ import {
   UseGuards,
   Get,
   Req,
+  Res,
   UnauthorizedException,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
@@ -15,14 +16,17 @@ import { EmailVerificationService } from 'src/email-verification/email-verificat
 import { AuthGuard } from '@nestjs/passport';
 import { UserResponseDto } from 'src/users/dtos/user-response.dto';
 import { User } from 'src/users/entities/user.entity';
-import { RefreshDto } from './dtos/refresh.dto';
 import { ResponseDto } from 'src/common/dto/response.dto';
+import type { Response } from 'express';
+import { parseExpiresInToMs } from './utils/time.util';
+import { ConfigService } from '@nestjs/config';
 
 @Controller('auth')
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly emailVerificationService: EmailVerificationService,
+    private readonly configService: ConfigService,
   ) {}
 
   @Post('register')
@@ -38,7 +42,10 @@ export class AuthController {
 
   @UseGuards(LocalAuthGuard)
   @Post('login')
-  async login(@Req() req: { user: User }): Promise<ResponseDto<{ user: UserResponseDto; accessToken: string; refreshToken: string }>> {
+  async login(
+    @Req() req: { user: User },
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<ResponseDto<{ user: UserResponseDto; accessToken: string }>> {
     if (!req.user.emailVerifiedAt) {
       await this.emailVerificationService.sendVerificationEmail(req.user);
 
@@ -46,39 +53,68 @@ export class AuthController {
         'Email not verified. Verification email sent.',
       );
     }
-    const tokens = await this.authService.signIn(req.user);
+    const { accessToken, refreshToken } = await this.authService.signIn(req.user);
+
+    const refreshTokenExpiresIn = this.configService.getOrThrow<string>('JWT_REFRESH_EXPIRES_IN');
+    const maxAgeMs = parseExpiresInToMs(refreshTokenExpiresIn);
+
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV !== 'development', // Use secure cookies in production
+      sameSite: 'strict',
+      maxAge: maxAgeMs, // Use dynamic maxAge
+    });
+
     return new ResponseDto({
       user: UserResponseDto.fromEntity(req.user),
-      ...tokens,
+      accessToken,
     });
+  }
+
+  @Post('logout')
+  async logout(@Res({ passthrough: true }) res: Response): Promise<ResponseDto<null>> {
+    res.clearCookie('refreshToken');
+    return new ResponseDto(null, 'Logged out successfully.');
   }
 
   @UseGuards(JwtRefreshGuard)
-  @Post('refresh')
-  async refresh(@Body() dto: RefreshDto, @Req() req): Promise<ResponseDto<{ user: UserResponseDto; accessToken: string; refreshToken: string }>> {
-    const tokens = await this.authService.renewTokens(dto.refreshToken);
+  @Get('refresh')
+  async refresh(@Req() req: { user: User }): Promise<ResponseDto<{ user: UserResponseDto; accessToken: string }>> {
+    const accessToken = await this.authService.renewTokens(req.user);
     return new ResponseDto({
       user: UserResponseDto.fromEntity(req.user),
-      ...tokens,
+      accessToken,
     });
   }
 
-  // Step 1: Redirect to Google OAuth
   @Get('google')
   @UseGuards(AuthGuard('google'))
   async googleAuth() {
     // Passport automatically redirects to Google
   }
 
-  // Step 2: Google callback → GoogleStrategy.validate() → req.user
   @Get('google/callback')
   @UseGuards(AuthGuard('google'))
-  async googleCallback(@Req() req: { user: any }): Promise<ResponseDto<{ user: UserResponseDto; accessToken: string; refreshToken: string }>> {
+  async googleCallback(
+    @Req() req: { user: any },
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<ResponseDto<{ user: UserResponseDto; accessToken: string }>> {
     const user = await this.authService.googleLogin(req.user);
-    const tokens = await this.authService.signIn(user);
+    const { accessToken, refreshToken } = await this.authService.signIn(user);
+
+    const refreshTokenExpiresIn = this.configService.getOrThrow<string>('JWT_REFRESH_EXPIRES_IN');
+    const maxAgeMs = parseExpiresInToMs(refreshTokenExpiresIn);
+
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV !== 'development',
+      sameSite: 'strict',
+      maxAge: maxAgeMs, // Use dynamic maxAge
+    });
+
     return new ResponseDto({
       user: UserResponseDto.fromEntity(user),
-      ...tokens,
+      accessToken,
     });
   }
 }

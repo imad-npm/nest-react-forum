@@ -103,12 +103,12 @@ async validateUser(email: string, password: string): Promise<User> {
   // -------------------------------------------------------------------------
   // Refresh token flow
   // -------------------------------------------------------------------------
-  async renewTokens(refreshToken: string) {
-    const payload = this.jwt.verify(refreshToken, {
-      secret: this.config.get<string>('JWT_REFRESH_SECRET'), // use ConfigService
+  async renewTokens(user: User): Promise<string> {
+    const payload = { sub: user.id, email: user.email };
+    return this.jwt.sign(payload, {
+      secret: this.config.get<string>('JWT_ACCESS_SECRET'),
+      expiresIn: this.config.getOrThrow('JWT_ACCESS_EXPIRES_IN'),
     });
-    const user = await this.userService.findOneById(payload.sub);
-    return this.generateTokens(user);
   }
 
   // -------------------------------------------------------------------------

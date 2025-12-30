@@ -2839,8 +2839,12 @@ import { useContainer } from 'class-validator';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 
+import cookieParser from 'cookie-parser';
+
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  app.use(cookieParser());
 
   // Use validation pipe globally
   app.useGlobalPipes(
@@ -3062,6 +3066,47 @@ async createUser({
 
   return this.repo.save(user);
 }
+ async updateEmail(userId: number, email: string): Promise<User> {
+    const user = await this.findOneById(userId);
+    if (email === user.email) {
+      return user; // No change
+    }
+
+    const emailExists = await this.repo.exists({
+      where: {
+        email,
+        id: Not(user.id),
+      },
+    });
+
+    if (emailExists) {
+      throw new ConflictException('Email already in use');
+    }
+
+    user.email = email;
+    user.emailVerifiedAt = null; // Email needs re-verification
+    return this.repo.save(user);
+  }
+
+  async updatePassword(userId: number, currentPassword, newPassword): Promise<User> {
+    const user = await this.findOneById(userId);
+
+    if (!user.password) {
+      throw new BadRequestException('User does not have a password set.');
+    }
+
+    const isPasswordMatching = await bcrypt.compare(
+      currentPassword,
+      user.password,
+    );
+
+    if (!isPasswordMatching) {
+      throw new BadRequestException('Incorrect current password');
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    return this.repo.save(user);
+  }
 
 
   async markEmailAsVerified(id: number): Promise<void> {
@@ -3073,6 +3118,35 @@ async createUser({
     }
   }
 }
+---
+
+
+### FILE: backend/src/users/dtos/update-password.dto.ts ###
+import { IsNotEmpty, IsString, MinLength } from 'class-validator';
+
+export class UpdatePasswordDto {
+  @IsString()
+  @IsNotEmpty()
+  currentPassword: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(8, { message: 'Password must be at least 8 characters long' })
+  newPassword: string;
+}
+
+---
+
+
+### FILE: backend/src/users/dtos/update-email.dto.ts ###
+import { IsEmail, IsNotEmpty } from 'class-validator';
+
+export class UpdateEmailDto {
+  @IsEmail()
+  @IsNotEmpty()
+  email: string;
+}
+
 ---
 
 
@@ -5953,7 +6027,6 @@ export class PostsService {
       communityId,
       status = PostStatus.APPROVED,
     } = options;
-
     const query = this.postsRepository
       .createQueryBuilder('post')
       .leftJoinAndSelect('post.author', 'author')
@@ -6813,12 +6886,12 @@ async validateUser(email: string, password: string): Promise<User> {
   // -------------------------------------------------------------------------
   // Refresh token flow
   // -------------------------------------------------------------------------
-  async renewTokens(refreshToken: string) {
-    const payload = this.jwt.verify(refreshToken, {
-      secret: this.config.get<string>('JWT_REFRESH_SECRET'), // use ConfigService
+  async renewTokens(user: User): Promise<string> {
+    const payload = { sub: user.id, email: user.email };
+    return this.jwt.sign(payload, {
+      secret: this.config.get<string>('JWT_ACCESS_SECRET'),
+      expiresIn: this.config.getOrThrow('JWT_ACCESS_EXPIRES_IN'),
     });
-    const user = await this.userService.findOneById(payload.sub);
-    return this.generateTokens(user);
   }
 
   // -------------------------------------------------------------------------
@@ -6897,6 +6970,7 @@ import {
   UseGuards,
   Get,
   Req,
+  Res,
   UnauthorizedException,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
@@ -6907,8 +6981,8 @@ import { EmailVerificationService } from 'src/email-verification/email-verificat
 import { AuthGuard } from '@nestjs/passport';
 import { UserResponseDto } from 'src/users/dtos/user-response.dto';
 import { User } from 'src/users/entities/user.entity';
-import { RefreshDto } from './dtos/refresh.dto';
 import { ResponseDto } from 'src/common/dto/response.dto';
+import type { Response } from 'express';
 
 @Controller('auth')
 export class AuthController {
@@ -6930,7 +7004,10 @@ export class AuthController {
 
   @UseGuards(LocalAuthGuard)
   @Post('login')
-  async login(@Req() req: { user: User }): Promise<ResponseDto<{ user: UserResponseDto; accessToken: string; refreshToken: string }>> {
+  async login(
+    @Req() req: { user: User },
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<ResponseDto<{ user: UserResponseDto; accessToken: string }>> {
     if (!req.user.emailVerifiedAt) {
       await this.emailVerificationService.sendVerificationEmail(req.user);
 
@@ -6938,43 +7015,65 @@ export class AuthController {
         'Email not verified. Verification email sent.',
       );
     }
-    const tokens = await this.authService.signIn(req.user);
+    const { accessToken, refreshToken } = await this.authService.signIn(req.user);
+
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV !== 'development', // Use secure cookies in production
+      sameSite: 'strict',
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    });
+
     return new ResponseDto({
       user: UserResponseDto.fromEntity(req.user),
-      ...tokens,
+      accessToken,
     });
+  }
+
+  @Post('logout')
+  async logout(@Res({ passthrough: true }) res: Response): Promise<ResponseDto<null>> {
+    res.clearCookie('refreshToken');
+    return new ResponseDto(null, 'Logged out successfully.');
   }
 
   @UseGuards(JwtRefreshGuard)
-  @Post('refresh')
-  async refresh(@Body() dto: RefreshDto, @Req() req): Promise<ResponseDto<{ user: UserResponseDto; accessToken: string; refreshToken: string }>> {
-    const tokens = await this.authService.renewTokens(dto.refreshToken);
+  @Get('refresh')
+  async refresh(@Req() req: { user: User }): Promise<ResponseDto<{ user: UserResponseDto; accessToken: string }>> {
+    const accessToken = await this.authService.renewTokens(req.user);
     return new ResponseDto({
       user: UserResponseDto.fromEntity(req.user),
-      ...tokens,
+      accessToken,
     });
   }
 
-  // Step 1: Redirect to Google OAuth
   @Get('google')
   @UseGuards(AuthGuard('google'))
   async googleAuth() {
     // Passport automatically redirects to Google
   }
 
-  // Step 2: Google callback → GoogleStrategy.validate() → req.user
   @Get('google/callback')
   @UseGuards(AuthGuard('google'))
-  async googleCallback(@Req() req: { user: any }): Promise<ResponseDto<{ user: UserResponseDto; accessToken: string; refreshToken: string }>> {
+  async googleCallback(
+    @Req() req: { user: any },
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<ResponseDto<{ user: UserResponseDto; accessToken: string }>> {
     const user = await this.authService.googleLogin(req.user);
-    const tokens = await this.authService.signIn(user);
+    const { accessToken, refreshToken } = await this.authService.signIn(user);
+
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV !== 'development',
+      sameSite: 'strict',
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+    });
+
     return new ResponseDto({
       user: UserResponseDto.fromEntity(user),
-      ...tokens,
+      accessToken,
     });
   }
 }
-
 ---
 
 
@@ -7229,6 +7328,10 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { UsersService } from 'src/users/users.service';
 
+import { Request } from 'express';
+
+// ... (other imports)
+
 @Injectable()
 export class JwtRefreshStrategy extends PassportStrategy(
   Strategy,
@@ -7239,7 +7342,12 @@ export class JwtRefreshStrategy extends PassportStrategy(
     private readonly userService: UsersService,
   ) {
     super({
-      jwtFromRequest: ExtractJwt.fromBodyField('refreshToken'),
+      jwtFromRequest: (req: Request) => {
+        if (req && req.cookies) {
+          return req.cookies.refreshToken;
+        }
+        return null;
+      },
       secretOrKey: config.getOrThrow<string>('JWT_REFRESH_SECRET'),
     });
   }
@@ -9192,6 +9300,7 @@ export class CommentsService {
     parentId?: number;
   }): Promise<{ data: Comment[]; count: number }> {
     const { postId, authorId, search, page = 1, limit = 10, currentUserId, parentId } = options;
+console.error('e',postId);
 
     const query = this.commentRepo
       .createQueryBuilder('comment')
@@ -9692,6 +9801,7 @@ import { UserResponseDto } from '../../users/dtos/user-response.dto';
 import { Comment } from '../entities/comment.entity';
 import { CommentReaction } from 'src/reactions/entities/comment-reaction.entity';
 import { ReactionResponseDto } from 'src/reactions/dto/reaction-response.dto';
+import { PostResponseDto } from 'src/posts/dto/post-response.dto';
 
 @Exclude()
 export class CommentResponseDto {
@@ -9702,6 +9812,10 @@ export class CommentResponseDto {
 
   @Expose() @Type(() => UserResponseDto) readonly author: UserResponseDto;
   @Expose() readonly postId: number;
+  @Expose()
+@Type(() => PostResponseDto)
+readonly post?: PostResponseDto;
+
   @Expose() readonly parentId?: number;
   @Expose() readonly likesCount: number;
   @Expose() readonly dislikesCount: number;
@@ -9725,6 +9839,9 @@ export class CommentResponseDto {
         userReaction: entity.userReaction
           ? ReactionResponseDto.fromEntity(entity.userReaction)
           : null,
+           post: entity.post
+        ? PostResponseDto.fromEntity(entity.post)
+        : null,
       },
       { excludeExtraneousValues: true },
     );
@@ -10091,13 +10208,10 @@ export interface CommunityMembership {
 
 
 ### FILE: frontend/src/features/community-memberships/pages/MembersPage.tsx ###
-// frontend/src/features/communities/pages/mod/ModMembersPage.tsx
-import { useParams } from 'react-router-dom';
-import { useGetCommunityMembershipsQuery } from '../services/communityMembershipsApi';
+import { useCommunityMemberships } from '../hooks/useCommunityMemberships';
 
-export const ModMembersPage = () => {
-  const { communityId } = useParams();
-  const { data: response, isLoading } = useGetCommunityMembershipsQuery({ communityId: Number(communityId) });
+export const MembersPage = () => {
+  const { memberships, isLoading } = useCommunityMemberships();
 
   if (isLoading) return <div className="p-4 text-center">Loading members...</div>;
 
@@ -10106,7 +10220,7 @@ export const ModMembersPage = () => {
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-800">Community Members</h2>
         <span className="bg-gray-100 px-3 py-1 rounded-full text-sm text-gray-600 font-medium font-bold">
-          Total: {response?.data.length || 0}
+          Total: {memberships.length || 0}
         </span>
       </div>
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
@@ -10119,12 +10233,12 @@ export const ModMembersPage = () => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {response?.data.map((membership) => (
+            {memberships.map((membership) => (
               <tr key={membership.userId}>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">User #{membership.userId}</td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                    membership.role === 'admin' ? 'bg-red-100 text-red-800' : 
+                    membership.role === 'admin' ? 'bg-red-100 text-red-800' :
                     membership.role === 'moderator' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
                   }`}>
                     {membership.role}
@@ -10145,60 +10259,20 @@ export const ModMembersPage = () => {
 
 
 ### FILE: frontend/src/features/community-memberships/pages/ModeratorsPage.tsx ###
-// frontend/src/features/communities/pages/mod/ModModeratorsPage.tsx
-import { useParams } from 'react-router-dom';
-import { useGetCommunityMembershipsQuery, useRemoveCommunityMemberMutation } from '../services/communityMembershipsApi'; // Changed import
 import { FaUserShield } from 'react-icons/fa';
-import { useAuth } from '../../auth/hooks/useAuth';
-import { Button } from '../../../shared/components/ui/Button'; // Assuming Button component is available
-import type { User, CommunityMembership } from '../types';
+import { Button } from '../../../shared/components/ui/Button';
+import { useModerators } from '../hooks/useModerators';
 
-export const ModModeratorsPage = () => {
-  const { communityId } = useParams();
-  const { user: currentUser } = useAuth(); // Get the current logged-in user
-  const parsedCommunityId = Number(communityId);
+export const ModeratorsPage = () => {
+  const {
+    moderators,
+    isLoading,
+    isRemovingMember,
+    canRemoveModerator,
+    handleRemoveModerator,
+  } = useModerators();
 
-  // Fetch all community memberships (including current user's)
-  const { data: allMembershipsResponse, isLoading: isLoadingMemberships } = useGetCommunityMembershipsQuery({ communityId: parsedCommunityId, limit: 100 });
-
-  // Filter for moderators (only 'moderator' role)
-  const moderators = allMembershipsResponse?.data.filter(m => m.role === 'moderator');
-
-  // Find the current user's membership in this community
-  const currentUserMembership = allMembershipsResponse?.data.find(
-    (member) => member.userId === currentUser?.id
-  );
-
-  function canRemoveModerator(
-    currentUser: User | null | undefined,
-    currentUserMembership: CommunityMembership | null | undefined,
-    targetMod: CommunityMembership
-  ): boolean {
-    if (!currentUser || !currentUserMembership) return false;
-
-    const isSelf = currentUserMembership.userId === targetMod.userId;
-    const hasLowerRank = currentUserMembership.rank < targetMod.rank;
-
-    return isSelf || hasLowerRank;
-  }
-
-
-
-
-  const [removeCommunityMember, { isLoading: isRemovingMember }] = useRemoveCommunityMemberMutation(); // Changed hook and constant name
-
-  const handleRemoveModerator = async (targetUserId: number) => {
-    if (!communityId) return;
-    try {
-      await removeCommunityMember({ communityId: parsedCommunityId, targetUserId }).unwrap(); // Changed call
-      // Optionally, add a success notification
-    } catch (err) {
-      console.error('Failed to remove member:', err);
-      // Optionally, add an error notification
-    }
-  };
-
-  if (isLoadingMemberships) return <div className="p-4">Loading moderation team...</div>;
+  if (isLoading) return <div className="p-4">Loading moderation team...</div>;
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -10210,21 +10284,29 @@ export const ModModeratorsPage = () => {
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th
+                scope="col"
+                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
                 Moderator
               </th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th
+                scope="col"
+                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
                 Role
               </th>
-              <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th
+                scope="col"
+                className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
                 Actions
               </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {moderators?.map((mod) => {
-              // Determine if the current user can remove this moderator
-              const canRemove = canRemoveModerator(currentUser, currentUserMembership, mod);
+            {moderators.map((mod) => {
+              const canRemove = canRemoveModerator(mod);
 
               return (
                 <tr key={mod.user.id}>
@@ -10247,7 +10329,9 @@ export const ModModeratorsPage = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-orange-100 text-orange-800`}>
+                    <span
+                      className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-orange-100 text-orange-800`}
+                    >
                       {mod.role}
                     </span>
                   </td>
@@ -10325,61 +10409,108 @@ export const {
 ---
 
 
-### FILE: frontend/src/features/feed/pages/FeedPage.tsx ###
-// features/feed/pages/FeedPage.tsx
-import React, { useEffect, useRef, useCallback, useState } from 'react';
-import { useGetPostsInfiniteQuery } from '../../posts/services/postsApi';
-import PostList from '../../posts/components/PostList';
-import { useToastContext } from '../../../shared/providers/ToastProvider';
-import type { PostQueryDto } from '../../posts/types';
-import FeedFilters from '../components/FeedFilters';
-import SuggestedCommunities from '../../communities/components/SuggestedCommunities';
+### FILE: frontend/src/features/community-memberships/hooks/useModerators.ts ###
+import { useParams } from 'react-router-dom';
+import {
+  useGetCommunityMembershipsQuery,
+  useRemoveCommunityMemberMutation,
+} from '../services/communityMembershipsApi';
+import { useAuth } from '../../auth/hooks/useAuth';
+import type { User, CommunityMembership } from '../types';
 
-const FeedPage = () => {
-  const [queryParams, setQueryParams] = useState<Omit<PostQueryDto, 'page'>>({
-    limit: 10,
+export const useModerators = () => {
+  const { communityId } = useParams();
+  const { user: currentUser } = useAuth();
+  const parsedCommunityId = Number(communityId);
+
+  const { data: allMembershipsResponse, isLoading: isLoadingMemberships } =
+    useGetCommunityMembershipsQuery({
+      communityId: parsedCommunityId,
+      limit: 100,
+    });
+
+  const moderators =
+    allMembershipsResponse?.data.filter((m) => m.role === 'moderator') ?? [];
+
+  const currentUserMembership = allMembershipsResponse?.data.find(
+    (member) => member.userId === currentUser?.id
+  );
+
+  const canRemoveModerator = (
+    targetMod: CommunityMembership
+  ): boolean => {
+    if (!currentUser || !currentUserMembership) return false;
+
+    const isSelf = currentUserMembership.userId === targetMod.userId;
+    const hasLowerRank = currentUserMembership.rank < targetMod.rank;
+
+    return isSelf || hasLowerRank;
+  };
+
+  const [removeCommunityMember, { isLoading: isRemovingMember }] =
+    useRemoveCommunityMemberMutation();
+
+  const handleRemoveModerator = async (targetUserId: number) => {
+    if (!communityId) return;
+    try {
+      await removeCommunityMember({
+        communityId: parsedCommunityId,
+        targetUserId,
+      }).unwrap();
+    } catch (err) {
+      console.error('Failed to remove member:', err);
+    }
+  };
+
+  return {
+    moderators,
+    isLoading: isLoadingMemberships,
+    isRemovingMember,
+    canRemoveModerator,
+    handleRemoveModerator,
+  };
+};
+
+---
+
+
+### FILE: frontend/src/features/community-memberships/hooks/useCommunityMemberships.ts ###
+import { useParams } from 'react-router-dom';
+import { useGetCommunityMembershipsQuery } from '../services/communityMembershipsApi';
+
+export const useCommunityMemberships = () => {
+  const { communityId } = useParams();
+  const { data: response, isLoading } = useGetCommunityMembershipsQuery({
+    communityId: Number(communityId),
   });
 
+  return {
+    memberships: response?.data ?? [],
+    isLoading,
+    communityId,
+  };
+};
+
+---
+
+
+### FILE: frontend/src/features/feed/pages/FeedPage.tsx ###
+import PostList from '../../posts/components/PostList';
+import FeedFilters from '../components/FeedFilters';
+import SuggestedCommunities from '../../communities/components/SuggestedCommunities';
+import { useFeed } from '../hooks/useFeed';
+
+const FeedPage = () => {
   const {
-    data,
-    error,
+    queryParams,
+    setQueryParams,
+    posts,
     isLoading,
     isFetching,
-    fetchNextPage,
     hasNextPage,
-  } = useGetPostsInfiniteQuery(queryParams);
-
-  
-  const posts = data?.pages.flatMap((page) => page.data) ?? [];
-  console.log(posts);
-
-  const { showToast } = useToastContext();
-  const observer = useRef<IntersectionObserver | null>(null);
-
-  // Show error toast
-  useEffect(() => {
-    if (error) {
-      showToast('Failed to load posts', 'error');
-    }
-  }, [error, showToast]);
-
-  // Infinite scroll observer
-  const lastPostElementRef = useCallback(
-    (node: HTMLDivElement) => {
-      if (isLoading || isFetching || !hasNextPage) return;
-
-      if (observer.current) observer.current.disconnect();
-
-      observer.current = new IntersectionObserver((entries) => {
-        if (entries[0].isIntersecting && hasNextPage) {
-          fetchNextPage();
-        }
-      });
-
-      if (node) observer.current.observe(node);
-    },
-    [isLoading, isFetching, hasNextPage, fetchNextPage]
-  );
+    error,
+    lastPostElementRef,
+  } = useFeed();
 
   return (
     <div className="container mx-auto p-4 flex flex-col md:flex-row gap-6">
@@ -10503,6 +10634,69 @@ console.log(queryParams);
 };
 
 export default FeedFilters;
+
+---
+
+
+### FILE: frontend/src/features/feed/hooks/useFeed.ts ###
+import { useEffect, useRef, useCallback, useState } from 'react';
+import { useGetPostsInfiniteQuery } from '../../posts/services/postsApi';
+import { useToastContext } from '../../../shared/providers/ToastProvider';
+import type { PostQueryDto } from '../../posts/types';
+
+export const useFeed = () => {
+  const [queryParams, setQueryParams] = useState<Omit<PostQueryDto, 'page'>>({
+    limit: 10,
+  });
+
+  const {
+    data,
+    error,
+    isLoading,
+    isFetching,
+    fetchNextPage,
+    hasNextPage,
+  } = useGetPostsInfiniteQuery(queryParams);
+
+  const posts = data?.pages.flatMap((page) => page.data) ?? [];
+
+  const { showToast } = useToastContext();
+  const observer = useRef<IntersectionObserver | null>(null);
+
+  useEffect(() => {
+    if (error) {
+      showToast('Failed to load posts', 'error');
+    }
+  }, [error, showToast]);
+
+  const lastPostElementRef = useCallback(
+    (node: HTMLDivElement) => {
+      if (isLoading || isFetching || !hasNextPage) return;
+
+      if (observer.current) observer.current.disconnect();
+
+      observer.current = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting && hasNextPage) {
+          fetchNextPage();
+        }
+      });
+
+      if (node) observer.current.observe(node);
+    },
+    [isLoading, isFetching, hasNextPage, fetchNextPage]
+  );
+
+  return {
+    queryParams,
+    setQueryParams,
+    posts,
+    isLoading,
+    isFetching,
+    hasNextPage,
+    error,
+    lastPostElementRef,
+  };
+};
 
 ---
 
@@ -10689,49 +10883,24 @@ export const ReactionButton: React.FC<ReactionButtonProps> = ({
 
 ### FILE: frontend/src/features/reactions/components/CommentReactionButtons.tsx ###
 import { ReactionButtons } from './ReactionButtons';
-import { useCreateCommentReactionMutation, useDeleteCommentReactionMutation, useUpdateCommentReactionMutation } from '../services/reactionApi';
-import type { Comment } from '../../comments/types'; // Import Comment type
-import { ReactionType } from '../types/types';
+import type { Comment } from '../../comments/types';
+import { useCommentReactionButtons } from '../hooks/useCommentReactionButtons';
 
 interface CommentReactionButtonsProps {
-    comment: Comment; // contains id, userReaction, likesCount, dislikesCount
+    comment: Comment;
 }
 
 export const CommentReactionButtons: React.FC<CommentReactionButtonsProps> = ({ comment }) => {
-    const [createReaction] = useCreateCommentReactionMutation();
-    const [deleteReaction] = useDeleteCommentReactionMutation();
-    const [updateReaction] = useUpdateCommentReactionMutation();
-
-    const handleLike = async () => {
-        if (comment.userReaction?.type === ReactionType.LIKE) {
-            await deleteReaction({ commentId: comment.id, reactionId: comment.userReaction.id! });
-        } else if (comment.userReaction?.type === ReactionType.DISLIKE) {
-            await updateReaction({ commentId: comment.id, reactionId: comment.userReaction.id!, data: { type: ReactionType.LIKE } });
-        }
-        else {
-            await createReaction({ commentId: comment.id, data: { type: ReactionType.LIKE } });
-        }
-    };
-
-    const handleDislike = async () => {
-        if (comment.userReaction?.type === ReactionType.DISLIKE) {
-            await deleteReaction({ commentId: comment.id, reactionId: comment.userReaction.id! });
-        } else if (comment.userReaction?.type === ReactionType.LIKE) {
-            await updateReaction({ commentId: comment.id, reactionId: comment.userReaction.id!, data: { type: ReactionType.DISLIKE } });
-        }
-        else {
-            await createReaction({ commentId: comment.id, data: { type: ReactionType.DISLIKE } });
-        }
-    };
+    const { handleLike, handleDislike, likesCount, dislikesCount, userReactionType } = useCommentReactionButtons({ comment });
 
     return (
         <ReactionButtons
-            likesCount={comment.likesCount}
-            dislikesCount={comment.dislikesCount}
-            userReaction={comment.userReaction?.type}
+            likesCount={likesCount}
+            dislikesCount={dislikesCount}
+            userReaction={userReactionType}
             onLike={handleLike}
             onDislike={handleDislike}
-            disabled={false} // you can set loading state if needed
+            disabled={false}
         />
     );
 };
@@ -10788,49 +10957,24 @@ export const ReactionButtons: React.FC<ReactionButtonsProps> = ({
 
 ### FILE: frontend/src/features/reactions/components/PostReactionButtons.tsx ###
 import { ReactionButtons } from './ReactionButtons';
-import { useCreatePostReactionMutation, useDeletePostReactionMutation, useUpdatePostReactionMutation } from '../services/reactionApi';
 import type { Post } from '../../posts/types';
-import { ReactionType } from '../types/types';
+import { usePostReactionButtons } from '../hooks/usePostReactionButtons';
 
 interface PostReactionButtonsProps {
-    post: Post; // contains id, userReaction, likesCount, dislikesCount
+    post: Post;
 }
 
 export const PostReactionButtons: React.FC<PostReactionButtonsProps> = ({ post }) => {
-    const [createReaction] = useCreatePostReactionMutation();
-    const [deleteReaction] = useDeletePostReactionMutation();
-    const [updateReaction] = useUpdatePostReactionMutation();
-
-    const handleLike = async () => {
-        if (post.userReaction?.type === ReactionType.LIKE) {
-            await deleteReaction({ postId: post.id, reactionId: post.userReaction.id! });
-        } else if (post.userReaction?.type === ReactionType.DISLIKE) {
-            await updateReaction({ postId: post.id, reactionId: post.userReaction.id!, data: { type: ReactionType.LIKE } });
-        }
-        else {
-            await createReaction({ postId: post.id, data: { type: ReactionType.LIKE } });
-        }
-    };
-
-    const handleDislike = async () => {
-        if (post.userReaction?.type === ReactionType.DISLIKE) {
-            await deleteReaction({ postId: post.id, reactionId: post.userReaction.id! });
-        } else if (post.userReaction?.type === ReactionType.LIKE) {
-            await updateReaction({ postId: post.id, reactionId: post.userReaction.id!, data: { type: ReactionType.DISLIKE } });
-        }
-        else {
-            await createReaction({ postId: post.id, data: { type: ReactionType.DISLIKE } });
-        }
-    };
+    const { handleLike, handleDislike, likesCount, dislikesCount, userReactionType } = usePostReactionButtons({ post });
 
     return (
         <ReactionButtons
-            likesCount={post.likesCount}
-            dislikesCount={post.dislikesCount}
-            userReaction={post.userReaction?.type}
+            likesCount={likesCount}
+            dislikesCount={dislikesCount}
+            userReaction={userReactionType}
             onLike={handleLike}
             onDislike={handleDislike}
-            disabled={false} // you can set loading state if needed
+            disabled={false}
         />
     );
 };
@@ -10978,6 +11122,130 @@ export interface ResponseDto<T> {
 ---
 
 
+### FILE: frontend/src/features/reactions/hooks/useCommentReactionButtons.ts ###
+import {
+  useCreateCommentReactionMutation,
+  useDeleteCommentReactionMutation,
+  useUpdateCommentReactionMutation,
+} from '../services/reactionApi';
+import type { Comment } from '../../comments/types';
+import { ReactionType } from '../types/types';
+
+interface UseCommentReactionButtonsProps {
+  comment: Comment;
+}
+
+export const useCommentReactionButtons = ({
+  comment,
+}: UseCommentReactionButtonsProps) => {
+  const [createReaction] = useCreateCommentReactionMutation();
+  const [deleteReaction] = useDeleteCommentReactionMutation();
+  const [updateReaction] = useUpdateCommentReactionMutation();
+
+  const handleLike = async () => {
+    if (comment.userReaction?.type === ReactionType.LIKE) {
+      await deleteReaction({
+        commentId: comment.id,
+        reactionId: comment.userReaction.id!,
+      });
+    } else if (comment.userReaction?.type === ReactionType.DISLIKE) {
+      await updateReaction({
+        commentId: comment.id,
+        reactionId: comment.userReaction.id!,
+        data: { type: ReactionType.LIKE },
+      });
+    } else {
+      await createReaction({ commentId: comment.id, data: { type: ReactionType.LIKE } });
+    }
+  };
+
+  const handleDislike = async () => {
+    if (comment.userReaction?.type === ReactionType.DISLIKE) {
+      await deleteReaction({
+        commentId: comment.id,
+        reactionId: comment.userReaction.id!,
+      });
+    } else if (comment.userReaction?.type === ReactionType.LIKE) {
+      await updateReaction({
+        commentId: comment.id,
+        reactionId: comment.userReaction.id!,
+        data: { type: ReactionType.DISLIKE },
+      });
+    } else {
+      await createReaction({ commentId: comment.id, data: { type: ReactionType.DISLIKE } });
+    }
+  };
+
+  return {
+    handleLike,
+    handleDislike,
+    likesCount: comment.likesCount,
+    dislikesCount: comment.dislikesCount,
+    userReactionType: comment.userReaction?.type,
+  };
+};
+
+---
+
+
+### FILE: frontend/src/features/reactions/hooks/usePostReactionButtons.ts ###
+import {
+  useCreatePostReactionMutation,
+  useDeletePostReactionMutation,
+  useUpdatePostReactionMutation,
+} from '../services/reactionApi';
+import type { Post } from '../../posts/types';
+import { ReactionType } from '../types/types';
+
+interface UsePostReactionButtonsProps {
+  post: Post;
+}
+
+export const usePostReactionButtons = ({ post }: UsePostReactionButtonsProps) => {
+  const [createReaction] = useCreatePostReactionMutation();
+  const [deleteReaction] = useDeletePostReactionMutation();
+  const [updateReaction] = useUpdatePostReactionMutation();
+
+  const handleLike = async () => {
+    if (post.userReaction?.type === ReactionType.LIKE) {
+      await deleteReaction({ postId: post.id, reactionId: post.userReaction.id! });
+    } else if (post.userReaction?.type === ReactionType.DISLIKE) {
+      await updateReaction({
+        postId: post.id,
+        reactionId: post.userReaction.id!,
+        data: { type: ReactionType.LIKE },
+      });
+    } else {
+      await createReaction({ postId: post.id, data: { type: ReactionType.LIKE } });
+    }
+  };
+
+  const handleDislike = async () => {
+    if (post.userReaction?.type === ReactionType.DISLIKE) {
+      await deleteReaction({ postId: post.id, reactionId: post.userReaction.id! });
+    } else if (post.userReaction?.type === ReactionType.LIKE) {
+      await updateReaction({
+        postId: post.id,
+        reactionId: post.userReaction.id!,
+        data: { type: ReactionType.DISLIKE },
+      });
+    } else {
+      await createReaction({ postId: post.id, data: { type: ReactionType.DISLIKE } });
+    }
+  };
+
+  return {
+    handleLike,
+    handleDislike,
+    likesCount: post.likesCount,
+    dislikesCount: post.dislikesCount,
+    userReactionType: post.userReaction?.type,
+  };
+};
+
+---
+
+
 ### FILE: frontend/src/features/reports/types.ts ###
 
 export interface Report {
@@ -10999,41 +11267,52 @@ export interface ReportQueryDto {
 
 
 ### FILE: frontend/src/features/reports/components/ReportsQueue.tsx ###
-import { useParams } from "react-router-dom";
-import { useGetReportsQuery, useDismissReportMutation } from "../services/reportsApi";
 import { Button } from "../../../shared/components/ui/Button";
+import { useReportsQueue } from "../hooks/useReportsQueue";
 
 export const ReportsQueue = () => {
-  const { communityId } = useParams();
-  const { data: reports, isLoading } = useGetReportsQuery({
-    communityId: +communityId,
-    page: 1,
-    limit: 10,
-  });
-  const [dismiss] = useDismissReportMutation();
+  const { reports, isLoading, handleDismiss } = useReportsQueue();
 
   if (isLoading) return <div className="p-4">Loading reports...</div>;
 
   return (
     <div className="space-y-3">
-      {reports?.data.length === 0 ? (
+      {reports.length === 0 ? (
         <div className="text-center py-10 bg-gray-50 rounded-lg border">
           <p className="text-gray-500 italic">No pending reports to review.</p>
         </div>
       ) : (
-        reports?.data.map((report) => (
-          <div key={report.id} className="flex justify-between items-center p-4 bg-white rounded-lg border border-gray-200">
+        reports.map((report) => (
+          <div
+            key={report.id}
+            className="flex justify-between items-center p-4 bg-white rounded-lg border border-gray-200"
+          >
             <div>
-              <p className="font-medium text-gray-900 text-lg">Report #{report.id}</p>
+              <p className="font-medium text-gray-900 text-lg">
+                Report #{report.id}
+              </p>
               <p className="text-sm text-gray-700">{report.reason}</p>
               <p className="text-xs text-gray-500 italic">
-                Reported by User #{report.userId} on {new Date(report.createdAt).toLocaleDateString()}
+                Reported by User #{report.userId} on{' '}
+                {new Date(report.createdAt).toLocaleDateString()}
               </p>
-              {report.postId && <p className="text-xs text-gray-500">Post ID: {report.postId}</p>}
-              {report.commentId && <p className="text-xs text-gray-500">Comment ID: {report.commentId}</p>}
+              {report.postId && (
+                <p className="text-xs text-gray-500">Post ID: {report.postId}</p>
+              )}
+              {report.commentId && (
+                <p className="text-xs text-gray-500">
+                  Comment ID: {report.commentId}
+                </p>
+              )}
             </div>
             <div className="flex gap-2">
-              <Button size="sm" onClick={() => dismiss({ communityId: +communityId, reportId: report.id })} className="bg-blue-600 hover:bg-blue-700">Dismiss</Button>
+              <Button
+                size="sm"
+                onClick={() => handleDismiss(report.id)}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                Dismiss
+              </Button>
             </div>
           </div>
         ))
@@ -11079,6 +11358,35 @@ export const {
   useGetReportsQuery,
   useDismissReportMutation,
 } = reportsApi;
+
+---
+
+
+### FILE: frontend/src/features/reports/hooks/useReportsQueue.ts ###
+import { useParams } from 'react-router-dom';
+import { useGetReportsQuery, useDismissReportMutation } from '../services/reportsApi';
+
+export const useReportsQueue = () => {
+  const { communityId } = useParams();
+  const { data: reports, isLoading } = useGetReportsQuery({
+    communityId: +communityId,
+    page: 1,
+    limit: 10,
+  });
+  const [dismissReport] = useDismissReportMutation();
+
+  const handleDismiss = (reportId: number) => {
+    if (communityId) {
+      dismissReport({ communityId: +communityId, reportId });
+    }
+  };
+
+  return {
+    reports: reports?.data ?? [],
+    isLoading,
+    handleDismiss,
+  };
+};
 
 ---
 
@@ -11166,22 +11474,15 @@ export default CreatePostPage;
 import { useParams, Link } from 'react-router-dom';
 import { useGetPostByIdQuery } from '../services/postsApi';
 import { useToastContext } from '../../../shared/providers/ToastProvider';
-import {
-  FaArrowUp,
-  FaArrowDown,
-  FaCommentAlt,
-  FaShareAlt,
-  FaBookmark,
-  FaUser,
-  FaUsers,
-  FaEye,
-} from 'react-icons/fa';
+
 import CommentList from '../../comments/components/CommentList'; // Import CommentList
+import { CommentInput } from '../../comments/components/CommentInput'; // Import CommentInput
 import { AboutCommunity } from '../../communities/components/AboutCommunity';
 import { PostReactionButtons } from '../../reactions/components/PostReactionButtons';
 import { PostSuggestionsList } from '../components/PostSuggestionsList';
 import PostDetailCard from '../components/PostDetailCard'; // Import PostDetailCard
 import { useGetCommentsInfiniteQuery } from '../../comments/services/commentsApi'; // NEW IMPORT
+import { useEffect } from 'react';
 
 const PostDetailPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -11189,27 +11490,20 @@ const PostDetailPage = () => {
   const { data, error, isLoading } = useGetPostByIdQuery(postId);
   const { showToast } = useToastContext();
 
-  const {
-    data: commentsData,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-    isLoading: isLoadingComments,
-  } = 
-  useGetCommentsInfiniteQuery(        { postId, limit: 10 }, // Pass postId and queryArg with limit
-); // Use the hook to fetch comments
+   // ✅ HOOK ALWAYS RUNS
+  useEffect(() => {
+    if (!error) return;
 
-  const comments = commentsData?.pages?.flatMap((page) => page.data) || [];
- 
+    const errorMessage =
+      (error as any).data?.message ||
+      (error as any).message ||
+      'Failed to load post';
+
+    showToast(errorMessage, 'error');
+  }, [error]);
+
   if (isLoading) {
     return <div className="text-center mt-8">Loading post...</div>;
-  }
-
-  if (error) {
-    const errorMessage =
-      (error as any).data?.message || (error as any).message || 'Failed to load post';
-    showToast(errorMessage, 'error');
-    return <div className="text-center mt-8 text-red-500">{errorMessage}</div>;
   }
 
   if (!data?.data) {
@@ -11218,22 +11512,21 @@ const PostDetailPage = () => {
 
   const post = data.data;
 
-  console.log(comments);
-  
+
   return (
     <div className="container mx-auto p-4 flex flex-col md:flex-row gap-6">
-            {/* Main Content Area */}
-            <div className="md:w-[70%]">
-              <PostDetailCard post={post} />
-              {/* Comments Section */}
-              <CommentList
-                comments={comments}
-                fetchNextPage={fetchNextPage}
-                hasNextPage={hasNextPage}
-                isFetchingNextPage={isFetchingNextPage}
-                isLoading={isLoadingComments}
-              />
-            </div>
+      {/* Main Content Area */}
+      <div className="md:w-[70%]">
+        <PostDetailCard post={post} />
+        <div className="mb-6">
+                <CommentInput postId={post.id} />
+  
+        </div>
+        {/* Comments Section */}
+        <CommentList
+          postId={post.id}
+        />
+      </div>
 
       {/* Sidebar Area (Right) */}
       <div className="md:w-[30%]">
@@ -11374,93 +11667,35 @@ export const PostSuggestionCard: React.FC<PostSuggestionCardProps> = ({ post }) 
 
 
 ### FILE: frontend/src/features/posts/components/CreatePostForm.tsx ###
-import React, { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { useNavigate } from 'react-router-dom';
+import React from 'react';
 
 import SearchableSelect from '../../../shared/components/ui/SearchableSelect';
-import { useGetCommunitiesQuery } from '../../communities/services/communitiesApi';
-import { useCreatePostMutation } from '../services/postsApi';
-import type { Community } from '../../communities/types';
 import { Textarea } from '../../../shared/components/ui/TextArea';
 import { Input } from '../../../shared/components/ui/Input';
 import { Label } from '../../../shared/components/ui/Label';
 import { InputError } from '../../../shared/components/ui/InputError';
 import { Button } from '../../../shared/components/ui/Button';
-
-/* -------------------------------------------------------------------------- */
-/*                                   Schema                                   */
-/* -------------------------------------------------------------------------- */
-
-const createPostSchema = z.object({
-  title: z.string().min(1, 'Title is required'),
-  content: z.string().min(1, 'Content is required'),
-  communityId: z.number().min(1, 'Community is required'),
-});
-
-type CreatePostFormValues = z.infer<typeof createPostSchema>;
-
-/* -------------------------------------------------------------------------- */
-/*                               Component                                    */
-/* -------------------------------------------------------------------------- */
+import { usePosts } from '../hooks/usePosts';
 
 const CreatePostForm: React.FC = () => {
-  const navigate = useNavigate();
-  const [createPost, { isLoading }] = useCreatePostMutation();
-
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    formState: { errors },
-  } = useForm<CreatePostFormValues>({
-    resolver: zodResolver(createPostSchema),
-  });
-
-  /* --------------------------- Search State -------------------------------- */
-
-  const [search, setSearch] = useState('');
-
-  const { data, isFetching } = useGetCommunitiesQuery(
-    { name: search },
-    { skip: search.trim().length === 0 }
-  );
-
-  const communities = data?.data ?? [];
-
-  /* ---------------------------- Submit ------------------------------------- */
-
-  const onSubmit = async (values: CreatePostFormValues) => {
-    try {
-      await createPost(values).unwrap();
-      navigate('/');
-    } catch (err) {
-      console.error('Create post failed', err);
-    }
-  };
-
-  /* -------------------------------------------------------------------------- */
+  const { form, communitySearch, create } = usePosts();
+  const { register, handleSubmit, setValue, errors } = form;
+  const { search, setSearch, communities, isFetching } = communitySearch;
+  const { handleCreatePost, isLoading } = create;
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+    <form onSubmit={handleSubmit(handleCreatePost)} className="space-y-4">
       {/* Title */}
       <div>
         <Label className="block text-sm font-medium">Title</Label>
-        <Input
-          {...register('title')}
-        />
+        <Input {...register('title')} />
         <InputError message={errors.title?.message} />
       </div>
 
       {/* Content */}
       <div>
         <Label className="block text-sm font-medium">Content</Label>
-        <Textarea
-          {...register('content')}
-          rows={5}
-        />
+        <Textarea {...register('content')} rows={5} />
         <InputError message={errors.content?.message} />
       </div>
 
@@ -11483,10 +11718,7 @@ const CreatePostForm: React.FC = () => {
       </div>
 
       {/* Submit */}
-      <Button
-        type="submit"
-        disabled={isLoading}
-      >
+      <Button type="submit" disabled={isLoading}>
         {isLoading ? 'Creating…' : 'Create Post'}
       </Button>
     </form>
@@ -11995,6 +12227,92 @@ export const {
 ---
 
 
+### FILE: frontend/src/features/posts/hooks/usePosts.ts ###
+import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { useNavigate } from 'react-router-dom';
+
+import { useGetCommunitiesQuery } from '../../communities/services/communitiesApi';
+import { useCreatePostMutation } from '../services/postsApi';
+
+/* -------------------------------------------------------------------------- */
+/*                                   Schema                                   */
+/* -------------------------------------------------------------------------- */
+
+const createPostSchema = z.object({
+  title: z.string().min(1, 'Title is required'),
+  content: z.string().min(1, 'Content is required'),
+  communityId: z.number().min(1, 'Community is required'),
+});
+
+type CreatePostFormValues = z.infer<typeof createPostSchema>;
+
+/* -------------------------------------------------------------------------- */
+/*                                    Hook                                    */
+/* -------------------------------------------------------------------------- */
+
+export const usePosts = () => {
+  const navigate = useNavigate();
+  const [createPost, { isLoading }] = useCreatePostMutation();
+
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    formState: { errors },
+  } = useForm<CreatePostFormValues>({
+    resolver: zodResolver(createPostSchema),
+  });
+
+  /* --------------------------- Search State -------------------------------- */
+
+  const [search, setSearch] = useState('');
+
+  const { data, isFetching } = useGetCommunitiesQuery(
+    { name: search },
+    { skip: search.trim().length === 0 }
+  );
+
+  const communities = data?.data ?? [];
+
+  /* ---------------------------- Submit ------------------------------------- */
+
+  const handleCreatePost = async (values: CreatePostFormValues) => {
+    try {
+      await createPost(values).unwrap();
+      navigate('/');
+    } catch (err) {
+      console.error('Create post failed', err);
+    }
+  };
+
+  /* -------------------------------------------------------------------------- */
+
+  return {
+    form: {
+      register,
+      handleSubmit,
+      setValue,
+      errors,
+    },
+    communitySearch: {
+      search,
+      setSearch,
+      communities,
+      isFetching,
+    },
+    create: {
+      handleCreatePost,
+      isLoading,
+    },
+  };
+};
+
+---
+
+
 ### FILE: frontend/src/features/auth/types.ts ###
 export interface RegisterDto {
     name: string;
@@ -12104,14 +12422,13 @@ export default Register;
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useLoginMutation } from '../services/authApi';
 import type { LoginDto } from '../types';
-import { useNavigate } from 'react-router-dom';
 import GoogleLogin from '../components/GoogleLogin';
 import { Button } from '../../../shared/components/ui/Button';
 import { Input } from '../../../shared/components/ui/Input';
 import { Label } from '../../../shared/components/ui/Label';
 import { InputError } from '../../../shared/components/ui/InputError';
+import { useAuth } from '../hooks/useAuth';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -12119,8 +12436,7 @@ const loginSchema = z.object({
 });
 
 const Login = () => {
-  const [login, { isLoading, error }] = useLoginMutation();
-  const navigate = useNavigate();
+  const { handleLogin, isLoggingIn, loginError } = useAuth();
   const {
     register: formRegister,
     handleSubmit,
@@ -12129,20 +12445,11 @@ const Login = () => {
     resolver: zodResolver(loginSchema),
   });
 
-  const onSubmit = async (data: LoginDto) => {
-    try {
-      await login(data).unwrap();
-      navigate('/');
-    } catch (err: any) {
-      console.error('Failed to login: ', err);
-    }
-  };
-
   return (
     <div className="flex flex-col items-center justify-center min-h-screen">
       <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-lg shadow-lg border border-gray-300">
         <h1 className="text-2xl font-bold text-center">Login</h1>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={handleSubmit(handleLogin)} className="space-y-6">
           <div>
             <Label htmlFor="email">Email</Label>
             <Input id="email" {...formRegister('email')} />
@@ -12153,13 +12460,15 @@ const Login = () => {
             <Input id="password" type="password" {...formRegister('password')} />
             <InputError message={errors.password?.message} />
           </div>
-          <Button type="submit" disabled={isLoading} className="w-full">
-            {isLoading ? 'Logging in...' : 'Login'}
+          <Button type="submit" disabled={isLoggingIn} className="w-full">
+            {isLoggingIn ? 'Logging in...' : 'Login'}
           </Button>
-          {error && (
+          {loginError && (
             <InputError
               message={
-                (error as any).data?.message || (error as any).message || 'Unknown error'
+                (loginError as any).data?.message ||
+                (loginError as any).message ||
+                'Unknown error'
               }
             />
           )}
@@ -12365,34 +12674,44 @@ import { authApi } from '../services/authApi';
 interface AuthState {
   user: UserResponseDto | null;
   accessToken: string | null;
-  refreshToken: string | null;
 }
 
 const initialState: AuthState = {
   user: null,
   accessToken: null,
-  refreshToken: null,
 };
 
 const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
+    // This is a synchronous logout action for immediate UI updates if needed.
+    // The main logout logic is handled by the API mutation.
     logout: (state) => {
       state.user = null;
       state.accessToken = null;
-      state.refreshToken = null;
     },
   },
   extraReducers: (builder) => {
-    builder.addMatcher(
-      authApi.endpoints.login.matchFulfilled,
-      (state, action) => {
-        state.user = action.payload.data.user;
-        state.accessToken = action.payload.data.accessToken;
-        state.refreshToken = action.payload.data.refreshToken;
-      }
-    );
+    builder
+      .addMatcher(
+        authApi.endpoints.login.matchFulfilled,
+        (state, action) => {
+          state.user = action.payload.data.user;
+          state.accessToken = action.payload.data.accessToken;
+        }
+      )
+      .addMatcher(
+        authApi.endpoints.getProfile.matchFulfilled,
+        (state, action) => {
+          state.user = action.payload.data.user;
+          state.accessToken = action.payload.data.accessToken;
+        }
+      )
+      .addMatcher(authApi.endpoints.logout.matchFulfilled, (state) => {
+        state.user = null;
+        state.accessToken = null;
+      });
   },
 });
 
@@ -12416,19 +12735,21 @@ export const authApi = apiSlice.injectEndpoints({
         body: credentials,
       }),
     }),
-    login: builder.mutation<ResponseDto<{ user: UserResponseDto, accessToken: string, refreshToken: string }>, LoginDto>({
+    login: builder.mutation<ResponseDto<{ user: UserResponseDto, accessToken: string }>, LoginDto>({
       query: (credentials) => ({
         url: 'auth/login',
         method: 'POST',
         body: credentials,
       }),
     }),
-    refresh: builder.mutation<ResponseDto<{ user: UserResponseDto, accessToken: string, refreshToken: string }>, { refreshToken: string }>({
-        query: ({refreshToken}) => ({
-            url: 'auth/refresh',
-            method: 'POST',
-            body: {refreshToken}
-        })
+    logout: builder.mutation<ResponseDto<null>, void>({
+      query: () => ({
+        url: 'auth/logout',
+        method: 'POST',
+      }),
+    }),
+    getProfile: builder.query<ResponseDto<{ user: UserResponseDto, accessToken: string }>, void>({
+      query: () => 'auth/refresh', // This endpoint on the backend uses the HttpOnly cookie to get a new access token and user
     }),
     resendEmailVerification: builder.mutation<ResponseDto<null>, { email: string }>({
       query: ({ email }) => ({
@@ -12439,25 +12760,43 @@ export const authApi = apiSlice.injectEndpoints({
     }),
   }),
 });
-export const { useRegisterMutation, useLoginMutation, useRefreshMutation, useResendEmailVerificationMutation } = authApi;
+export const { useRegisterMutation, useLoginMutation, useLogoutMutation, useGetProfileQuery, useResendEmailVerificationMutation } = authApi;
 
 ---
 
 
 ### FILE: frontend/src/features/auth/hooks/useAuth.ts ###
 import { useSelector } from 'react-redux';
-import type { RootState } from '../../../store'; // Adjust path to your root reducer if necessary
+import { useNavigate } from 'react-router-dom';
+import type { RootState } from '../../../shared/stores/store';
+import { useLoginMutation } from '../services/authApi';
+import type { LoginDto } from '../types';
 
 export const useAuth = () => {
   const user = useSelector((state: RootState) => state.auth.user);
   const accessToken = useSelector((state: RootState) => state.auth.accessToken);
   const refreshToken = useSelector((state: RootState) => state.auth.refreshToken);
 
+  const [login, { isLoading, error }] = useLoginMutation();
+  const navigate = useNavigate();
+
+  const handleLogin = async (data: LoginDto) => {
+    try {
+      await login(data).unwrap();
+      navigate('/');
+    } catch (err: any) {
+      console.error('Failed to login: ', err);
+    }
+  };
+
   return {
     user,
     accessToken,
     refreshToken,
     isAuthenticated: !!user && !!accessToken,
+    handleLogin,
+    isLoggingIn: isLoading,
+    loginError: error,
   };
 };
 
@@ -13136,139 +13475,131 @@ export const CommunityMembershipActionButton: React.FC<
 
 
 ### FILE: frontend/src/features/communities/components/CreateCommunityForm.tsx ###
-import React, { useState } from "react";
+import React from "react";
 import { Button } from "../../../shared/components/ui/Button";
 import { Input } from "../../../shared/components/ui/Input";
 import { Label } from "../../../shared/components/ui/Label";
-import { Select, type SelectOption } from "../../../shared/components/ui/Select";
 import { Textarea } from "../../../shared/components/ui/TextArea";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { Controller, useForm, type SubmitHandler } from "react-hook-form";
-import z from "zod";
+import { Controller } from "react-hook-form";
 import { InputError } from "../../../shared/components/ui/InputError";
 import { InputRadio } from "../../../shared/components/InputRadio";
-import { useCreateCommunityMutation } from "../services/communitiesApi";
-import type { ToastType } from "../../../shared/components/ui/Toast";
 import Toast from "../../../shared/components/ui/Toast";
+import { useCreateCommunityForm } from "../hooks/useCreateCommunityForm";
 
 interface CreateCommunityFormProps {
   onClose: () => void;
 }
 
-
-const createCommunitySchema = z.object({
-  communityType: z.enum(["public", "private", "restricted"]),  name: z
-    .string()
-    .min(3, "Community Name must be at least 3 characters"),
-  description: z.string().optional(),
-});
-
-type CreateCommunityFormValues = z.infer<typeof createCommunitySchema>;
-
-const stepFields: (keyof CreateCommunityFormValues)[][] = [
-  ["communityType"], // Step 0
-  ["name", "description"], // Step 1
-];
-
-const CreateCommunityForm: React.FC<CreateCommunityFormProps> = ({ onClose }) => {
-  const [step, setStep] = React.useState(0);
-  const [createCommunity, { isLoading }] = useCreateCommunityMutation();
-   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
-  const {
-    control,
-    register,
-    trigger,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<CreateCommunityFormValues>({
-    resolver: zodResolver(createCommunitySchema),
-    defaultValues: {
-      name: "",
-      description: "",
-    },
-  });
-
-  const onSubmit: SubmitHandler<CreateCommunityFormValues> = async(data) => {
- try {
-      const response = await createCommunity(data).unwrap(); // send data to API
-      console.log("Community created:", response);
-            setToast({ message: 'Community created successfully!', type: 'success' });
-      onClose(); // close form or reset
-    } catch (err) {
-            setToast({ message: err?.data?.message || 'Failed to create community', type: 'error' });
-      console.error("Failed to create community:", err);
-    }
-  };
+const CreateCommunityForm: React.FC<CreateCommunityFormProps> = ({
+  onClose,
+}) => {
+  const { step, form, submission, navigation, toast: toastState } =
+    useCreateCommunityForm(onClose);
+  const { control, register, handleSubmit, errors } = form;
+  const { onSubmit, isLoading } = submission;
+  const { nextStep, prevStep } = navigation;
+  const { toast, setToast } = toastState;
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="p-4">
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
       {/* Step 0: Community Type */}
-{/* Step 0: Community Type */}
-      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-{step === 0 && (
-  <div className="mb-4">
+      {step === 0 && (
+        <div className="mb-4">
+          <h2 className="text-xl font-bold mb-2">
+            Choose your community type
+          </h2>
+          <p className="text-gray-600 mb-4">
+            Each community type controls who can view and post in your
+            community.
+          </p>
+          <Controller
+            name="communityType"
+            control={control}
+            render={({ field }) => {
+              const options = [
+                {
+                  value: "public",
+                  title: "Public",
+                  description: "Anyone can view, post, and comment.",
+                },
+                {
+                  value: "restricted",
+                  title: "Restricted",
+                  description:
+                    "Anyone can view, only approved users can post.",
+                },
+                {
+                  value: "private",
+                  title: "Private",
+                  description: "Only approved users can view and post.",
+                },
+              ];
 
-     <h2 className="text-xl font-bold mb-2">Choose your community type</h2>
-    <p className="text-gray-600 mb-4">
-      Each community type controls who can view and post in your community.
-    </p>
-    <Controller
-      name="communityType"
-      control={control}
-      render={({ field }) => {
-        const options = [
-          { value: "public", title: "Public", description: "Anyone can view, post, and comment." },
-          { value: "restricted", title: "Restricted", description: "Anyone can view, only approved users can post." },
-          { value: "private", title: "Private", description: "Only approved users can view and post." },
-        ];
-
-        return (
-          <div className="flex flex-col gap-3 mt-2">
-            {options.map((option) => (
-              <div
-                key={option.value}
-                className={`flex items-center p-4 border rounded-lg cursor-pointer transition
-                  ${field.value === option.value ? "border-blue-500 bg-blue-50" : "border-gray-300 hover:bg-gray-50"}
+              return (
+                <div className="flex flex-col gap-3 mt-2">
+                  {options.map((option) => (
+                    <div
+                      key={option.value}
+                      className={`flex items-center p-4 border rounded-lg cursor-pointer transition
+                  ${
+                    field.value === option.value
+                      ? "border-blue-500 bg-blue-50"
+                      : "border-gray-300 hover:bg-gray-50"
+                  }
                 `}
-                onClick={() => field.onChange(option.value)}
-              >
-                <InputRadio
-                  checked={field.value === option.value}
-                  onChange={() => field.onChange(option.value)}
-                  size="md"
-                  colorClass="bg-blue-500"
-                />
-                <div className="ml-3">
-                  <div className="font-medium">{option.title}</div>
-                  <div className="text-sm text-gray-500">{option.description}</div>
+                      onClick={() => field.onChange(option.value)}
+                    >
+                      <InputRadio
+                        checked={field.value === option.value}
+                        onChange={() => field.onChange(option.value)}
+                        size="md"
+                        colorClass="bg-blue-500"
+                      />
+                      <div className="ml-3">
+                        <div className="font-medium">{option.title}</div>
+                        <div className="text-sm text-gray-500">
+                          {option.description}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
-            ))}
-          </div>
-        );
-      }}
-    />
-    <InputError message={errors.communityType?.message} />
-  </div>
-)}
-
+              );
+            }}
+          />
+          <InputError message={errors.communityType?.message} />
+        </div>
+      )}
 
       {/* Step 1: Community Info */}
       {step === 1 && (
         <>
-                    <h2 className="text-xl font-bold mb-2">Tell us about your community</h2>
-    <p className="text-gray-600 mb-4">
-      Give your community a name and description so people know what it’s about.
-    </p>
+          <h2 className="text-xl font-bold mb-2">
+            Tell us about your community
+          </h2>
+          <p className="text-gray-600 mb-4">
+            Give your community a name and description so people know what it’s
+            about.
+          </p>
           <div className="mb-4">
-  
             <Label htmlFor="name">Community Name:</Label>
             <Input id="name" {...register("name")} />
             <InputError message={errors.name?.message} />
           </div>
           <div className="mb-4">
             <Label htmlFor="description">Description:</Label>
-            <Textarea id="description" {...register("description")} rows={4} />
+            <Textarea
+              id="description"
+              {...register("description")}
+              rows={4}
+            />
             <InputError message={errors.description?.message} />
           </div>
         </>
@@ -13277,27 +13608,22 @@ const CreateCommunityForm: React.FC<CreateCommunityFormProps> = ({ onClose }) =>
       {/* Navigation */}
       <div className="flex gap-5 justify-end mt-4">
         {step > 0 && (
-          <Button type="button" variant="secondary" onClick={() => setStep(step - 1)}>
+          <Button type="button" variant="secondary" onClick={prevStep}>
             Back
           </Button>
         )}
 
         {step < 1 && (
-          <Button
-            type="button"
-            onClick={async () => {
-              const valid = await trigger(stepFields[step]);
-              if (valid) setStep(step + 1);
-            }}
-          >
+          <Button type="button" onClick={nextStep}>
             Next
           </Button>
         )}
 
         {step === 1 && (
-     <Button type="submit" disabled={isLoading}>
+          <Button type="submit" disabled={isLoading}>
             {isLoading ? "Creating..." : "Create Community"}
-          </Button>        )}
+          </Button>
+        )}
       </div>
     </form>
   );
@@ -13363,6 +13689,96 @@ export const {
 ---
 
 
+### FILE: frontend/src/features/communities/hooks/useCreateCommunityForm.ts ###
+import React, { useState } from "react";
+import { useForm, type SubmitHandler } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import z from "zod";
+import { useCreateCommunityMutation } from "../services/communitiesApi";
+import type { ToastType } from "../../../shared/components/ui/Toast";
+
+const createCommunitySchema = z.object({
+  communityType: z.enum(["public", "private", "restricted"]),
+  name: z.string().min(3, "Community Name must be at least 3 characters"),
+  description: z.string().optional(),
+});
+
+type CreateCommunityFormValues = z.infer<typeof createCommunitySchema>;
+
+const stepFields: (keyof CreateCommunityFormValues)[][] = [
+  ["communityType"], // Step 0
+  ["name", "description"], // Step 1
+];
+
+export const useCreateCommunityForm = (onClose: () => void) => {
+  const [step, setStep] = React.useState(0);
+  const [createCommunity, { isLoading }] = useCreateCommunityMutation();
+  const [toast, setToast] =
+    useState<{ message: string; type: ToastType } | null>(null);
+
+  const {
+    control,
+    register,
+    trigger,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<CreateCommunityFormValues>({
+    resolver: zodResolver(createCommunitySchema),
+    defaultValues: {
+      name: "",
+      description: "",
+    },
+  });
+
+  const onSubmit: SubmitHandler<CreateCommunityFormValues> = async (data) => {
+    try {
+      const response = await createCommunity(data).unwrap();
+      setToast({ message: "Community created successfully!", type: "success" });
+      onClose();
+    } catch (err) {
+      setToast({
+        message: (err as any).data?.message || "Failed to create community",
+        type: "error",
+      });
+      console.error("Failed to create community:", err);
+    }
+  };
+
+  const nextStep = async () => {
+    const valid = await trigger(stepFields[step]);
+    if (valid) setStep(step + 1);
+  };
+
+  const prevStep = () => {
+    setStep(step - 1);
+  };
+
+  return {
+    step,
+    form: {
+      control,
+      register,
+      handleSubmit,
+      errors,
+    },
+    submission: {
+      onSubmit,
+      isLoading,
+    },
+    navigation: {
+      nextStep,
+      prevStep,
+    },
+    toast: {
+      toast,
+      setToast,
+    },
+  };
+};
+
+---
+
+
 ### FILE: frontend/src/features/profile/types.ts ###
 // Assuming User is already defined in a shared types file or needs to be defined here.
 // For now, let's include a minimal User type if not already globally available.
@@ -13397,66 +13813,29 @@ export interface CreateProfilePayload {
 
 
 ### FILE: frontend/src/features/profile/pages/ProfilePage.tsx ###
-// frontend/src/pages/ProfilePage.tsx
-import { useState } from 'react';
-import { useParams } from 'react-router-dom';
 import { FaUserCircle, FaEdit } from 'react-icons/fa';
-import { useAuth } from '../../auth/hooks/useAuth';
 import { ProfileEditForm } from '../components/ProfileEditForm';
-import { useGetProfileByUserIdQuery } from '../services/profileApi';
 import { Modal } from '../../../shared/components/ui/Modal';
-import { useGetPostsInfiniteQuery } from '../../posts/services/postsApi';
-import { useGetCommentsInfiniteQuery } from '../../comments/services/commentsApi';
-import UserCommentList from '../../comments/components/UserCommentList'; // NEW IMPORT
+import UserCommentList from '../../comments/components/UserCommentList';
 import { Button } from '../../../shared/components/ui/Button';
 import PostList from '../../posts/components/PostList';
+import { useProfile } from '../hooks/useProfile';
 
 export const ProfilePage = () => {
-  const { userId } = useParams<{ userId: string }>();
-  const parsedUserId = Number(userId);
-  
-  const { data: profileResponse, isLoading, error, refetch } = useGetProfileByUserIdQuery(parsedUserId);
-  const { user: currentUser } = useAuth();
-
-  console.log(profileResponse,parsedUserId);
-  
-  const profile = profileResponse?.data;
-  const isMyProfile = currentUser?.id === parsedUserId;
-
-  const [isEditing, setIsEditing] = useState(false);
-  const [activeTab, setActiveTab] = useState<'posts' | 'comments'>('posts');
-
-  const handleEditSuccess = () => {
-    setIsEditing(false);
-    refetch();
-  };
-
-  const handleEditCancel = () => {
-    setIsEditing(false);
-  };
-
-  // Fetch Posts by User
   const {
-    data: postsData,
-    fetchNextPage: fetchNextPostsPage,
-    hasNextPage: hasNextPostsPage,
-    isFetchingNextPage: isFetchingNextPostsPage,
-    isLoading: isLoadingPosts,
-  } = useGetPostsInfiniteQuery({ authorId: parsedUserId } );
-
-  const posts = postsData?.pages.flatMap(page => page.data) ?? [];
-
-  // Fetch Comments by User
-  const {
-    data: commentsData,
-    fetchNextPage: fetchNextCommentsPage,
-    hasNextPage: hasNextCommentsPage,
-    isFetchingNextPage: isFetchingNextCommentsPage,
-    isLoading: isLoadingComments,
-  } = useGetCommentsInfiniteQuery({ queryArg: { authorId: parsedUserId } });
-
-  const comments = commentsData?.pages.flatMap(page => page.data) ?? [];
-
+    profile,
+    isLoading,
+    error,
+    isMyProfile,
+    isEditing,
+    setIsEditing,
+    activeTab,
+    setActiveTab,
+    handleEditSuccess,
+    handleEditCancel,
+    posts,
+    comments,
+  } = useProfile();
 
   if (isLoading) {
     return (
@@ -13467,18 +13846,9 @@ export const ProfilePage = () => {
   }
 
   if (error) {
-    let errorMessage = 'Failed to load profile';
-    if ('status' in error && 'data' in error) {
-      if (typeof error.data === 'object' && error.data !== null && 'message' in error.data) {
-        errorMessage = (error.data as { message: string }).message;
-      }
-    } else if ('message' in error) {
-      errorMessage = error.message;
-    }
-
     return (
       <div className="flex justify-center items-center h-screen">
-        <p className="text-red-500">Error: {errorMessage}</p>
+        <p className="text-red-500">Error: {error}</p>
       </div>
     );
   }
@@ -13492,7 +13862,7 @@ export const ProfilePage = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto my-8 p-6 bg-white shadow-lg rounded-lg">
+    <div className="max-w-4xl mx-auto my-8 p-6 bg-white border border-gray-300 rounded-lg">
       {/* Profile Display Section */}
       <>
         <div className="flex items-center space-x-6">
@@ -13508,21 +13878,23 @@ export const ProfilePage = () => {
             )}
           </div>
           <div>
-            <h1 className="text-4xl font-bold text-gray-800">{profile.username}</h1>
+            <h1 className="text-4xl font-bold text-gray-800">
+              {profile.username}
+            </h1>
             <p className="text-gray-600 text-lg">{profile.user.email}</p>
             {isMyProfile && (
-              <button
-                className="mt-2 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 flex items-center space-x-2"
+              <Button
+              
                 onClick={() => setIsEditing(true)}
               >
                 <FaEdit />
-                <span>Edit Profile</span>
-              </button>
+                <span className='mx-2'>Edit Profile</span>
+              </Button>
             )}
           </div>
         </div>
 
-        <div className="mt-8 border-t pt-6">
+        <div className="mt-8 border-t border-gray-300 pt-6">
           <h2 className="text-2xl font-semibold text-gray-800">About Me</h2>
           <p className="mt-4 text-gray-700">
             {profile.bio || 'No biography available yet.'}
@@ -13532,10 +13904,7 @@ export const ProfilePage = () => {
 
       {/* Profile Edit Modal */}
       {isMyProfile && (
-        <Modal
-          open={isEditing}
-          onClose={handleEditCancel}
-        >
+        <Modal open={isEditing} onClose={handleEditCancel}>
           <ProfileEditForm
             currentProfile={profile}
             onSuccess={handleEditSuccess}
@@ -13545,34 +13914,45 @@ export const ProfilePage = () => {
       )}
 
       {/* Posts and Comments Sections */}
-      <div className="mt-8 border-t pt-6">
+      <div className="mt-8 border-t border-gray-300 pt-6">
         <div className="flex space-x-4 mb-4">
           <Button
             variant={activeTab === 'posts' ? 'default' : 'outline'}
             onClick={() => setActiveTab('posts')}
           >
-            Posts ({postsData?.pages[0]?.meta?.total ?? 0})
+            Posts ({posts.total})
           </Button>
           <Button
             variant={activeTab === 'comments' ? 'default' : 'outline'}
             onClick={() => setActiveTab('comments')}
           >
-            Comments ({commentsData?.pages[0]?.meta?.total ?? 0})
+            Comments ({comments.total})
           </Button>
         </div>
 
         {activeTab === 'posts' && (
           <div>
-            <h2 className="text-2xl font-semibold text-gray-800 mb-4">Posts</h2>
-            {isLoadingPosts ? (
+            <h2 className="text-2xl font-semibold text-gray-800 mb-4">
+              Posts
+            </h2>
+            {posts.isLoading ? (
               <p>Loading posts...</p>
-            ) : posts.length > 0 ? (
+            ) : posts.data.length > 0 ? (
               <>
-                <PostList posts={posts} isLoading={false} error={undefined} />
-                {hasNextPostsPage && (
+                <PostList
+                  posts={posts.data}
+                  isLoading={false}
+                  error={undefined}
+                />
+                {posts.hasNextPage && (
                   <div className="flex justify-center mt-4">
-                    <Button onClick={() => fetchNextPostsPage()} disabled={isFetchingNextPostsPage}>
-                      {isFetchingNextPostsPage ? 'Loading more...' : 'Load More Posts'}
+                    <Button
+                      onClick={() => posts.fetchNextPage()}
+                      disabled={posts.isFetchingNextPage}
+                    >
+                      {posts.isFetchingNextPage
+                        ? 'Loading more...'
+                        : 'Load More Posts'}
                     </Button>
                   </div>
                 )}
@@ -13585,25 +13965,20 @@ export const ProfilePage = () => {
 
         {activeTab === 'comments' && (
           <div>
-            <h2 className="text-2xl font-semibold text-gray-800 mb-4">Comments</h2>
-            {isLoadingComments ? (
+            <h2 className="text-2xl font-semibold text-gray-800 mb-4">
+              Comments
+            </h2>
+            {comments.isLoading ? (
               <p>Loading comments...</p>
-            ) : comments.length > 0 ? (
+            ) : comments.data.length > 0 ? (
               <>
                 <UserCommentList // Use UserCommentList
-                  comments={comments}
-                  fetchNextPage={fetchNextCommentsPage}
-                  hasNextPage={hasNextCommentsPage}
-                  isFetchingNextPage={isFetchingNextCommentsPage}
-                  isLoading={isLoadingComments}
+                  comments={comments.data}
+                  fetchNextPage={comments.fetchNextPage}
+                  hasNextPage={comments.hasNextPage}
+                  isFetchingNextPage={comments.isFetchingNextPage}
+                  isLoading={comments.isLoading}
                 />
-                {hasNextCommentsPage && (
-                  <div className="flex justify-center mt-4">
-                    <Button onClick={() => fetchNextCommentsPage()} disabled={isFetchingNextCommentsPage}>
-                      {isFetchingNextCommentsPage ? 'Loading more...' : 'Load More Comments'}
-                    </Button>
-                  </div>
-                )}
               </>
             ) : (
               <p>No comments found.</p>
@@ -13618,17 +13993,12 @@ export const ProfilePage = () => {
 
 
 ### FILE: frontend/src/features/profile/components/ProfileEditForm.tsx ###
-// frontend/src/features/profile/components/ProfileEditForm.tsx
-import React, { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { useUpdateMyProfileMutation } from '../services/profileApi';
+import { Input } from '../../../shared/components/ui/Input';
+import { Textarea } from '../../../shared/components/ui/TextArea';
+import { Button } from '../../../shared/components/ui/Button';
+import { Label } from '../../../shared/components/ui/Label';
+import { useProfileEditForm } from '../hooks/useProfileEditForm';
 import type { Profile } from '../types';
-import { Input } from '../../../shared/components/ui/Input'; // Assuming an Input component exists
-import { Textarea } from '../../../shared/components/ui/TextArea'; // Assuming a TextArea component exists
-import { Button } from '../../../shared/components/ui/Button'; // Assuming a Button component exists
-import { Label } from '../../../shared/components/ui/Label'; // Assuming a Label component exists
 
 interface ProfileEditFormProps {
   currentProfile: Profile;
@@ -13636,71 +14006,29 @@ interface ProfileEditFormProps {
   onCancel: () => void;
 }
 
-const profileSchema = z.object({
-  username: z.string().min(3, 'Username must be at least 3 characters.').max(50, 'Username cannot exceed 50 characters.'),
-  bio: z.string().max(500, 'Bio cannot exceed 500 characters.').nullable(),
-  pictureFile: z.any().optional(), // For file upload
-});
-
-type ProfileFormValues = z.infer<typeof profileSchema>;
-
-export const ProfileEditForm = ({ currentProfile, onSuccess, onCancel }: ProfileEditFormProps) => {
-  const { register, handleSubmit, formState: { errors }, reset } = useForm<ProfileFormValues>({
-    resolver: zodResolver(profileSchema),
-    defaultValues: {
-      username: currentProfile.username,
-      bio: currentProfile.bio,
-    },
+export const ProfileEditForm = ({
+  currentProfile,
+  onSuccess,
+  onCancel,
+}: ProfileEditFormProps) => {
+  const { form, submission, file } = useProfileEditForm({
+    currentProfile,
+    onSuccess,
   });
-
-  const [updateMyProfile, { isLoading, isSuccess, isError, error }] = useUpdateMyProfileMutation();
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-
-  useEffect(() => {
-    if (isSuccess) {
-      onSuccess();
-    }
-    if (isError) {
-      // Handle error, e.g., display a toast notification
-      console.error('Profile update failed:', error);
-    }
-  }, [isSuccess, isError, onSuccess, error]);
-
-  const onSubmit = async (data: ProfileFormValues) => {
-    const payload: Partial<Profile> & { pictureFile?: File } = {
-      username: data.username,
-      bio: data.bio === '' ? null : data.bio, // Ensure empty string becomes null for bio
-    };
-
-    if (selectedFile) {
-      payload.pictureFile = selectedFile;
-    }
-
-    try {
-      await updateMyProfile(payload).unwrap();
-    } catch (err) {
-      // Error handled by useEffect, but can add specific form-level error here
-    }
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setSelectedFile(e.target.files[0]);
-    } else {
-      setSelectedFile(null);
-    }
-  };
+  const { register, handleSubmit, errors } = form;
+  const { onSubmit, isLoading } = submission;
+  const { selectedFile, handleFileChange } = file;
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       <div>
-        <Label htmlFor="username">Username</Label>
-        <Input
-          id="username"
-          {...register('username')}
-          className="w-full"
-        />
-        {errors.username && <p className="text-red-500 text-sm mt-1">{errors.username.message}</p>}
+        <Label htmlFor="displayName">Display Name</Label>
+        <Input id="displayName" {...register('displayName')} className="w-full" />
+        {errors.displayName && (
+          <p className="text-red-500 text-sm mt-1">
+            {errors.displayName.message}
+          </p>
+        )}
       </div>
 
       <div>
@@ -13711,7 +14039,9 @@ export const ProfileEditForm = ({ currentProfile, onSuccess, onCancel }: Profile
           className="w-full"
           rows={5}
         />
-        {errors.bio && <p className="text-red-500 text-sm mt-1">{errors.bio.message}</p>}
+        {errors.bio && (
+          <p className="text-red-500 text-sm mt-1">{errors.bio.message}</p>
+        )}
       </div>
 
       <div>
@@ -13723,12 +14053,20 @@ export const ProfileEditForm = ({ currentProfile, onSuccess, onCancel }: Profile
           onChange={handleFileChange}
           className="w-full"
         />
-        {selectedFile && <p className="text-sm text-gray-500 mt-1">File selected: {selectedFile.name}</p>}
-        {/* Potentially show current picture preview here */}
+        {selectedFile && (
+          <p className="text-sm text-gray-500 mt-1">
+            File selected: {selectedFile.name}
+          </p>
+        )}
       </div>
 
       <div className="flex justify-end space-x-2">
-        <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onCancel}
+          disabled={isLoading}
+        >
           Cancel
         </Button>
         <Button type="submit" disabled={isLoading}>
@@ -13820,6 +14158,212 @@ export const {
   useUpdateMyProfileMutation,
   useCreateMyProfileMutation,
 } = profileApi;
+
+---
+
+
+### FILE: frontend/src/features/profile/hooks/useProfile.ts ###
+import { useState } from 'react';
+import { useParams } from 'react-router-dom';
+import { useAuth } from '../../auth/hooks/useAuth';
+import { useGetProfileByUserIdQuery } from '../services/profileApi';
+import { useGetPostsInfiniteQuery } from '../../posts/services/postsApi';
+import { useGetCommentsInfiniteQuery } from '../../comments/services/commentsApi';
+
+export const useProfile = () => {
+  const { userId } = useParams<{ userId: string }>();
+  const parsedUserId = Number(userId);
+
+  const {
+    data: profileResponse,
+    isLoading,
+    error,
+    refetch,
+  } = useGetProfileByUserIdQuery(parsedUserId);
+  const { user: currentUser } = useAuth();
+
+  const profile = profileResponse?.data;
+  const isMyProfile = currentUser?.id === parsedUserId;
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [activeTab, setActiveTab] = useState<'posts' | 'comments'>('posts');
+
+  const handleEditSuccess = () => {
+    setIsEditing(false);
+    refetch();
+  };
+
+  const handleEditCancel = () => {
+    setIsEditing(false);
+  };
+
+  // Fetch Posts by User
+  const {
+    data: postsData,
+    fetchNextPage: fetchNextPostsPage,
+    hasNextPage: hasNextPostsPage,
+    isFetchingNextPage: isFetchingNextPostsPage,
+    isLoading: isLoadingPosts,
+  } = useGetPostsInfiniteQuery({ authorId: parsedUserId });
+
+  const posts = postsData?.pages.flatMap((page) => page.data) ?? [];
+
+  // Fetch Comments by User
+  const {
+    data: commentsData,
+    fetchNextPage: fetchNextCommentsPage,
+    hasNextPage: hasNextCommentsPage,
+    isFetchingNextPage: isFetchingNextCommentsPage,
+    isLoading: isLoadingComments,
+  } = useGetCommentsInfiniteQuery({ authorId: parsedUserId });
+
+  const comments = commentsData?.pages.flatMap((page) => page.data) ?? [];
+
+  let errorMessage: string | null = null;
+  if (error) {
+    if ('status' in error && 'data' in error) {
+      if (
+        typeof error.data === 'object' &&
+        error.data !== null &&
+        'message' in error.data
+      ) {
+        errorMessage = (error.data as { message: string }).message;
+      }
+    } else if ('message' in error) {
+      errorMessage = error.message ?? null;
+    } else {
+      errorMessage = 'Failed to load profile';
+    }
+  }
+
+  return {
+    profile,
+    isLoading,
+    error: errorMessage,
+    isMyProfile,
+    isEditing,
+    setIsEditing,
+    activeTab,
+    setActiveTab,
+    handleEditSuccess,
+    handleEditCancel,
+    posts: {
+      data: posts,
+      fetchNextPage: fetchNextPostsPage,
+      hasNextPage: hasNextPostsPage,
+      isFetchingNextPage: isFetchingNextPostsPage,
+      isLoading: isLoadingPosts,
+      total: postsData?.pages[0]?.meta?.totalItems ?? 0,
+    },
+    comments: {
+      data: comments,
+      fetchNextPage: fetchNextCommentsPage,
+      hasNextPage: hasNextCommentsPage,
+      isFetchingNextPage: isFetchingNextCommentsPage,
+      isLoading: isLoadingComments,
+      total: commentsData?.pages[0]?.meta?.totalItems ?? 0,
+    },
+  };
+};
+
+---
+
+
+### FILE: frontend/src/features/profile/hooks/useProfileEditForm.ts ###
+import { useState, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { useUpdateMyProfileMutation } from '../services/profileApi';
+import type { Profile } from '../types';
+
+interface UseProfileEditFormProps {
+  currentProfile: Profile;
+  onSuccess: () => void;
+}
+
+const profileSchema = z.object({
+  displayName: z
+    .string()
+    .min(3, 'Display name must be at least 3 characters.')
+    .max(20, 'Display name cannot exceed 20 characters.'),
+  bio: z.string().max(500, 'Bio cannot exceed 500 characters.').nullable(),
+  pictureFile: z.any().optional(),
+});
+
+type ProfileFormValues = z.infer<typeof profileSchema>;
+
+export const useProfileEditForm = ({
+  currentProfile,
+  onSuccess,
+}: UseProfileEditFormProps) => {
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    reset,
+  } = useForm<ProfileFormValues>({
+    resolver: zodResolver(profileSchema),
+    defaultValues: {
+      displayName: currentProfile.displayName,
+      bio: currentProfile.bio,
+    },
+  });
+
+  const [updateMyProfile, { isLoading, isSuccess, isError, error }] =
+    useUpdateMyProfileMutation();
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  useEffect(() => {
+    if (isSuccess) {
+      onSuccess();
+    }
+    if (isError) {
+      console.error('Profile update failed:', error);
+    }
+  }, [isSuccess, isError, onSuccess, error]);
+
+  const onSubmit = async (data: ProfileFormValues) => {
+    const payload: Partial<Profile> & { pictureFile?: File } = {
+      displayName: data.displayName,
+      bio: data.bio === '' ? null : data.bio,
+    };
+
+    if (selectedFile) {
+      payload.pictureFile = selectedFile;
+    }
+
+    try {
+      await updateMyProfile(payload).unwrap();
+    } catch (err) {
+      // Error handled by useEffect
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setSelectedFile(e.target.files[0]);
+    } else {
+      setSelectedFile(null);
+    }
+  };
+
+  return {
+    form: {
+      register,
+      handleSubmit,
+      errors,
+    },
+    submission: {
+      onSubmit,
+      isLoading,
+    },
+    file: {
+      selectedFile,
+      handleFileChange,
+    },
+  };
+};
 
 ---
 
@@ -14019,17 +14563,14 @@ export const ModRestrictionsPage = () => {
 
 
 ### FILE: frontend/src/features/community-restrictions/components/CreateRestrictionForm.tsx ###
-import { useState } from 'react';
 import { CommunityRestrictionType } from '../types';
-import { useGetCommunityMembershipsQuery } from '../../community-memberships/services/communityMembershipsApi';
-import type { CommunityMembershipQueryDto } from '../../community-memberships/types';
-import { useCreateCommunityRestrictionMutation } from '../services/communityRestrictionsApi';
 import { Button } from '../../../shared/components/ui/Button';
 import { Input } from '../../../shared/components/ui/Input';
 import { Label } from '../../../shared/components/ui/Label';
 import { Select, type SelectOption } from '../../../shared/components/ui/Select';
 import SearchableSelect from '../../../shared/components/ui/SearchableSelect';
 import { Textarea } from '../../../shared/components/ui/TextArea';
+import { useCreateRestriction } from '../hooks/useCreateRestriction';
 
 interface CreateRestrictionFormProps {
   communityId: number;
@@ -14042,59 +14583,34 @@ interface SearchableUser {
   label: string;
 }
 
-export const CreateRestrictionForm = ({ communityId, onSuccess, onCancel }: CreateRestrictionFormProps) => {
-  const [selectedUser, setSelectedUser] = useState<SearchableUser | null>(null);
-  const [userSearchTerm, setUserSearchTerm] = useState<string>('');
-  const [restrictionType, setRestrictionType] = useState<CommunityRestrictionType>(CommunityRestrictionType.BAN);
-  const [reason, setReason] = useState<string>('');
-  const [expiresAt, setExpiresAt] = useState<string>('');
-  const [formError, setFormError] = useState<string | null>(null);
-
-  const communityMembershipsQueryParams: CommunityMembershipQueryDto = {
-    communityId: communityId,
-    limit: 100,
-  };
-  const { data: membersResponse, isLoading: isLoadingMembers } = useGetCommunityMembershipsQuery(communityMembershipsQueryParams);
-  const [createRestriction, { isLoading: isCreating }] = useCreateCommunityRestrictionMutation();
-console.log(expiresAt);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setFormError(null);
-
-    if (!selectedUser) {
-      setFormError('Please select a user.');
-      return;
-    }
-console.log(expiresAt);
-
-    try {
-      await createRestriction({
-        communityId,
-        userId: selectedUser.id,
-        restrictionType,
-        reason: reason || undefined,
-        expiresAt: expiresAt ? new Date(expiresAt).toISOString() : undefined,
-      }).unwrap();
-      onSuccess();
-    } catch (err: any) {
-      setFormError(err.data?.message || 'Failed to create restriction.');
-    }
-  };
+export const CreateRestrictionForm = ({
+  communityId,
+  onSuccess,
+  onCancel,
+}: CreateRestrictionFormProps) => {
+  const { form, members, submission } = useCreateRestriction({
+    communityId,
+    onSuccess,
+  });
+  const {
+    selectedUser,
+    setSelectedUser,
+    userSearchTerm,
+    setUserSearchTerm,
+    restrictionType,
+    setRestrictionType,
+    reason,
+    setReason,
+    expiresAt,
+    setExpiresAt,
+    formError,
+  } = form;
+  const { isLoadingMembers, filteredMembers } = members;
+  const { handleSubmit, isCreating } = submission;
 
   if (isLoadingMembers) {
     return <div className="p-4">Loading members...</div>;
   }
-
-  const allMembers = membersResponse?.data || [];
-  const searchableMembers: SearchableUser[] = allMembers.map(member => ({
-    id: member.userId,
-    label: member.user.username
-  }));
-
-  const filteredMembers = searchableMembers.filter(member =>
-    member.label.toLowerCase().includes(userSearchTerm.toLowerCase())
-  );
 
   const restrictionTypeOptions: SelectOption[] = [
     { value: CommunityRestrictionType.BAN, label: 'Ban' },
@@ -14125,7 +14641,9 @@ console.log(expiresAt);
           <Select
             id="restriction-type-select"
             value={restrictionType}
-            onChange={(value) => setRestrictionType(value as CommunityRestrictionType)}
+            onChange={(value) =>
+              setRestrictionType(value as CommunityRestrictionType)
+            }
             className="w-full"
             options={restrictionTypeOptions}
           />
@@ -14136,7 +14654,9 @@ console.log(expiresAt);
           <Textarea
             id="reason"
             value={reason}
-            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setReason(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+              setReason(e.target.value)
+            }
             placeholder="Reason for restriction (optional)"
             className="w-full"
             rows={3}
@@ -14149,7 +14669,9 @@ console.log(expiresAt);
             type="datetime-local"
             id="expires-at"
             value={expiresAt}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setExpiresAt(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+              setExpiresAt(e.target.value)
+            }
             className="w-full"
           />
         </div>
@@ -14157,7 +14679,12 @@ console.log(expiresAt);
         {formError && <p className="text-red-500 text-sm">{formError}</p>}
 
         <div className="flex justify-end space-x-2">
-          <Button type="button" variant="outline" onClick={onCancel} disabled={isCreating}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onCancel}
+            disabled={isCreating}
+          >
             Cancel
           </Button>
           <Button type="submit" disabled={isCreating}>
@@ -14173,42 +14700,49 @@ console.log(expiresAt);
 
 
 ### FILE: frontend/src/features/community-restrictions/components/MutedUsersQueue.tsx ###
-import { useParams } from "react-router-dom";
-import { useGetCommunityRestrictionsQuery, useDeleteCommunityRestrictionMutation } from "../services/communityRestrictionsApi";
 import { Button } from "../../../shared/components/ui/Button";
-import { CommunityRestrictionType } from "../types";
+import { useMutedUsers } from "../hooks/useMutedUsers";
 
 export const MutedUsersQueue = () => {
-  const { communityId } = useParams();
-  const { data: restrictions, isLoading } = useGetCommunityRestrictionsQuery({
-    communityId: +communityId,
-    restrictionType: CommunityRestrictionType.MUTE,
-    page: 1,
-    limit: 10,
-  });
-  const [unmute] = useDeleteCommunityRestrictionMutation(); // Assuming 'unmute' uses the same deletion endpoint
+  const { mutedUsers, isLoading, unmuteUser } = useMutedUsers();
 
   if (isLoading) return <div className="p-4">Loading muted users...</div>;
 
   return (
     <div className="space-y-3">
-      {restrictions?.data.length === 0 ? (
+      {mutedUsers.length === 0 ? (
         <div className="text-center py-10 bg-gray-50 rounded-lg border">
-          <p className="text-gray-500 italic">No muted users in this community.</p>
+          <p className="text-gray-500 italic">
+            No muted users in this community.
+          </p>
         </div>
       ) : (
-        restrictions?.data.map((restriction) => (
-          <div key={restriction.id} className="flex justify-between items-center p-4 bg-white rounded-lg border border-gray-200">
+        mutedUsers.map((restriction) => (
+          <div
+            key={restriction.id}
+            className="flex justify-between items-center p-4 bg-white rounded-lg border border-gray-200"
+          >
             <div>
-              <p className="font-medium text-gray-900 text-lg">{restriction.user.username}</p>
+              <p className="font-medium text-gray-900 text-lg">
+                {restriction.user.username}
+              </p>
               <p className="text-sm text-gray-700">{restriction.reason}</p>
               <p className="text-xs text-gray-500 italic">
                 Muted on {new Date(restriction.createdAt).toLocaleDateString()}
-                {restriction.expiresAt && ` - Expires on ${new Date(restriction.expiresAt).toLocaleDateString()}`}
+                {restriction.expiresAt &&
+                  ` - Expires on ${new Date(
+                    restriction.expiresAt
+                  ).toLocaleDateString()}`}
               </p>
             </div>
             <div className="flex gap-2">
-              <Button size="sm" onClick={() => unmute(restriction.id)} className="bg-green-600 hover:bg-green-700">Unmute</Button>
+              <Button
+                size="sm"
+                onClick={() => unmuteUser(restriction.id)}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                Unmute
+              </Button>
             </div>
           </div>
         ))
@@ -14221,42 +14755,49 @@ export const MutedUsersQueue = () => {
 
 
 ### FILE: frontend/src/features/community-restrictions/components/BannedUsersQueue.tsx ###
-import { useParams } from "react-router-dom";
-import { useGetCommunityRestrictionsQuery, useDeleteCommunityRestrictionMutation } from "../services/communityRestrictionsApi";
 import { Button } from "../../../shared/components/ui/Button";
-import { CommunityRestrictionType } from "../types";
+import { useBannedUsers } from "../hooks/useBannedUsers";
 
 export const BannedUsersQueue = () => {
-  const { communityId } = useParams();
-  const { data: restrictions, isLoading } = useGetCommunityRestrictionsQuery({
-    communityId: +communityId,
-    restrictionType: CommunityRestrictionType.BAN,
-    page: 1,
-    limit: 10,
-  });
-  const [unban] = useDeleteCommunityRestrictionMutation();
+  const { bannedUsers, isLoading, unbanUser } = useBannedUsers();
 
   if (isLoading) return <div className="p-4">Loading banned users...</div>;
 
   return (
     <div className="space-y-3">
-      {restrictions?.data.length === 0 ? (
+      {bannedUsers.length === 0 ? (
         <div className="text-center py-10 bg-gray-50 rounded-lg border">
-          <p className="text-gray-500 italic">No banned users in this community.</p>
+          <p className="text-gray-500 italic">
+            No banned users in this community.
+          </p>
         </div>
       ) : (
-        restrictions?.data.map((restriction) => (
-          <div key={restriction.id} className="flex justify-between items-center p-4 bg-white rounded-lg border border-gray-200">
+        bannedUsers.map((restriction) => (
+          <div
+            key={restriction.id}
+            className="flex justify-between items-center p-4 bg-white rounded-lg border border-gray-200"
+          >
             <div>
-              <p className="font-medium text-gray-900 text-lg">{restriction.user.username}</p>
+              <p className="font-medium text-gray-900 text-lg">
+                {restriction.user.username}
+              </p>
               <p className="text-sm text-gray-700">{restriction.reason}</p>
               <p className="text-xs text-gray-500 italic">
                 Banned on {new Date(restriction.createdAt).toLocaleDateString()}
-                {restriction.expiresAt && ` - Expires on ${new Date(restriction.expiresAt).toLocaleDateString()}`}
+                {restriction.expiresAt &&
+                  ` - Expires on ${new Date(
+                    restriction.expiresAt
+                  ).toLocaleDateString()}`}
               </p>
             </div>
             <div className="flex gap-2">
-              <Button size="sm" onClick={() => unban(restriction.id)} className="bg-red-600 hover:bg-red-700">Unban</Button>
+              <Button
+                size="sm"
+                onClick={() => unbanUser(restriction.id)}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                Unban
+              </Button>
             </div>
           </div>
         ))
@@ -14342,8 +14883,165 @@ export const {
 ---
 
 
+### FILE: frontend/src/features/community-restrictions/hooks/useCreateRestriction.ts ###
+import { useState } from 'react';
+import { CommunityRestrictionType } from '../types';
+import { useGetCommunityMembershipsQuery } from '../../community-memberships/services/communityMembershipsApi';
+import type { CommunityMembershipQueryDto } from '../../community-memberships/types';
+import { useCreateCommunityRestrictionMutation } from '../services/communityRestrictionsApi';
+
+interface UseCreateRestrictionProps {
+  communityId: number;
+  onSuccess: () => void;
+}
+
+interface SearchableUser {
+  id: number;
+  label: string;
+}
+
+export const useCreateRestriction = ({
+  communityId,
+  onSuccess,
+}: UseCreateRestrictionProps) => {
+  const [selectedUser, setSelectedUser] = useState<SearchableUser | null>(null);
+  const [userSearchTerm, setUserSearchTerm] = useState<string>('');
+  const [restrictionType, setRestrictionType] =
+    useState<CommunityRestrictionType>(CommunityRestrictionType.BAN);
+  const [reason, setReason] = useState<string>('');
+  const [expiresAt, setExpiresAt] = useState<string>('');
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const communityMembershipsQueryParams: CommunityMembershipQueryDto = {
+    communityId: communityId,
+    limit: 100,
+  };
+  const { data: membersResponse, isLoading: isLoadingMembers } =
+    useGetCommunityMembershipsQuery(communityMembershipsQueryParams);
+
+  const [createRestriction, { isLoading: isCreating }] =
+    useCreateCommunityRestrictionMutation();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormError(null);
+
+    if (!selectedUser) {
+      setFormError('Please select a user.');
+      return;
+    }
+
+    try {
+      await createRestriction({
+        communityId,
+        userId: selectedUser.id,
+        restrictionType,
+        reason: reason || undefined,
+        expiresAt: expiresAt ? new Date(expiresAt).toISOString() : undefined,
+      }).unwrap();
+      onSuccess();
+    } catch (err: any) {
+      setFormError(err.data?.message || 'Failed to create restriction.');
+    }
+  };
+
+  const allMembers = membersResponse?.data ?? [];
+  const searchableMembers: SearchableUser[] = allMembers.map((member) => ({
+    id: member.userId,
+    label: member.user.username,
+  }));
+
+  const filteredMembers = searchableMembers.filter((member) =>
+    member.label.toLowerCase().includes(userSearchTerm.toLowerCase())
+  );
+
+  return {
+    form: {
+      selectedUser,
+      setSelectedUser,
+      userSearchTerm,
+      setUserSearchTerm,
+      restrictionType,
+      setRestrictionType,
+      reason,
+      setReason,
+      expiresAt,
+      setExpiresAt,
+      formError,
+    },
+    members: {
+      isLoadingMembers,
+      filteredMembers,
+    },
+    submission: {
+      handleSubmit,
+      isCreating,
+    },
+  };
+};
+
+---
+
+
+### FILE: frontend/src/features/community-restrictions/hooks/useMutedUsers.ts ###
+import { useParams } from 'react-router-dom';
+import {
+  useGetCommunityRestrictionsQuery,
+  useDeleteCommunityRestrictionMutation,
+} from '../services/communityRestrictionsApi';
+import { CommunityRestrictionType } from '../types';
+
+export const useMutedUsers = () => {
+  const { communityId } = useParams();
+  const { data: restrictions, isLoading } = useGetCommunityRestrictionsQuery({
+    communityId: +communityId,
+    restrictionType: CommunityRestrictionType.MUTE,
+    page: 1,
+    limit: 10,
+  });
+  const [unmute] = useDeleteCommunityRestrictionMutation();
+
+  return {
+    mutedUsers: restrictions?.data ?? [],
+    isLoading,
+    unmuteUser: unmute,
+  };
+};
+
+---
+
+
+### FILE: frontend/src/features/community-restrictions/hooks/useBannedUsers.ts ###
+import { useParams } from 'react-router-dom';
+import {
+  useGetCommunityRestrictionsQuery,
+  useDeleteCommunityRestrictionMutation,
+} from '../services/communityRestrictionsApi';
+import { CommunityRestrictionType } from '../types';
+
+export const useBannedUsers = () => {
+  const { communityId } = useParams();
+  const { data: restrictions, isLoading } = useGetCommunityRestrictionsQuery({
+    communityId: +communityId,
+    restrictionType: CommunityRestrictionType.BAN,
+    page: 1,
+    limit: 10,
+  });
+  const [unban] = useDeleteCommunityRestrictionMutation();
+
+  return {
+    bannedUsers: restrictions?.data ?? [],
+    isLoading,
+    unbanUser: unban,
+  };
+};
+
+---
+
+
 ### FILE: frontend/src/features/comments/types.ts ###
 import type { ReactionType } from "../reactions/types/types";
+import type { Post } from "../../posts/types";
 
 export interface Comment {
     id: number;
@@ -14351,6 +15049,7 @@ export interface Comment {
     author: {
         id: number;
         name: string;
+        username: string;
     };
     postId: number;
     parentId?: number; // For replies
@@ -14359,6 +15058,7 @@ export interface Comment {
     repliesCount: number;
     userReaction?: { id: number; type: ReactionType } | null;
     replies?: Comment[]; // Added for nested replies
+    post?: Post; // Re-added for UserCommentCard
 
     createdAt: string;
     updatedAt: string;
@@ -14403,11 +15103,10 @@ export interface ResponseDto<T> {
 
 
 ### FILE: frontend/src/features/comments/components/CommentInput.tsx ###
-import React, { useState } from 'react';
-import { useCreateCommentMutation } from '../services/commentsApi';
-import { useToastContext } from '../../../shared/providers/ToastProvider';
+import React from 'react';
 import { Button } from '../../../shared/components/ui/Button';
 import { Textarea } from '../../../shared/components/ui/TextArea';
+import { useComments } from '../hooks/useComments';
 
 interface CommentInputProps {
   postId: number;
@@ -14426,26 +15125,14 @@ export const CommentInput: React.FC<CommentInputProps> = ({
   autoFocus = false,
   initialContent = '',
 }) => {
-  const [content, setContent] = useState(initialContent);
-  const [createComment, { isLoading }] = useCreateCommentMutation();
-  const { showToast } = useToastContext();
+  const { content, setContent, handleCreateComment, isCreating } = useComments({
+    postId,
+    parentId,
+  });
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!content.trim()) {
-      showToast('Comment cannot be empty', 'error');
-      return;
-    }
-
-    try {
-      await createComment({ postId, data: { content, parentId } }).unwrap();
-      setContent('');
-      showToast('Comment posted successfully', 'success');
-      onCommentPosted?.();
-    } catch (error: any) {
-      const errorMessage = error.data?.message || error.message || 'Failed to post comment';
-      showToast(errorMessage, 'error');
-    }
+    handleCreateComment(onCommentPosted, content || initialContent);
   };
 
   return (
@@ -14453,7 +15140,7 @@ export const CommentInput: React.FC<CommentInputProps> = ({
       <Textarea
         rows={parentId ? 2 : 4} // Smaller for replies
         placeholder={parentId ? 'Write a reply...' : 'Write a comment...'}
-        value={content}
+        value={content || initialContent}
         onChange={(e) => setContent(e.target.value)}
         autoFocus={autoFocus}
       />
@@ -14463,8 +15150,8 @@ export const CommentInput: React.FC<CommentInputProps> = ({
             Cancel
           </Button>
         )}
-        <Button type="submit" >
-          {parentId ? 'Reply' : 'Comment'}
+        <Button type="submit" disabled={isCreating}>
+          {isCreating ? 'Replying...' : parentId ? 'Reply' : 'Comment'}
         </Button>
       </div>
     </form>
@@ -14474,80 +15161,42 @@ export const CommentInput: React.FC<CommentInputProps> = ({
 
 
 ### FILE: frontend/src/features/comments/components/CommentCard.tsx ###
-import { useState, useMemo, useEffect, useRef } from 'react';
-import type { Comment } from '../types';
 import { FaUser, FaReply } from 'react-icons/fa';
+import type { Comment } from '../types';
 import { CommentReactionButtons } from '../../reactions/components/CommentReactionButtons';
-import { useGetCommentsInfiniteQuery } from '../services/commentsApi'; // UPDATED IMPORT
 import { Button } from '../../../shared/components/ui/Button';
-import { CommentInput } from './CommentInput'; // Import CommentInput
+import { CommentInput } from './CommentInput';
 import { timeAgo } from '../../../shared/utils/date';
+import { useCommentCard } from '../hooks/useCommentCard';
 
 interface CommentCardProps {
   comment: Comment;
   postId: number;
-  level: number; // Ensure level is passed
+  level: number;
 }
-
-const REPLIES_LIMIT = 2;
 
 const CommentCard: React.FC<CommentCardProps> = ({
   comment,
   postId,
   level,
 }) => {
-const [showReplies, setShowReplies] = useState(false);
-useEffect(() => {
-  if (comment.repliesCount > 0) {
-    setShowReplies(true);
-  }
-}, [comment.repliesCount]);
-  const [showReplyInput, setShowReplyInput] = useState(false); // State for reply input visibility
-
-  const initialReplies = comment.replies ?? [];
-  const initialRepliesCount = initialReplies.length;
-
-  const hasMoreRepliesThanInitial = comment.repliesCount > initialRepliesCount;
-
-  // Calculate the initial page parameter for the infinite query
-  // If we already have initial replies, start fetching from the next page
-  const initialQueryPageParam = 1
-  const MAX_DEPTH = 2;
-
-if (level > MAX_DEPTH) {
-  return null;
-}
-
-
   const {
-    data,
+    showReplies,
+    setShowReplies,
+    showReplyInput,
+    setShowReplyInput,
+    allReplies,
+    remainingReplies,
+    handleReplyPosted,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useGetCommentsInfiniteQuery( // UPDATED HOOK CALL
-    { postId, parentId: comment.id, limit: REPLIES_LIMIT }, // Pass queryArg object
-    {
-      initialPageParam: initialQueryPageParam,
-      skip: !showReplies || !hasMoreRepliesThanInitial,
-    }
-  );
+    shouldRender,
+  } = useCommentCard({ comment, postId, level });
 
-  const allReplies = useMemo(() => {
-    const fetchedReplies = data?.pages.flatMap(page => page.data) || [];
-    const combinedReplies = [...initialReplies, ...fetchedReplies];
-
-    const map = new Map<number, Comment>();
-    combinedReplies.forEach(reply => map.set(reply.id, reply));
-
-    return [...map.values()].sort(
-      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-    );
-  }, [initialReplies, data]);
-  const remainingReplies = Math.max(0, comment.repliesCount - allReplies.length);
-  const handleReplyPosted = () => {
-    setShowReplyInput(false);
-    // Rely on RTK Query cache invalidation for UI update
-  };
+  if (!shouldRender) {
+    return null;
+  }
 
   return (
     <div className="mb-3">
@@ -14555,44 +15204,37 @@ if (level > MAX_DEPTH) {
       <div className="rounded-lg border border-gray-300 bg-white p-4 ">
         <div className="mb-2 flex items-center text-sm text-gray-500">
           <FaUser className="mr-1" />
-          <span>u/{comment.author.name}</span> {/* CHANGED TO USERNAME */}
+          <span>u/{comment.author.name}</span>
           <span className="mx-1">•</span>
-          <span className='text-xs'>
-            {timeAgo(comment.createdAt)}
-          </span>
+          <span className="text-xs">{timeAgo(comment.createdAt)}</span>
         </div>
 
         {/* DEBUG */}
         <div className="mb-1 text-xs text-gray-400">
-          id: {comment.id}, parentId:{' '}
-          {comment.parentId ?? 'null'}
-          { showReplies? " 1" : " 0"}
+          id: {comment.id}, parentId: {comment.parentId ?? 'null'}
+          {showReplies ? ' 1' : ' 0'}
         </div>
 
-        <p className="mb-3 text-sm text-gray-800">
-          {comment.content}
-        </p>
+        <p className="mb-3 text-sm text-gray-800">{comment.content}</p>
 
         <div className="flex items-center space-x-4 text-xs text-gray-500">
           <CommentReactionButtons comment={comment} />
 
           <button
-            onClick={() => setShowReplyInput(v => !v)} // Toggle reply input
+            onClick={() => setShowReplyInput((v) => !v)}
             className="flex items-center space-x-1 hover:text-primary-600"
           >
             <FaReply />
             <span>Reply</span>
           </button>
 
-            {comment.repliesCount > 0 && (
-            <Button onClick={() => setShowReplies(v => !v)} variant="link">
-              {showReplies ? (
-                `Hide replies (${comment.repliesCount})`
-              ) : remainingReplies > 0 ? (
-                `+ Load replies (${remainingReplies} remaining)`
-              ) : (
-                `View replies (${comment.repliesCount})`
-              )}
+          {comment.repliesCount > 0 && (
+            <Button onClick={() => setShowReplies((v) => !v)} variant="link">
+              {showReplies
+                ? `Hide replies (${comment.repliesCount})`
+                : remainingReplies > 0
+                ? `+ Load replies (${remainingReplies} remaining)`
+                : `View replies (${comment.repliesCount})`}
             </Button>
           )}
         </div>
@@ -14613,7 +15255,7 @@ if (level > MAX_DEPTH) {
       {/* REPLIES */}
       {showReplies && allReplies.length > 0 && (
         <div className="mt-3 ml-6 border-l border-gray-200 pl-4">
-          {allReplies.map(reply => (
+          {allReplies.map((reply) => (
             <CommentCard
               key={reply.id}
               comment={reply}
@@ -14626,11 +15268,7 @@ if (level > MAX_DEPTH) {
 
       {showReplies && hasNextPage && (
         <div className="flex justify-center mt-2 ml-6">
-          <Button
-            variant='link'
-            onClick={fetchNextPage}
-            disabled={isFetchingNextPage}
-          >
+          <Button variant="link" onClick={fetchNextPage} disabled={isFetchingNextPage}>
             {isFetchingNextPage
               ? 'Loading more replies…'
               : '+ Load more replies'}
@@ -14642,8 +15280,6 @@ if (level > MAX_DEPTH) {
 };
 
 export default CommentCard;
-
-
 
 ---
 
@@ -14697,47 +15333,48 @@ export default UserCommentList;
 
 
 ### FILE: frontend/src/features/comments/components/CommentList.tsx ###
+import type { Comment } from '../types';
 import { Button } from '../../../shared/components/ui/Button';
 import CommentCard from './CommentCard';
-import type { Comment } from '../types'; // Import Comment type
- // Import Comment type
+import { useComments } from '../hooks/useComments';
 
 interface CommentListProps {
-    comments: Comment[]; // Accept comments as a prop
-    fetchNextPage: () => void;
-    hasNextPage: boolean;
-    isFetchingNextPage: boolean;
-    isLoading?: boolean; // Optional loading state from parent
+  postId: number;
 }
 
-const CommentList: React.FC<CommentListProps> = ({
+const CommentList: React.FC<CommentListProps> = ({ postId }) => {
+  const {
     comments,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-    isLoading,
-}) => {
-    if (isLoading) return <div>Loading comments...</div>;
-console.log(comments);
+    isLoadingComments,
+    pagination: { fetchNextPage, hasNextPage, isFetchingNextPage },
+  } = useComments({ postId });
 
-    return (
-        <div className="space-y-4">
-            {comments.length === 0 ? (
-                <p>No comments found.</p>
-            ) : (
-                comments.map((comment) => (
-                    <CommentCard key={comment.id} comment={comment} level={0} postId={comment.postId} />
-                ))
-            )}
-            {hasNextPage && (
-                <div className="flex justify-center mt-4">
-                    <Button onClick={() => fetchNextPage()} disabled={isFetchingNextPage}>
-                        {isFetchingNextPage ? 'Loading more...' : 'Load More Comments'}
-                    </Button>
-                </div>
-            )}
+  if (isLoadingComments && !comments.length)
+    return <div>Loading comments...</div>;
+
+  return (
+    <div className="space-y-4">
+      {comments.length === 0 ? (
+        <p>No comments found.</p>
+      ) : (
+        comments.map((comment: Comment) => (
+          <CommentCard
+            key={comment.id}
+            comment={comment}
+            level={0}
+            postId={comment.postId}
+          />
+        ))
+      )}
+      {hasNextPage && (
+        <div className="flex justify-center mt-4">
+          <Button onClick={fetchNextPage} disabled={isFetchingNextPage}>
+            {isFetchingNextPage ? 'Loading more...' : 'Load More Comments'}
+          </Button>
         </div>
-    );
+      )}
+    </div>
+  );
 };
 
 export default CommentList;
@@ -14758,7 +15395,8 @@ interface UserCommentCardProps {
 
 const UserCommentCard: React.FC<UserCommentCardProps> = ({ comment }) => {
   const navigate = useNavigate();
-
+  console.log(comment.post);
+  
   const handleCardClick = () => {
     if (comment.post?.id) {
       navigate(`/posts/${comment.post.id}`);
@@ -14781,7 +15419,10 @@ const UserCommentCard: React.FC<UserCommentCardProps> = ({ comment }) => {
           <>
             <span className="mx-1">•</span>
             <FaQuoteLeft className="mr-1 text-xs" />
-            <span className="text-xs font-semibold">on "{comment.post.title}"</span>
+            <span className="text-xs font-semibold">
+              on "{comment.post.title}"
+              {comment.post.community && ` in c/${comment.post.community.name}`}
+            </span>
           </>
         )}
       </div>
@@ -14819,11 +15460,11 @@ export const commentsApi = apiSlice.injectEndpoints({
                     return page < totalPages ? page + 1 : undefined;
                 },
             },
-            query: ({ queryArg, pageParam }) => ({ // postId taken from queryArg
-                url: `/comments`, // Generic URL
+            query: ({ queryArg, pageParam }) => ({
+                url: `/comments`,
                 params: {
-                    ...(queryArg ?? {}),
-                    page: pageParam,
+                    ...queryArg, // Pass other query arguments
+                    page: pageParam, // Explicitly use pageParam for the page number
                     limit: queryArg?.limit ?? 10,
                 },
             }),
@@ -14866,6 +15507,177 @@ export const {
 ---
 
 
+### FILE: frontend/src/features/comments/hooks/useCommentCard.ts ###
+import { useState, useMemo, useEffect } from 'react';
+import type { Comment } from '../types';
+import { useGetCommentsInfiniteQuery } from '../services/commentsApi';
+
+const REPLIES_LIMIT = 2;
+const MAX_DEPTH = 5;
+
+interface UseCommentCardProps {
+  comment: Comment;
+  postId: number;
+  level: number;
+}
+
+export const useCommentCard = ({
+  comment,
+  postId,
+  level,
+}: UseCommentCardProps) => {
+  const [showReplies, setShowReplies] = useState(false);
+  useEffect(() => {
+    if (comment.repliesCount > 0) {
+      setShowReplies(true);
+    }
+  }, [comment.repliesCount]);
+
+  const [showReplyInput, setShowReplyInput] = useState(false);
+
+  const initialReplies = comment.replies ?? [];
+  const initialRepliesCount = initialReplies.length;
+  const hasMoreRepliesThanInitial = comment.repliesCount > initialRepliesCount;
+
+  const initialQueryPageParam = 1;
+
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useGetCommentsInfiniteQuery(
+      { postId, parentId: comment.id, limit: REPLIES_LIMIT },
+      {
+        initialPageParam: initialQueryPageParam,
+        skip: !showReplies || !hasMoreRepliesThanInitial,
+      }
+    );
+
+  const allReplies = useMemo(() => {
+    const fetchedReplies = data?.pages.flatMap((page) => page.data) || [];
+    const combinedReplies = [...initialReplies, ...fetchedReplies];
+
+    const map = new Map<number, Comment>();
+    combinedReplies.forEach((reply) => map.set(reply.id, reply));
+
+    return [...map.values()].sort(
+      (a, b) =>
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+  }, [initialReplies, data]);
+
+  const remainingReplies = Math.max(0, comment.repliesCount - allReplies.length);
+
+  const handleReplyPosted = () => {
+    setShowReplyInput(false);
+    // Rely on RTK Query cache invalidation for UI update
+  };
+
+  const shouldRender = level <= MAX_DEPTH;
+
+  return {
+    showReplies,
+    setShowReplies,
+    showReplyInput,
+    setShowReplyInput,
+    allReplies,
+    remainingReplies,
+    handleReplyPosted,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    shouldRender,
+  };
+};
+
+---
+
+
+### FILE: frontend/src/features/comments/hooks/useComments.ts ###
+import { useState, useMemo } from 'react';
+import {
+  useCreateCommentMutation,
+  useGetCommentsInfiniteQuery,
+} from '../services/commentsApi';
+import { useToastContext } from '../../../shared/providers/ToastProvider';
+
+interface UseCommentsProps {
+  postId: number;
+  parentId?: number;
+}
+
+export const useComments = ({ postId, parentId }: UseCommentsProps) => {
+  const [content, setContent] = useState('');
+  const [createComment, { isLoading: isCreating }] = useCreateCommentMutation();
+  const { showToast } = useToastContext();
+
+  const {
+    data: paginatedData,
+    isLoading: isLoadingComments,
+    isFetching: isFetchingComments,
+    refetch,
+    fetchNextPage, // Directly use fetchNextPage from the infinite query hook
+    hasNextPage,
+  } = useGetCommentsInfiniteQuery(
+    { postId, parentId, limit: 10 }, // No 'page' in queryArg, it's handled by infiniteQuery
+    {
+      // pollingInterval: 30000,
+      // refetchOnMountOrArgChange: true,
+    }
+  );
+
+  const comments = useMemo(
+    () => paginatedData?.pages.flatMap((page) => page.data) ?? [],
+    [paginatedData?.pages]
+  );
+  const meta = useMemo(
+    () => paginatedData?.pages[paginatedData.pages.length - 1]?.meta,
+    [paginatedData?.pages]
+  );
+
+  const handleCreateComment = async (
+    onCommentPosted?: () => void,
+    commentContent?: string
+  ) => {
+    const finalContent = commentContent || content;
+    if (!finalContent.trim()) {
+      showToast('Comment cannot be empty', 'error');
+      return;
+    }
+
+    try {
+      await createComment({
+        postId,
+        data: { content: finalContent, parentId },
+      }).unwrap();
+      setContent('');
+      showToast('Comment posted successfully', 'success');
+      onCommentPosted?.();
+      refetch();
+    } catch (error: any) {
+      const errorMessage =
+        error.data?.message || error.message || 'Failed to post comment';
+      showToast(errorMessage, 'error');
+    }
+  };
+
+  return {
+    content,
+    setContent,
+    handleCreateComment,
+    isCreating,
+    comments,
+    isLoadingComments,
+    isFetchingComments,
+    refetchComments: refetch,
+    pagination: {
+      fetchNextPage, // Directly expose fetchNextPage
+      hasNextPage,
+      isFetchingNextPage: isFetchingComments && hasNextPage, // Adjusted logic for isFetchingNextPage
+    },
+  };
+};
+
+---
+
+
 ### FILE: frontend/src/App.tsx ###
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import AuthGuard from './features/auth/components/AuthGard';
@@ -14882,42 +15694,56 @@ import PostDetailPage from './features/posts/pages/PostDetailPage';
 import MainLayout from './layout/MainLayout';
 import ModLayout from './layout/ModLayout';
 import { ModQueuesPage } from './features/communities/pages/QueuesPage';
-import { ModMembersPage } from './features/community-memberships/pages/MembersPage';
-import { ModModeratorsPage } from './features/community-memberships/pages/ModeratorsPage';
+import { MembersPage } from './features/community-memberships/pages/MembersPage';
+import { ModeratorsPage } from './features/community-memberships/pages/ModeratorsPage';
 import { RestrictedUsersPage } from './features/community-restrictions/pages/RestrictedUsersPage';
 import { ProfilePage } from './features/profile/pages/ProfilePage';
-// ... other imports
+import { useGetProfileQuery } from './features/auth/services/authApi';
+import { useEffect } from 'react';
+
+const SessionLoader = ({ children }: { children: React.ReactNode }) => {
+  const { isLoading } = useGetProfileQuery();
+
+  if (isLoading) {
+    return <div>Loading session...</div>;
+  }
+
+  return <>{children}</>;
+};
+
 
 export default function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        {/* --- Public Auth Routes (No Sidebars) --- */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/email-verification" element={<EmailVerification />} />
-        <Route path="/verify-email" element={<VerificationResult />} />
+      <SessionLoader>
+        <Routes>
+          {/* --- Public Auth Routes (No Sidebars) --- */}
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/email-verification" element={<EmailVerification />} />
+          <Route path="/verify-email" element={<VerificationResult />} />
 
-        {/* --- Standard User Routes (with LeftSidebar) --- */}
-        <Route element={<MainLayout />}>
-          <Route path="/" element={<AuthGuard><FeedPage /></AuthGuard>} />
-          <Route path="/posts/:id" element={<AuthGuard><PostDetailPage /></AuthGuard>} />
-          <Route path="/submit" element={<AuthGuard><CreatePostPage /></AuthGuard>} />
-          <Route path="/communities/:communityId" element={<AuthGuard><CommunityPage /></AuthGuard>} />
-          <Route path="/my-communities" element={<AuthGuard><MyCommunitiesPage /></AuthGuard>} />
-          <Route path="/explore-communities" element={<AuthGuard><ExploreCommunitiesPage /></AuthGuard>} />
-          <Route path="/profile/:userId" element={<AuthGuard><ProfilePage /></AuthGuard>} /> {/* Changed Route */}
-        </Route>
+          {/* --- Standard User Routes (with LeftSidebar) --- */}
+          <Route element={<MainLayout />}>
+            <Route path="/" element={<AuthGuard><FeedPage /></AuthGuard>} />
+            <Route path="/posts/:id" element={<AuthGuard><PostDetailPage /></AuthGuard>} />
+            <Route path="/submit" element={<AuthGuard><CreatePostPage /></AuthGuard>} />
+            <Route path="/communities/:communityId" element={<AuthGuard><CommunityPage /></AuthGuard>} />
+            <Route path="/my-communities" element={<AuthGuard><MyCommunitiesPage /></AuthGuard>} />
+            <Route path="/explore-communities" element={<AuthGuard><ExploreCommunitiesPage /></AuthGuard>} />
+            <Route path="/profile/:userId" element={<AuthGuard><ProfilePage /></AuthGuard>} /> {/* Changed Route */}
+          </Route>
 
-        {/* --- Moderation Routes (with ModSidebar) --- */}
-        <Route path="/mod/community/:communityId" element={<AuthGuard><ModLayout /></AuthGuard>}>
-          <Route index element={<Navigate to="queues" replace />} />
-          <Route path="queues" element={<ModQueuesPage />} />
-          <Route path="members" element={<ModMembersPage />} />
-          <Route path="moderators" element={<ModModeratorsPage />} />
-          <Route path="restricted-users" element={<RestrictedUsersPage />} /> {/* New Route */}
-        </Route>
-      </Routes>
+          {/* --- Moderation Routes (with ModSidebar) --- */}
+          <Route path="/mod/community/:communityId" element={<AuthGuard><ModLayout /></AuthGuard>}>
+            <Route index element={<Navigate to="queues" replace />} />
+            <Route path="queues" element={<ModQueuesPage />} />
+            <Route path="members" element={<MembersPage />} />
+            <Route path="moderators" element={<ModeratorsPage />} />
+            <Route path="restricted-users" element={<RestrictedUsersPage />} /> {/* New Route */}
+          </Route>
+        </Routes>
+      </SessionLoader>
     </BrowserRouter>
   );
 }
