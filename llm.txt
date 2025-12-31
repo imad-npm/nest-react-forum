@@ -2856,11 +2856,12 @@ async function bootstrap() {
       },
     }),
   );
-     app.setGlobalPrefix('api'); // all routes will now start with /api
+  app.setGlobalPrefix('api'); // all routes will now start with /api
 
-app.enableCors({
-  origin: '*', // allow any origin
-});
+  app.enableCors({
+    origin: 'http://localhost:5173', // Change this to your frontend URL  
+    credentials: true,
+  });
 
   // Get ConfigService instance
   const configService = app.get(ConfigService);
@@ -6916,6 +6917,34 @@ async validateUser(email: string, password: string): Promise<User> {
 ---
 
 
+### FILE: backend/src/auth/utils/time.util.ts ###
+// src/auth/util/time.util.ts
+
+/**
+ * Parses a JWT expiresIn string (e.g., "30d", "1h") into milliseconds.
+ * @param expiresIn The string to parse.
+ * @returns The equivalent duration in milliseconds.
+ */
+export function parseExpiresInToMs(expiresIn: string): number {
+  const value = parseInt(expiresIn.slice(0, -1));
+  const unit = expiresIn.slice(-1);
+
+  if (isNaN(value)) {
+    return parseInt(expiresIn); // Assume it's already in ms if parsing fails
+  }
+
+  switch (unit) {
+    case 's': return value * 1000;
+    case 'm': return value * 60 * 1000;
+    case 'h': return value * 60 * 60 * 1000;
+    case 'd': return value * 24 * 60 * 60 * 1000;
+    default: return parseInt(expiresIn); // Fallback for plain numbers
+  }
+}
+
+---
+
+
 ### FILE: backend/src/auth/dtos/register.dto.ts ###
 import { IsEmail, IsString, MinLength } from 'class-validator';
 
@@ -6983,12 +7012,16 @@ import { UserResponseDto } from 'src/users/dtos/user-response.dto';
 import { User } from 'src/users/entities/user.entity';
 import { ResponseDto } from 'src/common/dto/response.dto';
 import type { Response } from 'express';
+import { parseExpiresInToMs } from './utils/time.util';
+import { ConfigService } from '@nestjs/config';
+import { JwtAuthGuard } from './guards/jwt-auth.guard'; // Import JwtAuthGuard
 
 @Controller('auth')
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly emailVerificationService: EmailVerificationService,
+    private readonly configService: ConfigService,
   ) {}
 
   @Post('register')
@@ -7017,11 +7050,14 @@ export class AuthController {
     }
     const { accessToken, refreshToken } = await this.authService.signIn(req.user);
 
+    const refreshTokenExpiresIn = this.configService.getOrThrow<string>('JWT_REFRESH_EXPIRES_IN');
+    const maxAgeMs = parseExpiresInToMs(refreshTokenExpiresIn);
+
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV !== 'development', // Use secure cookies in production
       sameSite: 'strict',
-      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      maxAge: maxAgeMs, // Use dynamic maxAge
     });
 
     return new ResponseDto({
@@ -7046,6 +7082,12 @@ export class AuthController {
     });
   }
 
+  @Get('me') // Add this endpoint
+  @UseGuards(JwtAuthGuard)
+  async getMe(@Req() req: { user: User }): Promise<ResponseDto<UserResponseDto>> {
+    return new ResponseDto(UserResponseDto.fromEntity(req.user));
+  }
+
   @Get('google')
   @UseGuards(AuthGuard('google'))
   async googleAuth() {
@@ -7061,11 +7103,14 @@ export class AuthController {
     const user = await this.authService.googleLogin(req.user);
     const { accessToken, refreshToken } = await this.authService.signIn(user);
 
+    const refreshTokenExpiresIn = this.configService.getOrThrow<string>('JWT_REFRESH_EXPIRES_IN');
+    const maxAgeMs = parseExpiresInToMs(refreshTokenExpiresIn);
+
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV !== 'development',
       sameSite: 'strict',
-      maxAge: 30 * 24 * 60 * 60 * 1000,
+      maxAge: maxAgeMs, // Use dynamic maxAge
     });
 
     return new ResponseDto({
@@ -9928,13 +9973,14 @@ export default Home;
 import { Link } from 'react-router-dom';
 import { useState } from 'react';
 import { useAuth } from '../features/auth/hooks/useAuth';
+import { useProfile } from '../features/profile/hooks/useProfile';
 import LogoutButton from '../features/auth/components/LogoutButton';
 import { FaHome, FaSignInAlt, FaUserPlus, FaSignOutAlt, FaBell, FaPlus, FaCaretDown, FaUserCircle } from 'react-icons/fa'; // Import icons
 
 const Header = () => {
   const { isAuthenticated, user } = useAuth();
+  const profile = useProfile();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-console.log(user);
 
   const toggleDropdown = () => {
     setIsDropdownOpen(!isDropdownOpen);
@@ -9964,9 +10010,9 @@ console.log(user);
               {/* User Profile Dropdown */}
               <div className="relative">
                 <button onClick={toggleDropdown} className="flex items-center space-x-2 hover:text-gray-300 focus:outline-none">
-                  {user?.profilePictureUrl ? (
+                  {profile?.picture ? (
                     <img
-                      src={user.profilePictureUrl}
+                      src={profile.picture}
                       alt="Profile"
                       className="w-8 h-8 rounded-full object-cover"
                     />
@@ -9978,10 +10024,10 @@ console.log(user);
                 {isDropdownOpen && (
                   <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-700 rounded-md shadow-lg py-1 text-gray-800 dark:text-gray-200 z-10">
                     <Link
-                      to={`/profile/${user.id}`}
+                      to={user ? `/profile/${user.id}` : ''}
                       className="block px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-600"
                     >
-                      Profile (@{user.username})
+                      Profile (@{profile?.displayName})
                     </Link>
                     <Link to="/settings" className="block px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-600">
                       Settings
@@ -11391,6 +11437,413 @@ export const useReportsQueue = () => {
 ---
 
 
+### FILE: frontend/src/features/settings/pages/SettingsPage.tsx ###
+import React from 'react';
+import Tabs from '../components/Tabs';
+import ProfileSettings from '../components/ProfileSettings';
+import AccountSettings from '../components/AccountSettings';
+
+const SettingsPage = () => {
+  const tabs = [
+    {
+      label: 'Account',
+      content: <AccountSettings />,
+    },
+    {
+      label: 'Profile',
+      content: <ProfileSettings />,
+    },
+  ];
+
+  return (
+    <div className="container mx-auto py-8">
+      <h1 className="text-2xl font-bold mb-8">User Settings</h1>
+      <Tabs tabs={tabs} />
+    </div>
+  );
+};
+
+export default SettingsPage;
+
+---
+
+
+### FILE: frontend/src/features/settings/components/AccountSettings.tsx ###
+import React from 'react';
+import { useAuth } from '../../auth/hooks/useAuth';
+
+const AccountSettings = () => {
+  const { user } = useAuth();
+
+  if (!user) {
+    return <div>Loading user...</div>;
+  }
+
+  return (
+    <div>
+      <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4">
+        <dt className="text-sm font-medium text-gray-500">Email</dt>
+        <dd className="mt-1 flex text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+          <span className="flex-grow">{user.email}</span>
+          <button className="ml-4 bg-white py-2 px-3 border border-gray-300 rounded-md shadow-sm text-sm leading-4 font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+            Edit
+          </button>
+        </dd>
+      </div>
+      <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4">
+        <dt className="text-sm font-medium text-gray-500">Username</dt>
+        <dd className="mt-1 flex text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+          <span className="flex-grow">{user.username}</span>
+          <button className="ml-4 bg-white py-2 px-3 border border-gray-300 rounded-md shadow-sm text-sm leading-4 font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+            Edit
+          </button>
+        </dd>
+      </div>
+    </div>
+  );
+};
+
+export default AccountSettings;
+
+---
+
+
+### FILE: frontend/src/features/settings/components/forms/EditBioForm.tsx ###
+import React, { useState } from 'react';
+import  { Button } from '../../../../shared/components/ui/Button';
+import { useUpdateMyProfileMutation } from '../../../profile/services/profileApi';
+import { Textarea } from '../../../../shared/components/ui/TextArea';
+
+interface EditBioFormProps {
+  currentBio: string | null;
+  onClose: () => void;
+}
+
+const EditBioForm: React.FC<EditBioFormProps> = ({ currentBio, onClose }) => {
+  const [bio, setBio] = useState(currentBio || '');
+  const [updateProfile, { isLoading }] = useUpdateMyProfileMutation();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await updateProfile({ bio }).unwrap();
+      onClose();
+    } catch (err) {
+      console.error('Failed to update bio:', err);
+      // TODO: Display error message to the user
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label htmlFor="bio" className="block text-sm font-medium text-gray-700">
+          Bio
+        </label>
+        <Textarea
+          id="bio"
+          value={bio}
+          onChange={(e) => setBio(e.target.value)}
+          className="mt-1 block w-full"
+          rows={4}
+        />
+      </div>
+      <div className="flex justify-end space-x-2">
+        <Button type="button" variant="outline" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button type="submit" isLoading={isLoading}>
+          Save
+        </Button>
+      </div>
+    </form>
+  );
+};
+
+export default EditBioForm;
+
+---
+
+
+### FILE: frontend/src/features/settings/components/forms/EditPictureForm.tsx ###
+import React, { useState } from 'react';
+import  { Button } from '../../../../shared/components/ui/Button';
+import { useUpdateMyProfileMutation } from '../../../profile/services/profileApi';
+
+interface EditPictureFormProps {
+  currentPicture: string | null;
+  onClose: () => void;
+}
+
+const EditPictureForm: React.FC<EditPictureFormProps> = ({ currentPicture, onClose }) => {
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(currentPicture);
+  const [updateProfile, { isLoading }] = useUpdateMyProfileMutation();
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setSelectedFile(file);
+      setPreview(URL.createObjectURL(file));
+    } else {
+      setSelectedFile(null);
+      setPreview(currentPicture);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedFile) {
+      console.warn('No file selected.');
+      return;
+    }
+
+    try {
+      await updateProfile({ pictureFile: selectedFile }).unwrap();
+      onClose();
+    } catch (err) {
+      console.error('Failed to update profile picture:', err);
+      // TODO: Display error message to the user
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label htmlFor="picture" className="block text-sm font-medium text-gray-700">
+          Profile Picture
+        </label>
+        <div className="mt-1 flex items-center space-x-4">
+          {preview && (
+            <img src={preview} alt="Profile Preview" className="w-20 h-20 rounded-full object-cover" />
+          )}
+          <input
+            type="file"
+            id="picture"
+            accept="image/*"
+            onChange={handleFileChange}
+            className="block w-full text-sm text-gray-500
+                       file:mr-4 file:py-2 file:px-4
+                       file:rounded-full file:border-0
+                       file:text-sm file:font-semibold
+                       file:bg-indigo-50 file:text-indigo-700
+                       hover:file:bg-indigo-100"
+          />
+        </div>
+      </div>
+      <div className="flex justify-end space-x-2">
+        <Button type="button" variant="outline" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button type="submit" isLoading={isLoading} disabled={!selectedFile}>
+          Save
+        </Button>
+      </div>
+    </form>
+  );
+};
+
+export default EditPictureForm;
+
+---
+
+
+### FILE: frontend/src/features/settings/components/forms/EditDisplayNameForm.tsx ###
+import React, { useState } from 'react';
+import  { Button } from '../../../../shared/components/ui/Button';
+import { Input } from '../../../../shared/components/ui/Input';
+import { useUpdateMyProfileMutation } from '../../../profile/services/profileApi';
+
+interface EditDisplayNameFormProps {
+  currentDisplayName: string;
+  onClose: () => void;
+}
+
+const EditDisplayNameForm: React.FC<EditDisplayNameFormProps> = ({
+  currentDisplayName,
+  onClose,
+}) => {
+  const [displayName, setDisplayName] = useState(currentDisplayName);
+  const [updateProfile, { isLoading }] = useUpdateMyProfileMutation();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await updateProfile({ displayName }).unwrap();
+      onClose();
+    } catch (err) {
+      console.error('Failed to update display name:', err);
+      // TODO: Display error message to the user
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label htmlFor="displayName" className="block text-sm font-medium text-gray-700">
+          Display Name
+        </label>
+        <Input
+          type="text"
+          id="displayName"
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          className="mt-1 block w-full"
+          required
+        />
+      </div>
+      <div className="flex justify-end space-x-2">
+        <Button type="button" variant="outline" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button type="submit" isLoading={isLoading}>
+          Save
+        </Button>
+      </div>
+    </form>
+  );
+};
+
+export default EditDisplayNameForm;
+
+---
+
+
+### FILE: frontend/src/features/settings/components/ProfileSettings.tsx ###
+import React, { useState } from 'react';
+import { useProfile } from '../../profile/hooks/useProfile';
+import { Modal } from '../../../shared/components/ui/Modal';
+import EditDisplayNameForm from './forms/EditDisplayNameForm';
+import EditBioForm from './forms/EditBioForm';
+import EditPictureForm from './forms/EditPictureForm';
+
+const ProfileSettings = () => {
+  const profile = useProfile();
+  const [isDisplayNameModalOpen, setIsDisplayNameModalOpen] = useState(false);
+  const [isBioModalOpen, setIsBioModalOpen] = useState(false);
+  const [isPictureModalOpen, setIsPictureModalOpen] = useState(false);
+
+
+  if (!profile) {
+    return <div>Loading profile...</div>;
+  }
+
+  return (
+    <div>
+      <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4">
+        <dt className="text-sm font-medium text-gray-500">Display Name</dt>
+        <dd className="mt-1 flex text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+          <span className="flex-grow">{profile.displayName}</span>
+          <button
+            onClick={() => setIsDisplayNameModalOpen(true)}
+            className="ml-4 bg-white py-2 px-3 border border-gray-300 rounded-md shadow-sm text-sm leading-4 font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          >
+            Edit
+          </button>
+        </dd>
+      </div>
+      <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4">
+        <dt className="text-sm font-medium text-gray-500">Bio</dt>
+        <dd className="mt-1 flex text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+          <span className="flex-grow">{profile.bio}</span>
+          <button
+            onClick={() => setIsBioModalOpen(true)}
+            className="ml-4 bg-white py-2 px-3 border border-gray-300 rounded-md shadow-sm text-sm leading-4 font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          >
+            Edit
+          </button>
+        </dd>
+      </div>
+      <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4">
+        <dt className="text-sm font-medium text-gray-500">Picture</dt>
+        <dd className="mt-1 flex text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+          <span className="flex-grow">
+            <img src={profile.picture} alt="Profile" className="w-10 h-10 rounded-full" />
+          </span>
+          <button
+            onClick={() => setIsPictureModalOpen(true)}
+            className="ml-4 bg-white py-2 px-3 border border-gray-300 rounded-md shadow-sm text-sm leading-4 font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          >
+            Edit
+          </button>
+        </dd>
+      </div>
+
+      <Modal open={isDisplayNameModalOpen} onClose={() => setIsDisplayNameModalOpen(false)} title="Edit Display Name">
+        <EditDisplayNameForm
+          currentDisplayName={profile.displayName}
+          onClose={() => setIsDisplayNameModalOpen(false)}
+        />
+      </Modal>
+
+      <Modal open={isBioModalOpen} onClose={() => setIsBioModalOpen(false)} title="Edit Bio">
+        <EditBioForm
+          currentBio={profile.bio}
+          onClose={() => setIsBioModalOpen(false)}
+        />
+      </Modal>
+
+      <Modal open={isPictureModalOpen} onClose={() => setIsPictureModalOpen(false)} title="Edit Profile Picture">
+        <EditPictureForm
+          currentPicture={profile.picture}
+          onClose={() => setIsPictureModalOpen(false)}
+        />
+      </Modal>
+
+
+    </div>
+  );
+};
+
+export default ProfileSettings;
+
+---
+
+
+### FILE: frontend/src/features/settings/components/Tabs.tsx ###
+import React, { useState } from 'react';
+
+interface Tab {
+  label: string;
+  content: React.ReactNode;
+}
+
+interface TabsProps {
+  tabs: Tab[];
+}
+
+const Tabs: React.FC<TabsProps> = ({ tabs }) => {
+  const [activeTab, setActiveTab] = useState(0);
+
+  return (
+    <div>
+      <div className="border-b border-gray-200">
+        <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+          {tabs.map((tab, index) => (
+            <button
+              key={tab.label}
+              onClick={() => setActiveTab(index)}
+              className={`${
+                activeTab === index
+                  ? 'border-indigo-500 text-indigo-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+      </div>
+      <div className="mt-8">{tabs[activeTab].content}</div>
+    </div>
+  );
+};
+
+export default Tabs;
+
+---
+
+
 ### FILE: frontend/src/features/posts/types.ts ###
 import type { ReactionType } from "../reactions/types/types";
 
@@ -12327,7 +12780,7 @@ export interface RegisterDto {
 
   export interface UserResponseDto {
     id: string;
-    name: string;
+    username: string;
     email: string;
   }
 
@@ -12667,17 +13120,14 @@ export default AuthGuard;
 
 
 ### FILE: frontend/src/features/auth/stores/authSlice.ts ###
-import { createSlice } from '@reduxjs/toolkit';
-import type { UserResponseDto } from '../types';
+import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import { authApi } from '../services/authApi';
 
 interface AuthState {
-  user: UserResponseDto | null;
   accessToken: string | null;
 }
 
 const initialState: AuthState = {
-  user: null,
   accessToken: null,
 };
 
@@ -12685,37 +13135,16 @@ const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
-    // This is a synchronous logout action for immediate UI updates if needed.
-    // The main logout logic is handled by the API mutation.
+    setAccessToken: (state, action: PayloadAction<string | null>) => {
+      state.accessToken = action.payload;
+    },
     logout: (state) => {
-      state.user = null;
       state.accessToken = null;
     },
   },
-  extraReducers: (builder) => {
-    builder
-      .addMatcher(
-        authApi.endpoints.login.matchFulfilled,
-        (state, action) => {
-          state.user = action.payload.data.user;
-          state.accessToken = action.payload.data.accessToken;
-        }
-      )
-      .addMatcher(
-        authApi.endpoints.getProfile.matchFulfilled,
-        (state, action) => {
-          state.user = action.payload.data.user;
-          state.accessToken = action.payload.data.accessToken;
-        }
-      )
-      .addMatcher(authApi.endpoints.logout.matchFulfilled, (state) => {
-        state.user = null;
-        state.accessToken = null;
-      });
-  },
 });
 
-export const { logout } = authSlice.actions;
+export const { setAccessToken, logout } = authSlice.actions;
 
 export default authSlice.reducer;
 
@@ -12725,6 +13154,7 @@ export default authSlice.reducer;
 ### FILE: frontend/src/features/auth/services/authApi.ts ###
 import { apiSlice } from '../../../shared/services/apiSlice';
 import type { LoginDto, RegisterDto, UserResponseDto, ResponseDto } from '../types';
+import { setAccessToken, logout as authLogout } from '../stores/authSlice'; // Import setAccessToken and rename logout
 
 export const authApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
@@ -12734,6 +13164,7 @@ export const authApi = apiSlice.injectEndpoints({
         method: 'POST',
         body: credentials,
       }),
+      invalidatesTags: ['Me'],
     }),
     login: builder.mutation<ResponseDto<{ user: UserResponseDto, accessToken: string }>, LoginDto>({
       query: (credentials) => ({
@@ -12741,15 +13172,42 @@ export const authApi = apiSlice.injectEndpoints({
         method: 'POST',
         body: credentials,
       }),
+      invalidatesTags: ['Me'],
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        try {
+          const { data } = await queryFulfilled;
+          dispatch(setAccessToken(data.data.accessToken));
+        } catch (error) {
+          // Handle error if needed
+        }
+      },
     }),
     logout: builder.mutation<ResponseDto<null>, void>({
       query: () => ({
         url: 'auth/logout',
         method: 'POST',
       }),
+      invalidatesTags: ['Me'],
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        await queryFulfilled;
+        dispatch(authLogout());
+      },
     }),
-    getProfile: builder.query<ResponseDto<{ user: UserResponseDto, accessToken: string }>, void>({
+    getMe: builder.query<ResponseDto<UserResponseDto>, void>({
+      query: () => 'auth/me',
+      providesTags: ['Me'],
+    }),
+
+    refresh: builder.query<ResponseDto<{ user: UserResponseDto, accessToken: string }>, void>({
       query: () => 'auth/refresh', // This endpoint on the backend uses the HttpOnly cookie to get a new access token and user
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        try {
+          const { data } = await queryFulfilled;
+          dispatch(setAccessToken(data.data.accessToken));
+        } catch (error) {
+          // Handle error if needed
+        }
+      },
     }),
     resendEmailVerification: builder.mutation<ResponseDto<null>, { email: string }>({
       query: ({ email }) => ({
@@ -12760,7 +13218,13 @@ export const authApi = apiSlice.injectEndpoints({
     }),
   }),
 });
-export const { useRegisterMutation, useLoginMutation, useLogoutMutation, useGetProfileQuery, useResendEmailVerificationMutation } = authApi;
+export const {
+  useRegisterMutation,
+  useLoginMutation,
+  useLogoutMutation,
+  useGetMeQuery,
+  useResendEmailVerificationMutation,
+} = authApi;
 
 ---
 
@@ -12769,13 +13233,14 @@ export const { useRegisterMutation, useLoginMutation, useLogoutMutation, useGetP
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import type { RootState } from '../../../shared/stores/store';
-import { useLoginMutation } from '../services/authApi';
+import { useLoginMutation, useGetMeQuery } from '../services/authApi';
 import type { LoginDto } from '../types';
 
 export const useAuth = () => {
-  const user = useSelector((state: RootState) => state.auth.user);
+  const { data, isLoading: isUserLoading, error: userError } = useGetMeQuery();
+  const user = data?.data;
+
   const accessToken = useSelector((state: RootState) => state.auth.accessToken);
-  const refreshToken = useSelector((state: RootState) => state.auth.refreshToken);
 
   const [login, { isLoading, error }] = useLoginMutation();
   const navigate = useNavigate();
@@ -12791,8 +13256,9 @@ export const useAuth = () => {
 
   return {
     user,
+    isUserLoading,
+    userError,
     accessToken,
-    refreshToken,
     isAuthenticated: !!user && !!accessToken,
     handleLogin,
     isLoggingIn: isLoading,
@@ -13243,8 +13709,7 @@ export default CommunityCard;
 
 ### FILE: frontend/src/features/communities/components/AboutCommunity.tsx ###
 import React from 'react';
-import { useSelector } from 'react-redux';
-import type { RootState } from '../../../shared/stores/store';
+import { useAuth } from '../../auth/hooks/useAuth';
 import { useGetCommunityByIdQuery } from '../services/communitiesApi';
 import { Link } from 'react-router-dom';
 import { CommunityMembershipActionButton } from './CommunityMembershipActionButton';
@@ -13254,7 +13719,7 @@ interface AboutCommunityProps {
 }
 
 export const AboutCommunity: React.FC<AboutCommunityProps> = ({ communityId }) => {
-  const currentUser = useSelector((state: RootState) => state.auth.user);
+  const { user: currentUser } = useAuth();
   const { data: communityData, error: communityError, isLoading: communityLoading } = useGetCommunityByIdQuery(communityId);
 
 
@@ -13302,14 +13767,13 @@ interface CommunityHeaderProps {
 }
 
 export const CommunityHeader: React.FC<CommunityHeaderProps> = ({ communityId }) => {
-  const currentUser = useSelector((state: RootState) => state.auth.user);
+  const { user: currentUser } = useAuth();
   const { data, error, isLoading } = useGetCommunityByIdQuery(communityId);
-const { user } = useAuth();
 
 const { data: membershipData } = useGetCommunityMembershipsQuery({
     communityId,
-    userId: user?.id,
-  }, { skip: !user?.id });
+    userId: currentUser?.id,
+  }, { skip: !currentUser?.id });
 
   console.log(membershipData);
   
@@ -13791,10 +14255,11 @@ export interface User {
 
 export interface Profile {
   id: number;
-  username: string;
+  displayName: string;
   bio: string | null;
   picture: string | null; // URL to the profile picture
   user: User; // The associated user object
+  
 }
 
 export interface UpdateProfilePayload {
@@ -13819,7 +14284,7 @@ import { Modal } from '../../../shared/components/ui/Modal';
 import UserCommentList from '../../comments/components/UserCommentList';
 import { Button } from '../../../shared/components/ui/Button';
 import PostList from '../../posts/components/PostList';
-import { useProfile } from '../hooks/useProfile';
+import { useProfile } from '../hooks/useProfilePage';
 
 export const ProfilePage = () => {
   const {
@@ -14092,14 +14557,7 @@ export const profileApi = apiSlice.injectEndpoints({
       number // userId
     >({
       query: (userId) => `/profile/user/${userId}`,
-      providesTags: (result, error, userId) => [{ type: 'Profile', id: userId }],
-    }),
-    getMyProfile: builder.query<
-      ResponseDto<Profile>, // Adjust response type if needed
-      void
-    >({
-      query: () => `/profile`,
-      providesTags: ['MyProfile'],
+      providesTags: ['Profile'],
     }),
     updateMyProfile: builder.mutation<
       ResponseDto<Profile>,
@@ -14120,11 +14578,9 @@ export const profileApi = apiSlice.injectEndpoints({
           url: `/profile`,
           method: 'PATCH',
           body: formData,
-          // If you're sending FormData, ensure content-type is not set to application/json
-          // 'Content-Type': 'multipart/form-data', // This is usually set automatically by the browser
         };
       },
-      invalidatesTags: ['MyProfile'],
+      invalidatesTags: ['Me', 'Profile'],
     }),
     createMyProfile: builder.mutation<
       ResponseDto<Profile>,
@@ -14147,14 +14603,13 @@ export const profileApi = apiSlice.injectEndpoints({
           body: formData,
         };
       },
-      invalidatesTags: ['MyProfile'],
+      invalidatesTags: ['Me', 'Profile'],
     }),
   }),
 });
 
 export const {
   useGetProfileByUserIdQuery,
-  useGetMyProfileQuery,
   useUpdateMyProfileMutation,
   useCreateMyProfileMutation,
 } = profileApi;
@@ -14163,6 +14618,122 @@ export const {
 
 
 ### FILE: frontend/src/features/profile/hooks/useProfile.ts ###
+import { useGetMeQuery } from "../../auth/services/authApi";
+import { useGetProfileByUserIdQuery } from "../services/profileApi";
+
+export const useProfile = () => {
+  const { data: me } = useGetMeQuery();
+  const userId = me?.data.id;
+  const { data: profile } = useGetProfileByUserIdQuery(userId!, {
+    skip: !userId,
+  });
+
+  return profile?.data;
+};
+
+---
+
+
+### FILE: frontend/src/features/profile/hooks/useProfileEditForm.ts ###
+import { useState, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { useUpdateMyProfileMutation } from '../services/profileApi';
+import type { Profile } from '../types';
+
+interface UseProfileEditFormProps {
+  currentProfile: Profile;
+  onSuccess: () => void;
+}
+
+const profileSchema = z.object({
+  displayName: z
+    .string()
+    .min(3, 'Display name must be at least 3 characters.')
+    .max(20, 'Display name cannot exceed 20 characters.'),
+  bio: z.string().max(500, 'Bio cannot exceed 500 characters.').nullable(),
+  pictureFile: z.any().optional(),
+});
+
+type ProfileFormValues = z.infer<typeof profileSchema>;
+
+export const useProfileEditForm = ({
+  currentProfile,
+  onSuccess,
+}: UseProfileEditFormProps) => {
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    reset,
+  } = useForm<ProfileFormValues>({
+    resolver: zodResolver(profileSchema),
+    defaultValues: {
+      displayName: currentProfile.displayName,
+      bio: currentProfile.bio,
+    },
+  });
+
+  const [updateMyProfile, { isLoading, isSuccess, isError, error }] =
+    useUpdateMyProfileMutation();
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  useEffect(() => {
+    if (isSuccess) {
+      onSuccess();
+    }
+    if (isError) {
+      console.error('Profile update failed:', error);
+    }
+  }, [isSuccess, isError, onSuccess, error]);
+
+  const onSubmit = async (data: ProfileFormValues) => {
+    const payload: Partial<Profile> & { pictureFile?: File } = {
+      displayName: data.displayName,
+      bio: data.bio === '' ? null : data.bio,
+    };
+
+    if (selectedFile) {
+      payload.pictureFile = selectedFile;
+    }
+
+    try {
+      await updateMyProfile(payload).unwrap();
+    } catch (err) {
+      // Error handled by useEffect
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setSelectedFile(e.target.files[0]);
+    } else {
+      setSelectedFile(null);
+    }
+  };
+
+  return {
+    form: {
+      register,
+      handleSubmit,
+      errors,
+    },
+    submission: {
+      onSubmit,
+      isLoading,
+    },
+    file: {
+      selectedFile,
+      handleFileChange,
+    },
+  };
+};
+
+---
+
+
+### FILE: frontend/src/features/profile/hooks/useProfilePage.ts ###
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../../auth/hooks/useAuth';
@@ -14262,105 +14833,6 @@ export const useProfile = () => {
       isFetchingNextPage: isFetchingNextCommentsPage,
       isLoading: isLoadingComments,
       total: commentsData?.pages[0]?.meta?.totalItems ?? 0,
-    },
-  };
-};
-
----
-
-
-### FILE: frontend/src/features/profile/hooks/useProfileEditForm.ts ###
-import { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { useUpdateMyProfileMutation } from '../services/profileApi';
-import type { Profile } from '../types';
-
-interface UseProfileEditFormProps {
-  currentProfile: Profile;
-  onSuccess: () => void;
-}
-
-const profileSchema = z.object({
-  displayName: z
-    .string()
-    .min(3, 'Display name must be at least 3 characters.')
-    .max(20, 'Display name cannot exceed 20 characters.'),
-  bio: z.string().max(500, 'Bio cannot exceed 500 characters.').nullable(),
-  pictureFile: z.any().optional(),
-});
-
-type ProfileFormValues = z.infer<typeof profileSchema>;
-
-export const useProfileEditForm = ({
-  currentProfile,
-  onSuccess,
-}: UseProfileEditFormProps) => {
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-    reset,
-  } = useForm<ProfileFormValues>({
-    resolver: zodResolver(profileSchema),
-    defaultValues: {
-      displayName: currentProfile.displayName,
-      bio: currentProfile.bio,
-    },
-  });
-
-  const [updateMyProfile, { isLoading, isSuccess, isError, error }] =
-    useUpdateMyProfileMutation();
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-
-  useEffect(() => {
-    if (isSuccess) {
-      onSuccess();
-    }
-    if (isError) {
-      console.error('Profile update failed:', error);
-    }
-  }, [isSuccess, isError, onSuccess, error]);
-
-  const onSubmit = async (data: ProfileFormValues) => {
-    const payload: Partial<Profile> & { pictureFile?: File } = {
-      displayName: data.displayName,
-      bio: data.bio === '' ? null : data.bio,
-    };
-
-    if (selectedFile) {
-      payload.pictureFile = selectedFile;
-    }
-
-    try {
-      await updateMyProfile(payload).unwrap();
-    } catch (err) {
-      // Error handled by useEffect
-    }
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setSelectedFile(e.target.files[0]);
-    } else {
-      setSelectedFile(null);
-    }
-  };
-
-  return {
-    form: {
-      register,
-      handleSubmit,
-      errors,
-    },
-    submission: {
-      onSubmit,
-      isLoading,
-    },
-    file: {
-      selectedFile,
-      handleFileChange,
     },
   };
 };
@@ -15040,15 +15512,14 @@ export const useBannedUsers = () => {
 
 
 ### FILE: frontend/src/features/comments/types.ts ###
+import type { Post } from "../posts/types";
 import type { ReactionType } from "../reactions/types/types";
-import type { Post } from "../../posts/types";
 
 export interface Comment {
     id: number;
     content: string;
     author: {
         id: number;
-        name: string;
         username: string;
     };
     postId: number;
@@ -15204,7 +15675,7 @@ const CommentCard: React.FC<CommentCardProps> = ({
       <div className="rounded-lg border border-gray-300 bg-white p-4 ">
         <div className="mb-2 flex items-center text-sm text-gray-500">
           <FaUser className="mr-1" />
-          <span>u/{comment.author.name}</span>
+          <span>u/{comment.author.username}</span>
           <span className="mx-1">•</span>
           <span className="text-xs">{timeAgo(comment.createdAt)}</span>
         </div>
@@ -15698,13 +16169,14 @@ import { MembersPage } from './features/community-memberships/pages/MembersPage'
 import { ModeratorsPage } from './features/community-memberships/pages/ModeratorsPage';
 import { RestrictedUsersPage } from './features/community-restrictions/pages/RestrictedUsersPage';
 import { ProfilePage } from './features/profile/pages/ProfilePage';
-import { useGetProfileQuery } from './features/auth/services/authApi';
-import { useEffect } from 'react';
+import { useAuth } from './features/auth/hooks/useAuth';
+import SettingsPage from './features/settings/pages/SettingsPage';
 
 const SessionLoader = ({ children }: { children: React.ReactNode }) => {
-  const { isLoading } = useGetProfileQuery();
+  const { isUserLoading } = useAuth();
 
-  if (isLoading) {
+
+  if (isUserLoading) {
     return <div>Loading session...</div>;
   }
 
@@ -15732,6 +16204,7 @@ export default function App() {
             <Route path="/my-communities" element={<AuthGuard><MyCommunitiesPage /></AuthGuard>} />
             <Route path="/explore-communities" element={<AuthGuard><ExploreCommunitiesPage /></AuthGuard>} />
             <Route path="/profile/:userId" element={<AuthGuard><ProfilePage /></AuthGuard>} /> {/* Changed Route */}
+            <Route path="/settings" element={<AuthGuard><SettingsPage /></AuthGuard>} />
           </Route>
 
           {/* --- Moderation Routes (with ModSidebar) --- */}
@@ -16525,6 +16998,7 @@ const baseQuery = fetchBaseQuery({
     
     return headers;
   },
+  credentials: 'include',
 });
 
 // Create a base API slice that other API slices can extend
@@ -16532,11 +17006,9 @@ export const apiSlice = createApi({
   reducerPath: 'api',
   baseQuery,
   // Define common tag types here if any, otherwise leave empty
-  tagTypes: ['Posts', 'Comments', 'Users', 'Reactions',
-     'Auth', 'Communities', 'CommunityMemberships',
-      'EmailVerification', 'Profile', 'ResetPassword',
-       'PostReaction', 'CommentReaction', 'PostStats',
-        'CommentStats',"CommunityMembershipRequests","CommunityRestrictions", "Reports"],
+  tagTypes: ['Posts', 'Comments', 'Me', 'Profile', 'Reactions',
+     'Communities', 'CommunityMemberships',
+     "CommunityMembershipRequests","CommunityRestrictions", "Reports"],
   endpoints: () => ({}), // Empty endpoints as this is a base slice
 });
 

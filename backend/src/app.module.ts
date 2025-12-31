@@ -33,6 +33,8 @@ import { PostReport } from './reports/entities/post-report.entity';
 import { UserReport } from './reports/entities/user-report.entity';
 import { CommunityMembershipRequest } from './community-membership-requests/entities/community-membership-request.entity';
 import { CommunityMembershipRequestsModule } from './community-membership-requests/community-membership-requests.module';
+import { EmailChangeToken } from './email-change/entities/email-change-token.entity';
+import { EmailChangeModule } from './email-change/email-change.module';
 import { CommunityRestriction } from './community-restrictions/entities/community-restriction.entity';
 import { CommunityRestrictionsModule } from './community-restrictions/community-restrictions.module';
 
@@ -62,6 +64,7 @@ import { CommunityRestrictionsModule } from './community-restrictions/community-
           PostReport,
           UserReport,
           CommunityRestriction,
+          EmailChangeToken,
         ],
         migrations: ['./src/migrations/*.ts'],
         synchronize: false,
@@ -81,6 +84,7 @@ import { CommunityRestrictionsModule } from './community-restrictions/community-
     CommunityMembershipRequestsModule, // NEW MODULE
     ReportsModule,
     CommunityRestrictionsModule,
+    EmailChangeModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -16,6 +16,7 @@ import { CommunityRestriction } from './community-restrictions/entities/communit
 import { UserReport } from './reports/entities/user-report.entity';
 
 import { CommunityMembershipRequest } from './community-membership-requests/entities/community-membership-request.entity';
+import { EmailChangeToken } from './email-change/entities/email-change-token.entity';
 
 config(); // load .env manually
 
@@ -34,6 +35,7 @@ export const AppDataSource = new DataSource({
     PostReaction,
     CommentReaction,
     PasswordResetToken,
+    EmailChangeToken,
     EmailVerificationToken,
     Profile,
     Community, // Add Community
