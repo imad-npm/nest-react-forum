@@ -9,10 +9,11 @@ export interface User {
 
 export interface Profile {
   id: number;
-  username: string;
+  displayName: string;
   bio: string | null;
   picture: string | null; // URL to the profile picture
   user: User; // The associated user object
+  
 }
 
 export interface UpdateProfilePayload {

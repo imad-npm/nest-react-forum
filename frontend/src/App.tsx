@@ -18,9 +18,11 @@ import { ModeratorsPage } from './features/community-memberships/pages/Moderator
 import { RestrictedUsersPage } from './features/community-restrictions/pages/RestrictedUsersPage';
 import { ProfilePage } from './features/profile/pages/ProfilePage';
 import { useAuth } from './features/auth/hooks/useAuth';
+import SettingsPage from './features/settings/pages/SettingsPage';
 
 const SessionLoader = ({ children }: { children: React.ReactNode }) => {
   const { isUserLoading } = useAuth();
+
 
   if (isUserLoading) {
     return <div>Loading session...</div>;
@@ -50,6 +52,7 @@ export default function App() {
             <Route path="/my-communities" element={<AuthGuard><MyCommunitiesPage /></AuthGuard>} />
             <Route path="/explore-communities" element={<AuthGuard><ExploreCommunitiesPage /></AuthGuard>} />
             <Route path="/profile/:userId" element={<AuthGuard><ProfilePage /></AuthGuard>} /> {/* Changed Route */}
+            <Route path="/settings" element={<AuthGuard><SettingsPage /></AuthGuard>} />
           </Route>
 
           {/* --- Moderation Routes (with ModSidebar) --- */}
