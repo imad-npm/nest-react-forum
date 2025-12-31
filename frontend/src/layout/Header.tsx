@@ -1,13 +1,14 @@
 import { Link } from 'react-router-dom';
 import { useState } from 'react';
 import { useAuth } from '../features/auth/hooks/useAuth';
+import { useProfile } from '../features/profile/hooks/useProfile';
 import LogoutButton from '../features/auth/components/LogoutButton';
 import { FaHome, FaSignInAlt, FaUserPlus, FaSignOutAlt, FaBell, FaPlus, FaCaretDown, FaUserCircle } from 'react-icons/fa'; // Import icons
 
 const Header = () => {
   const { isAuthenticated, user } = useAuth();
+  const profile = useProfile();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-console.log(user);
 
   const toggleDropdown = () => {
     setIsDropdownOpen(!isDropdownOpen);
@@ -37,9 +38,9 @@ console.log(user);
               {/* User Profile Dropdown */}
               <div className="relative">
                 <button onClick={toggleDropdown} className="flex items-center space-x-2 hover:text-gray-300 focus:outline-none">
-                  {user?.profilePictureUrl ? (
+                  {profile?.picture ? (
                     <img
-                      src={user.profilePictureUrl}
+                      src={profile.picture}
                       alt="Profile"
                       className="w-8 h-8 rounded-full object-cover"
                     />
@@ -51,10 +52,10 @@ console.log(user);
                 {isDropdownOpen && (
                   <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-700 rounded-md shadow-lg py-1 text-gray-800 dark:text-gray-200 z-10">
                     <Link
-                      to={`/profile/${user.id}`}
+                      to={user ? `/profile/${user.id}` : ''}
                       className="block px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-600"
                     >
-                      Profile (@{user.username})
+                      Profile (@{profile?.displayName})
                     </Link>
                     <Link to="/settings" className="block px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-600">
                       Settings

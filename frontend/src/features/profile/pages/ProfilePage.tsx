@@ -4,7 +4,7 @@ import { Modal } from '../../../shared/components/ui/Modal';
 import UserCommentList from '../../comments/components/UserCommentList';
 import { Button } from '../../../shared/components/ui/Button';
 import PostList from '../../posts/components/PostList';
-import { useProfile } from '../hooks/useProfile';
+import { useProfile } from '../hooks/useProfilePage';
 
 export const ProfilePage = () => {
   const {

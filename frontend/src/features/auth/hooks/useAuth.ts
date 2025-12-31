@@ -1,13 +1,14 @@
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import type { RootState } from '../../../shared/stores/store';
-import { useLoginMutation } from '../services/authApi';
+import { useLoginMutation, useGetMeQuery } from '../services/authApi';
 import type { LoginDto } from '../types';
 
 export const useAuth = () => {
-  const user = useSelector((state: RootState) => state.auth.user);
+  const { data, isLoading: isUserLoading, error: userError } = useGetMeQuery();
+  const user = data?.data;
+
   const accessToken = useSelector((state: RootState) => state.auth.accessToken);
-  const refreshToken = useSelector((state: RootState) => state.auth.refreshToken);
 
   const [login, { isLoading, error }] = useLoginMutation();
   const navigate = useNavigate();
@@ -23,8 +24,9 @@ export const useAuth = () => {
 
   return {
     user,
+    isUserLoading,
+    userError,
     accessToken,
-    refreshToken,
     isAuthenticated: !!user && !!accessToken,
     handleLogin,
     isLoggingIn: isLoading,

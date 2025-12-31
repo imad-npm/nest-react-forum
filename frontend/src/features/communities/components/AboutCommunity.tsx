@@ -1,6 +1,5 @@
 import React from 'react';
-import { useSelector } from 'react-redux';
-import type { RootState } from '../../../shared/stores/store';
+import { useAuth } from '../../auth/hooks/useAuth';
 import { useGetCommunityByIdQuery } from '../services/communitiesApi';
 import { Link } from 'react-router-dom';
 import { CommunityMembershipActionButton } from './CommunityMembershipActionButton';
@@ -10,7 +9,7 @@ interface AboutCommunityProps {
 }
 
 export const AboutCommunity: React.FC<AboutCommunityProps> = ({ communityId }) => {
-  const currentUser = useSelector((state: RootState) => state.auth.user);
+  const { user: currentUser } = useAuth();
   const { data: communityData, error: communityError, isLoading: communityLoading } = useGetCommunityByIdQuery(communityId);
 
 

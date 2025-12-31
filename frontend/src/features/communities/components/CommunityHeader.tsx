@@ -14,14 +14,13 @@ interface CommunityHeaderProps {
 }
 
 export const CommunityHeader: React.FC<CommunityHeaderProps> = ({ communityId }) => {
-  const currentUser = useSelector((state: RootState) => state.auth.user);
+  const { user: currentUser } = useAuth();
   const { data, error, isLoading } = useGetCommunityByIdQuery(communityId);
-const { user } = useAuth();
 
 const { data: membershipData } = useGetCommunityMembershipsQuery({
     communityId,
-    userId: user?.id,
-  }, { skip: !user?.id });
+    userId: currentUser?.id,
+  }, { skip: !currentUser?.id });
 
   console.log(membershipData);
   

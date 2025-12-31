@@ -9,14 +9,7 @@ export const profileApi = apiSlice.injectEndpoints({
       number // userId
     >({
       query: (userId) => `/profile/user/${userId}`,
-      providesTags: (result, error, userId) => [{ type: 'Profile', id: userId }],
-    }),
-    getMyProfile: builder.query<
-      ResponseDto<Profile>, // Adjust response type if needed
-      void
-    >({
-      query: () => `/profile`,
-      providesTags: ['MyProfile'],
+      providesTags: ['Profile'],
     }),
     updateMyProfile: builder.mutation<
       ResponseDto<Profile>,
@@ -37,11 +30,9 @@ export const profileApi = apiSlice.injectEndpoints({
           url: `/profile`,
           method: 'PATCH',
           body: formData,
-          // If you're sending FormData, ensure content-type is not set to application/json
-          // 'Content-Type': 'multipart/form-data', // This is usually set automatically by the browser
         };
       },
-      invalidatesTags: ['MyProfile'],
+      invalidatesTags: ['Me', 'Profile'],
     }),
     createMyProfile: builder.mutation<
       ResponseDto<Profile>,
@@ -64,14 +55,13 @@ export const profileApi = apiSlice.injectEndpoints({
           body: formData,
         };
       },
-      invalidatesTags: ['MyProfile'],
+      invalidatesTags: ['Me', 'Profile'],
     }),
   }),
 });
 
 export const {
   useGetProfileByUserIdQuery,
-  useGetMyProfileQuery,
   useUpdateMyProfileMutation,
   useCreateMyProfileMutation,
 } = profileApi;

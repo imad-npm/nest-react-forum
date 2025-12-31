@@ -17,13 +17,12 @@ import { MembersPage } from './features/community-memberships/pages/MembersPage'
 import { ModeratorsPage } from './features/community-memberships/pages/ModeratorsPage';
 import { RestrictedUsersPage } from './features/community-restrictions/pages/RestrictedUsersPage';
 import { ProfilePage } from './features/profile/pages/ProfilePage';
-import { useGetProfileQuery } from './features/auth/services/authApi';
-import { useEffect } from 'react';
+import { useAuth } from './features/auth/hooks/useAuth';
 
 const SessionLoader = ({ children }: { children: React.ReactNode }) => {
-  const { isLoading } = useGetProfileQuery();
+  const { isUserLoading } = useAuth();
 
-  if (isLoading) {
+  if (isUserLoading) {
     return <div>Loading session...</div>;
   }
 

@@ -20,6 +20,7 @@ import { ResponseDto } from 'src/common/dto/response.dto';
 import type { Response } from 'express';
 import { parseExpiresInToMs } from './utils/time.util';
 import { ConfigService } from '@nestjs/config';
+import { JwtAuthGuard } from './guards/jwt-auth.guard'; // Import JwtAuthGuard
 
 @Controller('auth')
 export class AuthController {
@@ -85,6 +86,12 @@ export class AuthController {
       user: UserResponseDto.fromEntity(req.user),
       accessToken,
     });
+  }
+
+  @Get('me') // Add this endpoint
+  @UseGuards(JwtAuthGuard)
+  async getMe(@Req() req: { user: User }): Promise<ResponseDto<UserResponseDto>> {
+    return new ResponseDto(UserResponseDto.fromEntity(req.user));
   }
 
   @Get('google')
