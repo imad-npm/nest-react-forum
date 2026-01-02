@@ -1201,6 +1201,33 @@ export class RefactorReactions1765490375370 implements MigrationInterface {
 ---
 
 
+### FILE: backend/src/database/migrations/1767215182662-AddEmailChangeTokensTable.ts ###
+import { MigrationInterface, QueryRunner } from "typeorm";
+
+export class AddEmailChangeTokensTable1767215182662 implements MigrationInterface {
+    name = 'AddEmailChangeTokensTable1767215182662'
+
+    public async up(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`CREATE TABLE "email_change_tokens" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "newEmail" varchar(100) NOT NULL, "token" varchar NOT NULL, "expiresAt" datetime NOT NULL, "userId" integer NOT NULL, "createdAt" datetime NOT NULL DEFAULT (CURRENT_TIMESTAMP), CONSTRAINT "UQ_04e0f8c19f839970ea29cfebc40" UNIQUE ("token"))`);
+        await queryRunner.query(`CREATE TABLE "temporary_email_change_tokens" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "newEmail" varchar(100) NOT NULL, "token" varchar NOT NULL, "expiresAt" datetime NOT NULL, "userId" integer NOT NULL, "createdAt" datetime NOT NULL DEFAULT (CURRENT_TIMESTAMP), CONSTRAINT "UQ_04e0f8c19f839970ea29cfebc40" UNIQUE ("token"), CONSTRAINT "FK_5079c637bc96fe23c8aa4ccd7da" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION)`);
+        await queryRunner.query(`INSERT INTO "temporary_email_change_tokens"("id", "newEmail", "token", "expiresAt", "userId", "createdAt") SELECT "id", "newEmail", "token", "expiresAt", "userId", "createdAt" FROM "email_change_tokens"`);
+        await queryRunner.query(`DROP TABLE "email_change_tokens"`);
+        await queryRunner.query(`ALTER TABLE "temporary_email_change_tokens" RENAME TO "email_change_tokens"`);
+    }
+
+    public async down(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`ALTER TABLE "email_change_tokens" RENAME TO "temporary_email_change_tokens"`);
+        await queryRunner.query(`CREATE TABLE "email_change_tokens" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "newEmail" varchar(100) NOT NULL, "token" varchar NOT NULL, "expiresAt" datetime NOT NULL, "userId" integer NOT NULL, "createdAt" datetime NOT NULL DEFAULT (CURRENT_TIMESTAMP), CONSTRAINT "UQ_04e0f8c19f839970ea29cfebc40" UNIQUE ("token"))`);
+        await queryRunner.query(`INSERT INTO "email_change_tokens"("id", "newEmail", "token", "expiresAt", "userId", "createdAt") SELECT "id", "newEmail", "token", "expiresAt", "userId", "createdAt" FROM "temporary_email_change_tokens"`);
+        await queryRunner.query(`DROP TABLE "temporary_email_change_tokens"`);
+        await queryRunner.query(`DROP TABLE "email_change_tokens"`);
+    }
+
+}
+
+---
+
+
 ### FILE: backend/src/database/migrations/1766879712347-StatusToPosts.ts ###
 import { MigrationInterface, QueryRunner } from "typeorm";
 
@@ -9180,6 +9207,8 @@ import { PostReport } from './reports/entities/post-report.entity';
 import { UserReport } from './reports/entities/user-report.entity';
 import { CommunityMembershipRequest } from './community-membership-requests/entities/community-membership-request.entity';
 import { CommunityMembershipRequestsModule } from './community-membership-requests/community-membership-requests.module';
+import { EmailChangeToken } from './email-change/entities/email-change-token.entity';
+import { EmailChangeModule } from './email-change/email-change.module';
 import { CommunityRestriction } from './community-restrictions/entities/community-restriction.entity';
 import { CommunityRestrictionsModule } from './community-restrictions/community-restrictions.module';
 
@@ -9209,6 +9238,7 @@ import { CommunityRestrictionsModule } from './community-restrictions/community-
           PostReport,
           UserReport,
           CommunityRestriction,
+          EmailChangeToken,
         ],
         migrations: ['./src/migrations/*.ts'],
         synchronize: false,
@@ -9228,6 +9258,7 @@ import { CommunityRestrictionsModule } from './community-restrictions/community-
     CommunityMembershipRequestsModule, // NEW MODULE
     ReportsModule,
     CommunityRestrictionsModule,
+    EmailChangeModule,
   ],
   controllers: [AppController],
   providers: [AppService],
@@ -9256,6 +9287,7 @@ import { CommunityRestriction } from './community-restrictions/entities/communit
 import { UserReport } from './reports/entities/user-report.entity';
 
 import { CommunityMembershipRequest } from './community-membership-requests/entities/community-membership-request.entity';
+import { EmailChangeToken } from './email-change/entities/email-change-token.entity';
 
 config(); // load .env manually
 
@@ -9274,6 +9306,7 @@ export const AppDataSource = new DataSource({
     PostReaction,
     CommentReaction,
     PasswordResetToken,
+    EmailChangeToken,
     EmailVerificationToken,
     Profile,
     Community, // Add Community
@@ -9288,6 +9321,270 @@ export const AppDataSource = new DataSource({
   migrations: ['src/database/migrations/*.ts'],
   logging: true,
 });
+
+---
+
+
+### FILE: backend/src/email-change/email-change.controller.ts ###
+import {
+  Controller,
+  Post,
+  Body,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
+  Query,
+  Get,
+} from '@nestjs/common';
+import { EmailChangeService } from './email-change.service';
+import { GetUser } from 'src/decorators/user.decorator';
+import { User } from 'src/users/entities/user.entity';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { RequestEmailChangeDto } from './dto/request-email-change.dto';
+import { VerifyEmailChangeDto } from './dto/verify-email-change.dto'; // Import the new DTO
+
+@Controller('email/change')
+export class EmailChangeController {
+  constructor(private readonly emailChangeService: EmailChangeService) {}
+
+  @Post('request')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async requestEmailChange(
+    @GetUser() user: User,
+    @Body() { newEmail, currentPassword }: RequestEmailChangeDto,
+  ): Promise<{ message: string }> {
+    await this.emailChangeService.requestEmailChange(user, newEmail, currentPassword);
+    return {
+      message:
+        'Verification email sent to your new address. Please check your inbox to complete the change.',
+    };
+  }
+
+  @Get('verify') // Changed to POST
+  @HttpCode(HttpStatus.OK)
+  async verifyEmailChange(
+    @Query('token') token: string,
+  ): Promise<{ message: string }> {
+    await this.emailChangeService.verifyEmailChange(token);
+    return { message: 'Your email address has been successfully updated.' };
+  }
+}
+
+---
+
+
+### FILE: backend/src/email-change/entities/email-change-token.entity.ts ###
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm';
+import { User } from '../../users/entities/user.entity';
+
+@Entity('email_change_tokens')
+export class EmailChangeToken {
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column({ type: 'varchar', length: 100 })
+  newEmail: string;
+
+  @Column({ type: 'varchar', unique: true })
+  token: string;
+
+  @Column({ type: 'datetime' })
+  expiresAt: Date;
+
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'userId' })
+  user: User;
+
+  @Column()
+  userId: number; // Foreign key
+
+  @Column({ type: 'datetime', default: () => 'CURRENT_TIMESTAMP' })
+  createdAt: Date;
+}
+
+---
+
+
+### FILE: backend/src/email-change/email-change.service.ts ###
+import * as bcrypt from 'bcrypt';
+import {
+  Injectable,
+  BadRequestException,
+  InternalServerErrorException,
+  Inject,
+  ConflictException,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { randomUUID } from 'crypto';
+import { EmailChangeToken } from './entities/email-change-token.entity'; // Corrected import
+import { UsersService } from 'src/users/users.service';
+import type { IMailService } from 'src/mail/interfaces/mail-service.interface';
+import { ConfigService } from '@nestjs/config';
+import { User } from 'src/users/entities/user.entity';
+
+@Injectable()
+export class EmailChangeService {
+  constructor(
+    @InjectRepository(EmailChangeToken) // Corrected injection
+    private readonly emailChangeRepo: Repository<EmailChangeToken>,
+    private readonly usersService: UsersService,
+    private readonly configService: ConfigService,
+    @Inject('IMailService')
+    private readonly mailService: IMailService,
+  ) {
+    this.EXPIRATION_MS = this.configService.get<number>(
+      'EMAIL_CHANGE_TOKEN_EXPIRATION',
+      15 * 60 * 1000,
+    );
+  }
+  EXPIRATION_MS: number;
+
+  private generateVerificationLink(token: string): string {
+    const domain = this.configService.get<string>('FRONTEND_URL');
+    const path = '/email/change/verify'; // The path for the frontend email change verification page
+    return `${domain}${path}?token=${token}`;
+  }
+
+  async requestEmailChange(
+    user: User,
+    newEmail: string,
+    currentPassword: string,
+  ): Promise<void> {
+    if (!user.password) {
+      throw new BadRequestException('User does not have a password set.');
+    }
+
+    if (!currentPassword) {
+      throw new BadRequestException('Current password is required.');
+    }
+
+    const isPasswordMatching = await bcrypt.compare(
+      currentPassword,
+      user.password,
+    );
+
+    if (!isPasswordMatching) {
+      throw new UnauthorizedException('Incorrect current password');
+    }
+
+    if (user.email === newEmail) {
+      throw new BadRequestException('New email cannot be the same as the current email.');
+    }
+
+    const emailExists = await this.usersService.findByEmail(newEmail).catch(() => null);
+    if (emailExists && emailExists.id !== user.id) {
+      throw new ConflictException('Email already in use by another user.');
+    }
+
+    // Delete any existing pending email change requests for this user
+    await this.emailChangeRepo.delete({ userId: user.id });
+
+    const token = randomUUID();
+    const record = this.emailChangeRepo.create({
+      userId: user.id,
+      newEmail,
+      token,
+      expiresAt: new Date(Date.now() + this.EXPIRATION_MS),
+    });
+
+    await this.emailChangeRepo.save(record);
+
+    const verifyUrl = this.generateVerificationLink(token);
+
+    try {
+      await this.mailService.sendEmail(
+        newEmail,
+        'Verify Your New Email Address',
+        'email-change-verification', // New template name
+        { username: user.username, verifyUrl },
+      );
+    } catch (err) {
+      console.error('Error sending email change verification email:', err);
+      throw new InternalServerErrorException(
+        'Failed to send email change verification email',
+      );
+    }
+  }
+
+  async verifyEmailChange(token: string): Promise<User> {
+    const record = await this.emailChangeRepo.findOne({ where: { token }, relations: ['user'] });
+
+    if (!record) {
+      throw new BadRequestException('Invalid or expired email change token.');
+    }
+    if (record.expiresAt < new Date()) {
+      await this.emailChangeRepo.delete({ token });
+      throw new BadRequestException('Email change token expired.');
+    }
+
+    const user = await this.usersService.updateEmail(record.userId, record.newEmail);
+    // Mark email as verified immediately after successful change
+    await this.usersService.markEmailAsVerified(user.id);
+    await this.emailChangeRepo.delete({ token });
+
+    return user;
+  }
+}
+
+---
+
+
+### FILE: backend/src/email-change/dto/request-email-change.dto.ts ###
+import { IsEmail, IsString, MinLength } from 'class-validator';
+
+export class RequestEmailChangeDto {
+  @IsEmail({}, { message: 'New email must be a valid email address.' })
+  newEmail: string;
+
+  @IsString({ message: 'Current password must be a string.' })
+  @MinLength(6, { message: 'Current password must be at least 6 characters long.' })
+  currentPassword: string;
+}
+
+---
+
+
+### FILE: backend/src/email-change/dto/verify-email-change.dto.ts ###
+import { IsNotEmpty, IsString } from 'class-validator';
+
+export class VerifyEmailChangeDto {
+  @IsString()
+  @IsNotEmpty()
+  token: string;
+}
+---
+
+
+### FILE: backend/src/email-change/email-change.module.ts ###
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { EmailChangeService } from './email-change.service';
+import { EmailChangeController } from './email-change.controller';
+import { EmailChangeToken } from './entities/email-change-token.entity';
+import { UsersModule } from 'src/users/users.module';
+import { MailModule } from 'src/mail/mail.module';
+
+@Module({
+  imports: [
+    TypeOrmModule.forFeature([EmailChangeToken]),
+    UsersModule,
+    MailModule,
+  ],
+  providers: [EmailChangeService],
+  controllers: [EmailChangeController],
+  exports: [EmailChangeService],
+})
+export class EmailChangeModule {}
 
 ---
 
@@ -9966,6 +10263,61 @@ const Home = () => {
 };
 
 export default Home;
+---
+
+
+### FILE: frontend/src/pages/EmailChangeVerifyPage.tsx ###
+import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
+import {  useVerifyEmailChangeMutation } from '../features/settings/services/emailChangeApiSlice';
+
+const EmailChangeVerifyPage = () => {
+  const query = new URLSearchParams(useLocation().search);
+  const token = query.get('token');
+  const [skip, setSkip] = useState(true);
+
+  // Trigger the query only when the token is available
+  useEffect(() => {
+    if (token) {
+      setSkip(false);
+    }
+  }, [token]);
+
+  const { data, isLoading, isSuccess, isError, error } =
+    useVerifyEmailChangeMutation({ token: token || '' }, { skip });
+
+  let content;
+  if (isLoading) {
+    content = <div>Verifying your email change...</div>;
+  } else if (isSuccess) {
+    content = (
+      <div className="text-green-600">
+        Email address updated successfully! You can now log in with your new email.
+      </div>
+    );
+    // Optionally, you might want to log out the user or refresh their session
+    // if the email change affects their current session token.
+    // For now, we'll just display the message.
+  } else if (isError) {
+    content = (
+      <div className="text-red-600">
+        Error verifying email change: {(error as any)?.data?.message || 'Invalid or expired token.'}
+      </div>
+    );
+  } else {
+    content = <div className="text-red-600">No verification token found.</div>;
+  }
+
+  return (
+    <div className="container mx-auto py-8 text-center">
+      <h1 className="text-2xl font-bold mb-4">Email Change Verification</h1>
+      {content}
+    </div>
+  );
+};
+
+export default EmailChangeVerifyPage;
+
 ---
 
 
@@ -11469,11 +11821,36 @@ export default SettingsPage;
 
 
 ### FILE: frontend/src/features/settings/components/AccountSettings.tsx ###
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../../auth/hooks/useAuth';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { useRequestEmailChangeMutation } from '../services/emailChangeApiSlice';
+import { Modal } from '../../../shared/components/ui/Modal';
+import { Input } from '../../../shared/components/ui/Input';
+
+const emailChangeSchema = z.object({
+  newEmail: z.string().email('Invalid email address'),
+  currentPassword: z.string().min(1, 'Current password is required'),
+});
+
+type EmailChangeFormInputs = z.infer<typeof emailChangeSchema>;
 
 const AccountSettings = () => {
   const { user } = useAuth();
+  const [showEmailChangeForm, setShowEmailChangeForm] = useState(false);
+  const [requestEmailChange, { isLoading, isSuccess, isError, error }] =
+    useRequestEmailChangeMutation();
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    reset,
+  } = useForm<EmailChangeFormInputs>({
+    resolver: zodResolver(emailChangeSchema),
+  });
 
   if (!user) {
     return <div>Loading user...</div>;
@@ -11485,11 +11862,15 @@ const AccountSettings = () => {
         <dt className="text-sm font-medium text-gray-500">Email</dt>
         <dd className="mt-1 flex text-sm text-gray-900 sm:mt-0 sm:col-span-2">
           <span className="flex-grow">{user.email}</span>
-          <button className="ml-4 bg-white py-2 px-3 border border-gray-300 rounded-md shadow-sm text-sm leading-4 font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+          <button
+            onClick={() => setShowEmailChangeForm(true)}
+            className="ml-4 bg-white py-2 px-3 border border-gray-300 rounded-md shadow-sm text-sm leading-4 font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          >
             Edit
           </button>
         </dd>
       </div>
+
       <div className="py-4 sm:py-5 sm:grid sm:grid-cols-3 sm:gap-4">
         <dt className="text-sm font-medium text-gray-500">Username</dt>
         <dd className="mt-1 flex text-sm text-gray-900 sm:mt-0 sm:col-span-2">
@@ -11499,8 +11880,85 @@ const AccountSettings = () => {
           </button>
         </dd>
       </div>
-    </div>
-  );
+
+      <Modal open={showEmailChangeForm} onClose={() => setShowEmailChangeForm(false)} >
+        <form
+          onSubmit={handleSubmit(async (data) => {
+            try {
+              console.log(data);
+              
+              await requestEmailChange(data).unwrap();
+              reset();
+              setShowEmailChangeForm(false);
+            } catch (err) {
+              console.error('Failed to request email change:', err);
+            }
+          })}
+          className="mt-4"
+        >
+          <div className="mb-4">
+            <label htmlFor="newEmail" className="block text-sm font-medium text-gray-700">
+              New Email Address
+            </label>
+            <Input
+              type="email"
+              id="newEmail"
+              {...register('newEmail')}
+              className="mt-1"
+            />                      {errors.newEmail && (
+              <p className="mt-2 text-sm text-red-600">
+                {errors.newEmail.message}
+              </p>
+            )}
+          </div>
+          <div className="mb-4">
+            <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700">
+              Current Password
+            </label>
+            <Input
+              type="password"
+              id="currentPassword"
+              {...register('currentPassword')}
+              className="mt-1"
+            />                      {errors.currentPassword && (
+              <p className="mt-2 text-sm text-red-600">
+                {errors.currentPassword.message}
+              </p>
+            )}
+          </div>
+
+          <div className="flex justify-end space-x-2">
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+            >
+              {isLoading ? 'Sending...' : 'Request Change'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowEmailChangeForm(false);
+                reset();
+              }}
+              className="inline-flex justify-center rounded-md border border-gray-300 bg-white py-2 px-4 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+            >
+              Cancel
+            </button>
+          </div>
+          {isSuccess && (
+            <p className="mt-2 text-sm text-green-600">
+              Verification email sent! Please check your new inbox.
+            </p>
+          )}
+          {isError && (
+            <p className="mt-2 text-sm text-red-600">
+              Error: {(error as any)?.data?.message || 'Failed to send email change request.'}
+            </p>
+          )}
+        </form>
+      </Modal>
+    </div>);
 };
 
 export default AccountSettings;
@@ -11840,6 +12298,41 @@ const Tabs: React.FC<TabsProps> = ({ tabs }) => {
 };
 
 export default Tabs;
+
+---
+
+
+### FILE: frontend/src/features/settings/services/emailChangeApiSlice.ts ###
+import { apiSlice } from '../../../shared/services/apiSlice';
+
+export const emailChangeApiSlice = apiSlice.injectEndpoints({
+  endpoints: (builder) => ({
+    requestEmailChange: builder.mutation<
+      { message: string },
+      { newEmail: string; currentPassword: string }
+    >({
+      query: (body) => ({
+        url: '/email/change/request',
+        method: 'POST',
+        body,
+      }),
+    }),
+    verifyEmailChange: builder.mutation<{ message: string }, { token: string }>({
+      query: ({ token }) => ({
+        url: `/email/change/verify?token=${token}`,
+        method: 'GET',
+
+      }),
+      invalidatesTags: ['Me'],
+
+    }),
+
+  }),
+
+});
+
+export const { useRequestEmailChangeMutation, useVerifyEmailChangeMutation } =
+  emailChangeApiSlice;
 
 ---
 
@@ -16171,6 +16664,7 @@ import { RestrictedUsersPage } from './features/community-restrictions/pages/Res
 import { ProfilePage } from './features/profile/pages/ProfilePage';
 import { useAuth } from './features/auth/hooks/useAuth';
 import SettingsPage from './features/settings/pages/SettingsPage';
+import EmailChangeVerifyPage from './pages/EmailChangeVerifyPage';
 
 const SessionLoader = ({ children }: { children: React.ReactNode }) => {
   const { isUserLoading } = useAuth();
@@ -16194,6 +16688,7 @@ export default function App() {
           <Route path="/register" element={<Register />} />
           <Route path="/email-verification" element={<EmailVerification />} />
           <Route path="/verify-email" element={<VerificationResult />} />
+          <Route path="/email/change/verify" element={<EmailChangeVerifyPage />} />
 
           {/* --- Standard User Routes (with LeftSidebar) --- */}
           <Route element={<MainLayout />}>

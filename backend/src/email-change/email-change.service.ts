@@ -1,3 +1,4 @@
+import * as bcrypt from 'bcrypt';
 import {
   Injectable,
   BadRequestException,
@@ -5,6 +6,7 @@ import {
   Inject,
   ConflictException,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -33,12 +35,33 @@ export class EmailChangeService {
   EXPIRATION_MS: number;
 
   private generateVerificationLink(token: string): string {
-    const domain = this.configService.get<string>('APP_DOMAIN');
-    const path = '/api/email/change/verify'; // A new path for email change verification
+    const domain = this.configService.get<string>('FRONTEND_URL');
+    const path = '/email/change/verify'; // The path for the frontend email change verification page
     return `${domain}${path}?token=${token}`;
   }
 
-  async requestEmailChange(user: User, newEmail: string): Promise<void> {
+  async requestEmailChange(
+    user: User,
+    newEmail: string,
+    currentPassword: string,
+  ): Promise<void> {
+    if (!user.password) {
+      throw new BadRequestException('User does not have a password set.');
+    }
+
+    if (!currentPassword) {
+      throw new BadRequestException('Current password is required.');
+    }
+
+    const isPasswordMatching = await bcrypt.compare(
+      currentPassword,
+      user.password,
+    );
+
+    if (!isPasswordMatching) {
+      throw new UnauthorizedException('Incorrect current password');
+    }
+
     if (user.email === newEmail) {
       throw new BadRequestException('New email cannot be the same as the current email.');
     }

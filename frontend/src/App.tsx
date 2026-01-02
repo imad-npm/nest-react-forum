@@ -19,6 +19,7 @@ import { RestrictedUsersPage } from './features/community-restrictions/pages/Res
 import { ProfilePage } from './features/profile/pages/ProfilePage';
 import { useAuth } from './features/auth/hooks/useAuth';
 import SettingsPage from './features/settings/pages/SettingsPage';
+import EmailChangeVerifyPage from './pages/EmailChangeVerifyPage';
 
 const SessionLoader = ({ children }: { children: React.ReactNode }) => {
   const { isUserLoading } = useAuth();
@@ -42,6 +43,7 @@ export default function App() {
           <Route path="/register" element={<Register />} />
           <Route path="/email-verification" element={<EmailVerification />} />
           <Route path="/verify-email" element={<VerificationResult />} />
+          <Route path="/email/change/verify" element={<EmailChangeVerifyPage />} />
 
           {/* --- Standard User Routes (with LeftSidebar) --- */}
           <Route element={<MainLayout />}>
