@@ -1,21 +1,18 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import {  useVerifyEmailChangeMutation } from '../features/settings/services/emailChangeApiSlice';
+import { useVerifyEmailChangeMutation } from '../features/settings/services/emailChangeApiSlice';
 
 const EmailChangeVerifyPage = () => {
   const query = new URLSearchParams(useLocation().search);
   const token = query.get('token');
-  const [skip, setSkip] = useState(true);
 
-  // Trigger the query only when the token is available
+  const [verifyEmailChange, { isLoading, isSuccess, isError, error }] = useVerifyEmailChangeMutation();
+
   useEffect(() => {
     if (token) {
-      setSkip(false);
+      verifyEmailChange({ token });
     }
-  }, [token]);
-
-  const { data, isLoading, isSuccess, isError, error } =
-    useVerifyEmailChangeMutation({ token: token || '' }, { skip });
+  }, [token, verifyEmailChange]);
 
   let content;
   if (isLoading) {
@@ -35,7 +32,7 @@ const EmailChangeVerifyPage = () => {
         Error verifying email change: {(error as any)?.data?.message || 'Invalid or expired token.'}
       </div>
     );
-  } else {
+  } else if (!token) {
     content = <div className="text-red-600">No verification token found.</div>;
   }
 

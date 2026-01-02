@@ -103,7 +103,7 @@ async validateUser(email: string, password: string): Promise<User> {
   // -------------------------------------------------------------------------
   // Refresh token flow
   // -------------------------------------------------------------------------
-  async renewTokens(user: User): Promise<string> {
+  async renewAccessToken(user: User): Promise<string> {
     const payload = { sub: user.id, email: user.email };
     return this.jwt.sign(payload, {
       secret: this.config.get<string>('JWT_ACCESS_SECRET'),

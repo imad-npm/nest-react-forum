@@ -61,7 +61,7 @@ export class AuthController {
 
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV !== 'development', // Use secure cookies in production
+      secure: true, // Use secure cookies in production
       sameSite: 'strict',
       maxAge: maxAgeMs, // Use dynamic maxAge
     });
@@ -81,7 +81,7 @@ export class AuthController {
   @UseGuards(JwtRefreshGuard)
   @Get('refresh')
   async refresh(@Req() req: { user: User }): Promise<ResponseDto<{ user: UserResponseDto; accessToken: string }>> {
-    const accessToken = await this.authService.renewTokens(req.user);
+    const accessToken = await this.authService.renewAccessToken(req.user);
     return new ResponseDto({
       user: UserResponseDto.fromEntity(req.user),
       accessToken,
