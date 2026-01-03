@@ -1,11 +1,11 @@
 import React from 'react';
-import { Button } from '../../../../shared/components/ui/Button';
-import { Input } from '../../../../shared/components/ui/Input';
-import { useUpdateMyProfileMutation } from '../../../profile/services/profileApi';
+import { Button } from '../../../shared/components/ui/Button';
+import { Input } from '../../../shared/components/ui/Input';
+import { useUpdateMyProfileMutation } from '../services/profileApi';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useToastContext } from '../../../../shared/providers/ToastProvider'; // Use custom toast
+import { useToastContext } from '../../../shared/providers/ToastProvider'; // Use custom toast
 
 const displayNameSchema = z.object({
   displayName: z.string().min(3, 'Display name must be at least 3 characters').max(50, 'Display name must not exceed 50 characters'),

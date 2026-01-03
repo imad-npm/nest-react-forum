@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { useVerifyEmailChangeMutation } from '../features/settings/services/emailChangeApiSlice';
+import { useVerifyEmailChangeMutation } from '../services/emailChangeApiSlice';
 
 const EmailChangeVerifyPage = () => {
   const query = new URLSearchParams(useLocation().search);

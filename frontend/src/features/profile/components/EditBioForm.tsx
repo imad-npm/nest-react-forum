@@ -1,11 +1,11 @@
 import React from 'react';
-import { Button } from '../../../../shared/components/ui/Button';
-import { useUpdateMyProfileMutation } from '../../../profile/services/profileApi';
-import { Textarea } from '../../../../shared/components/ui/TextArea';
+import { Button } from '../../../shared/components/ui/Button';
+import { useUpdateMyProfileMutation } from '../services/profileApi';
+import { Textarea } from '../../../shared/components/ui/TextArea';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useToastContext } from '../../../../shared/providers/ToastProvider'; // Use custom toast
+import { useToastContext } from '../../../shared/providers/ToastProvider'; // Use custom toast
 
 const bioSchema = z.object({
   bio: z.string().max(255, 'Bio must not exceed 255 characters').nullable(),

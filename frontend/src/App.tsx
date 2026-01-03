@@ -19,7 +19,7 @@ import { RestrictedUsersPage } from './features/community-restrictions/pages/Res
 import { ProfilePage } from './features/profile/pages/ProfilePage';
 import { useAuth } from './features/auth/hooks/useAuth';
 import SettingsPage from './features/settings/pages/SettingsPage';
-import EmailChangeVerifyPage from './pages/EmailChangeVerifyPage';
+import EmailChangeVerifyPage from './features/user/pages/EmailChangeVerifyPage';
 
 const SessionLoader = ({ children }: { children: React.ReactNode }) => {
   const { isUserLoading } = useAuth();

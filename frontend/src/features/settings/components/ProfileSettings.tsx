@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useProfile } from '../../profile/hooks/useProfile';
 import { Modal } from '../../../shared/components/ui/Modal';
-import EditDisplayNameForm from './forms/EditDisplayNameForm';
-import EditBioForm from './forms/EditBioForm';
-import EditPictureForm from './forms/EditPictureForm';
+import EditDisplayNameForm from '../../profile/components/EditDisplayNameForm';
+import EditBioForm from '../../profile/components/EditBioForm';
+import EditPictureForm from '../../profile/components/EditPictureForm';
 
 const ProfileSettings = () => {
   const profile = useProfile();

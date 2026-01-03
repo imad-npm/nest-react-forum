@@ -1,8 +1,8 @@
 import React, { useState, useRef } from 'react';
-import { Button } from '../../../../shared/components/ui/Button';
-import { useUpdateMyProfileMutation, useUpdateMyProfilePictureMutation } from '../../../profile/services/profileApi';
+import { Button } from '../../../shared/components/ui/Button';
+import { useUpdateMyProfileMutation, useUpdateMyProfilePictureMutation } from '../services/profileApi';
 import { z } from 'zod';
-import { useToastContext } from '../../../../shared/providers/ToastProvider';
+import { useToastContext } from '../../../shared/providers/ToastProvider';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];

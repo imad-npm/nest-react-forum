@@ -2,13 +2,17 @@ import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Input } from '../../../../shared/components/ui/Input';
-import { Button } from '../../../../shared/components/ui/Button';
-import { useUpdateUsernameMutation } from '../../../auth/services/authApi';
-import { useAuth } from '../../../auth/hooks/useAuth';
+import { Input } from '../../../shared/components/ui/Input';
+import { Button } from '../../../shared/components/ui/Button';
+import { useAuth } from '../../auth/hooks/useAuth';
+import { useUpdateUsernameMutation } from '../services/userApiSlice';
+import { useToastContext } from '../../../shared/providers/ToastProvider';
 
 const usernameSchema = z.object({
-  username: z.string().min(3, 'Username must be at least 3 characters').max(20, 'Username must not exceed 20 characters'),
+  username: z
+    .string()
+    .min(3, 'Username must be at least 3 characters')
+    .max(20, 'Username must not exceed 20 characters'),
   currentPassword: z.string().min(1, 'Current password is required'),
 });
 
@@ -21,14 +25,15 @@ interface EditUsernameFormProps {
 
 const EditUsernameForm: React.FC<EditUsernameFormProps> = ({ currentUsername, onClose }) => {
   const { user } = useAuth();
-  const [updateUsername, { isLoading, isError, isSuccess, error }] = useUpdateUsernameMutation();
+  const [updateUsername, { isLoading }] = useUpdateUsernameMutation();
+  const { showToast } = useToastContext();
 
   const {
     register,
     handleSubmit,
     formState: { errors },
-    reset,
     setError,
+    reset,
   } = useForm<UsernameFormInputs>({
     resolver: zodResolver(usernameSchema),
     defaultValues: {
@@ -39,20 +44,22 @@ const EditUsernameForm: React.FC<EditUsernameFormProps> = ({ currentUsername, on
   const onSubmit = async (data: UsernameFormInputs) => {
     try {
       if (data.username === currentUsername) {
-        toast.info('New username is the same as the current username.');
+        showToast('New username is the same as the current username.', 'info');
         onClose();
         return;
       }
+
       await updateUsername(data).unwrap();
-      toast.success('Username updated successfully!');
+      showToast('Username updated successfully!', 'success');
       onClose();
     } catch (err: any) {
-      if (err.data?.message === 'Incorrect current password.') {
-        setError('currentPassword', { type: 'manual', message: err.data.message });
-      } else if (err.data?.message === 'Username already taken.') {
-        setError('username', { type: 'manual', message: err.data.message });
+      const msg = err.data?.message || err.message;
+      if (msg === 'Incorrect current password.') {
+        setError('currentPassword', { type: 'manual', message: msg });
+      } else if (msg === 'Username already taken.') {
+        setError('username', { type: 'manual', message: msg });
       } else {
-        toast.error(`Failed to update username: ${err.data?.message || err.message}`);
+        showToast(`Failed to update username: ${msg}`, 'error');
       }
     }
   };
@@ -63,12 +70,7 @@ const EditUsernameForm: React.FC<EditUsernameFormProps> = ({ currentUsername, on
         <label htmlFor="username" className="block text-sm font-medium text-gray-700">
           New Username
         </label>
-        <Input
-          id="username"
-          type="text"
-          {...register('username')}
-          className="mt-1 block w-full"
-        />
+        <Input id="username" type="text" {...register('username')} className="mt-1 block w-full" />
         {errors.username && <p className="mt-2 text-sm text-red-600">{errors.username.message}</p>}
       </div>
 
@@ -90,7 +92,7 @@ const EditUsernameForm: React.FC<EditUsernameFormProps> = ({ currentUsername, on
           Cancel
         </Button>
         <Button type="submit" disabled={isLoading}>
-          {isLoading ? 'Updating...' : 'Update Username'}
+          Update Username
         </Button>
       </div>
     </form>
