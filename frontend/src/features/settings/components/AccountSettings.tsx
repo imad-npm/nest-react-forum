@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { useRequestEmailChangeMutation } from '../services/emailChangeApiSlice';
 import { Modal } from '../../../shared/components/ui/Modal';
 import { Input } from '../../../shared/components/ui/Input';
+import EditUsernameForm from './forms/EditUsernameForm'; // Import EditUsernameForm
 
 const emailChangeSchema = z.object({
   newEmail: z.string().email('Invalid email address'),
@@ -17,6 +18,7 @@ type EmailChangeFormInputs = z.infer<typeof emailChangeSchema>;
 const AccountSettings = () => {
   const { user } = useAuth();
   const [showEmailChangeForm, setShowEmailChangeForm] = useState(false);
+  const [showUsernameChangeForm, setShowUsernameChangeForm] = useState(false); // New state for username modal
   const [requestEmailChange, { isLoading, isSuccess, isError, error }] =
     useRequestEmailChangeMutation();
 
@@ -52,18 +54,19 @@ const AccountSettings = () => {
         <dt className="text-sm font-medium text-gray-500">Username</dt>
         <dd className="mt-1 flex text-sm text-gray-900 sm:mt-0 sm:col-span-2">
           <span className="flex-grow">{user.username}</span>
-          <button className="ml-4 bg-white py-2 px-3 border border-gray-300 rounded-md shadow-sm text-sm leading-4 font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+          <button
+            onClick={() => setShowUsernameChangeForm(true)} // Open username modal
+            className="ml-4 bg-white py-2 px-3 border border-gray-300 rounded-md shadow-sm text-sm leading-4 font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          >
             Edit
           </button>
         </dd>
       </div>
 
-      <Modal open={showEmailChangeForm} onClose={() => setShowEmailChangeForm(false)} >
+      <Modal open={showEmailChangeForm} onClose={() => setShowEmailChangeForm(false)} title="Change Email">
         <form
           onSubmit={handleSubmit(async (data) => {
             try {
-              console.log(data);
-              
               await requestEmailChange(data).unwrap();
               reset();
               setShowEmailChangeForm(false);
@@ -134,6 +137,14 @@ const AccountSettings = () => {
             </p>
           )}
         </form>
+      </Modal>
+
+      {/* Username Change Modal */}
+      <Modal open={showUsernameChangeForm} onClose={() => setShowUsernameChangeForm(false)} title="Change Username">
+        <EditUsernameForm
+          currentUsername={user.username}
+          onClose={() => setShowUsernameChangeForm(false)}
+        />
       </Modal>
     </div>);
 };

@@ -209,6 +209,45 @@ async createUser({
     return this.repo.save(user);
   }
 
+  async updateUsername(
+    userId: number,
+    newUsername: string,
+    currentPassword: string,
+  ): Promise<User> {
+    const user = await this.findOneById(userId);
+
+    if (!user.password) {
+      throw new BadRequestException('Cannot update username for social accounts or accounts without a password.');
+    }
+
+    const isPasswordMatching = await bcrypt.compare(
+      currentPassword,
+      user.password,
+    );
+
+    if (!isPasswordMatching) {
+      throw new BadRequestException('Incorrect current password.');
+    }
+
+    if (user.username === newUsername) {
+      return user; // No change needed
+    }
+
+    const usernameExists = await this.repo.exists({
+      where: {
+        username: newUsername,
+        id: Not(user.id),
+      },
+    });
+
+    if (usernameExists) {
+      throw new ConflictException('Username already taken.');
+    }
+
+    user.username = newUsername;
+    return this.repo.save(user);
+  }
+
 
   async markEmailAsVerified(id: number): Promise<void> {
     const user = await this.findOneById(id);

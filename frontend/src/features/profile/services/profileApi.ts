@@ -1,58 +1,95 @@
 import { apiSlice } from '../../../shared/services/apiSlice';
 import type { ResponseDto } from '../../../shared/types';
-import type { Profile } from '../types'; // Assuming types.ts defines Profile
+import type { Profile } from '../types';
 
 export const profileApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
-    getProfileByUserId: builder.query<
-      ResponseDto<Profile>, // Adjust response type if needed
-      number // userId
-    >({
+    // ✅ Get current user's profile
+    getMyProfile: builder.query<ResponseDto<Profile>, void>({
+      query: () => `/profile`,
+      providesTags: ['Me', 'Profile'],
+    }),
+
+    // ✅ Get profile by user ID
+    getProfileByUserId: builder.query<ResponseDto<Profile>, number>({
       query: (userId) => `/profile/user/${userId}`,
       providesTags: ['Profile'],
     }),
+
     updateMyProfile: builder.mutation<
       ResponseDto<Profile>,
       Partial<Profile> & { pictureFile?: File }
     >({
       query: ({ pictureFile, ...patch }) => {
-        const formData = new FormData();
         if (pictureFile) {
+          const formData = new FormData();
           formData.append('file', pictureFile);
+
+          Object.entries(patch).forEach(([key, value]) => {
+            if (value !== undefined && value !== null) {
+              formData.append(key, String(value));
+            }
+          });
+
+          return {
+            url: '/profile',
+            method: 'PATCH',
+            body: formData,
+          };
         }
-        Object.keys(patch).forEach(key => {
-          if (patch[key] !== undefined) {
-            formData.append(key, patch[key]);
-          }
-        });
 
         return {
-          url: `/profile`,
+          url: '/profile',
+          method: 'PATCH',
+          body: patch,
+        };
+      },
+      invalidatesTags: ['Me', 'Profile'],
+    }),
+
+    updateMyProfilePicture: builder.mutation<
+      ResponseDto<Profile>,
+      { pictureFile: File }
+    >({
+      query: ({ pictureFile }) => {
+        const formData = new FormData();
+        formData.append('picture', pictureFile);
+
+        return {
+          url: '/profile/picture',
           method: 'PATCH',
           body: formData,
         };
       },
       invalidatesTags: ['Me', 'Profile'],
     }),
+
     createMyProfile: builder.mutation<
       ResponseDto<Profile>,
       Partial<Profile> & { pictureFile?: File }
     >({
       query: ({ pictureFile, ...patch }) => {
-        const formData = new FormData();
         if (pictureFile) {
+          const formData = new FormData();
           formData.append('file', pictureFile);
+
+          Object.entries(patch).forEach(([key, value]) => {
+            if (value !== undefined && value !== null) {
+              formData.append(key, String(value));
+            }
+          });
+
+          return {
+            url: '/profile',
+            method: 'POST',
+            body: formData,
+          };
         }
-        Object.keys(patch).forEach(key => {
-          if (patch[key] !== undefined) {
-            formData.append(key, patch[key]);
-          }
-        });
 
         return {
-          url: `/profile`,
+          url: '/profile',
           method: 'POST',
-          body: formData,
+          body: patch,
         };
       },
       invalidatesTags: ['Me', 'Profile'],
@@ -61,7 +98,9 @@ export const profileApi = apiSlice.injectEndpoints({
 });
 
 export const {
+  useGetMyProfileQuery,             // ✅ Added
   useGetProfileByUserIdQuery,
   useUpdateMyProfileMutation,
+  useUpdateMyProfilePictureMutation,
   useCreateMyProfileMutation,
 } = profileApi;

@@ -3,7 +3,6 @@ import { IsOptional, IsString, IsUrl, IsAlphanumeric, MinLength, MaxLength } fro
 export class UpdateProfileDto {
   @IsOptional()
   @IsString()
-  @IsAlphanumeric()
   @MinLength(3)
   @MaxLength(20)
   displayName?: string;

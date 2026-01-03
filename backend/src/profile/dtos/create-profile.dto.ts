@@ -3,7 +3,6 @@ import { IsNotEmpty, IsString, IsOptional, IsAlphanumeric, MinLength, MaxLength 
 export class CreateProfileDto {
   @IsNotEmpty()
   @IsString()
-  @IsAlphanumeric()
   @MinLength(3)
   @MaxLength(20)
   displayName: string;

@@ -3136,6 +3136,45 @@ async createUser({
     return this.repo.save(user);
   }
 
+  async updateUsername(
+    userId: number,
+    newUsername: string,
+    currentPassword: string,
+  ): Promise<User> {
+    const user = await this.findOneById(userId);
+
+    if (!user.password) {
+      throw new BadRequestException('Cannot update username for social accounts or accounts without a password.');
+    }
+
+    const isPasswordMatching = await bcrypt.compare(
+      currentPassword,
+      user.password,
+    );
+
+    if (!isPasswordMatching) {
+      throw new BadRequestException('Incorrect current password.');
+    }
+
+    if (user.username === newUsername) {
+      return user; // No change needed
+    }
+
+    const usernameExists = await this.repo.exists({
+      where: {
+        username: newUsername,
+        id: Not(user.id),
+      },
+    });
+
+    if (usernameExists) {
+      throw new ConflictException('Username already taken.');
+    }
+
+    user.username = newUsername;
+    return this.repo.save(user);
+  }
+
 
   async markEmailAsVerified(id: number): Promise<void> {
     const user = await this.findOneById(id);
@@ -3173,6 +3212,24 @@ export class UpdateEmailDto {
   @IsEmail()
   @IsNotEmpty()
   email: string;
+}
+
+---
+
+
+### FILE: backend/src/users/dtos/update-username.dto.ts ###
+import { IsString, IsNotEmpty, MinLength, MaxLength } from 'class-validator';
+
+export class UpdateUsernameDto {
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(3)
+  @MaxLength(20)
+  username: string;
+
+  @IsString()
+  @IsNotEmpty()
+  currentPassword: string;
 }
 
 ---
@@ -3354,12 +3411,17 @@ export class User {
 
 
 ### FILE: backend/src/users/users.controller.ts ###
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Query, Patch, Body, Req, UseGuards } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { UserQueryDto } from './dtos/user-query.dto';
 import { UserResponseDto } from './dtos/user-response.dto';
 import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
 import { PaginationMetaDto } from 'src/common/dto/pagination-meta.dto';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { UpdateUsernameDto } from './dtos/update-username.dto';
+import { User } from './entities/user.entity';
+import { ResponseDto } from 'src/common/dto/response.dto';
+import { GetUser } from 'src/decorators/user.decorator';
 
 @Controller('users')
 export class UsersController {
@@ -3382,6 +3444,20 @@ export class UsersController {
     );
 
     return new PaginatedResponseDto(data.map(UserResponseDto.fromEntity), paginationMeta);
+  }
+
+  @Patch('me')
+  @UseGuards(JwtAuthGuard)
+  async updateUsername(
+    @GetUser() user : User,
+    @Body() updateUsernameDto: UpdateUsernameDto,
+  ): Promise<ResponseDto<UserResponseDto>> {
+    const updatedUser = await this.usersService.updateUsername(
+      user.id,
+      updateUsernameDto.username,
+      updateUsernameDto.currentPassword,
+    );
+    return new ResponseDto(UserResponseDto.fromEntity(updatedUser), 'Username updated successfully.');
   }
 }
 
@@ -6914,7 +6990,7 @@ async validateUser(email: string, password: string): Promise<User> {
   // -------------------------------------------------------------------------
   // Refresh token flow
   // -------------------------------------------------------------------------
-  async renewTokens(user: User): Promise<string> {
+  async renewAccessToken(user: User): Promise<string> {
     const payload = { sub: user.id, email: user.email };
     return this.jwt.sign(payload, {
       secret: this.config.get<string>('JWT_ACCESS_SECRET'),
@@ -7082,7 +7158,7 @@ export class AuthController {
 
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV !== 'development', // Use secure cookies in production
+      secure: true, // Use secure cookies in production
       sameSite: 'strict',
       maxAge: maxAgeMs, // Use dynamic maxAge
     });
@@ -7102,7 +7178,7 @@ export class AuthController {
   @UseGuards(JwtRefreshGuard)
   @Get('refresh')
   async refresh(@Req() req: { user: User }): Promise<ResponseDto<{ user: UserResponseDto; accessToken: string }>> {
-    const accessToken = await this.authService.renewTokens(req.user);
+    const accessToken = await this.authService.renewAccessToken(req.user);
     return new ResponseDto({
       user: UserResponseDto.fromEntity(req.user),
       accessToken,
@@ -8389,7 +8465,6 @@ import { IsNotEmpty, IsString, IsOptional, IsAlphanumeric, MinLength, MaxLength 
 export class CreateProfileDto {
   @IsNotEmpty()
   @IsString()
-  @IsAlphanumeric()
   @MinLength(3)
   @MaxLength(20)
   displayName: string;
@@ -8408,7 +8483,6 @@ import { IsOptional, IsString, IsUrl, IsAlphanumeric, MinLength, MaxLength } fro
 export class UpdateProfileDto {
   @IsOptional()
   @IsString()
-  @IsAlphanumeric()
   @MinLength(3)
   @MaxLength(20)
   displayName?: string;
@@ -8491,10 +8565,16 @@ export function PictureInterceptor(field = 'picture') {
       },
     }),
     limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
-    fileFilter: (_req, file, callback) => {
-      const allowedTypes = /jpeg|jpg|png|gif/;
-      callback(null, allowedTypes.test(file.mimetype));
-    },
+   fileFilter: (_req, file, callback) => {
+  if (!file.mimetype.startsWith('image/')) {
+    return callback(
+      new Error('Only image files are allowed'),
+      false,
+    );
+  }
+  callback(null, true);
+},
+
   });
 }
 
@@ -8513,7 +8593,8 @@ import {
   Post,
   ConflictException,
   Param, // NEW
-  ParseIntPipe, // NEW
+  ParseIntPipe,
+  BadRequestException, // NEW
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ProfileService } from './profile.service';
@@ -8568,25 +8649,47 @@ export class ProfileController {
     return new ResponseDto(ProfileResponseDto.fromEntity(profile));
   }
 
+
   @UseGuards(JwtAuthGuard)
-  @Patch()
-  @UseInterceptors(PictureInterceptor)
-  async updateMyProfile(
-    @GetUser() user: User,
-    @Body() updateProfileDto: UpdateProfileDto,
-    @UploadedFile() file: Express.Multer.File,
-  ): Promise<ResponseDto<ProfileResponseDto>> {
-    const profile = await this.profileService.findOneByUserId(user.id);
+@Patch()
+async updateMyProfile(
+  @GetUser() user: User,
+  @Body() dto: UpdateProfileDto,
+): Promise<ResponseDto<ProfileResponseDto>> {
+  const profile = await this.profileService.findOneByUserId(user.id);
 
-    const updatedProfile = await this.profileService.updateProfile({
-      profile,
-      displayName: updateProfileDto.displayName,
-      bio: updateProfileDto.bio,
-      picture: file ? file.path : undefined,
-    });
+  const updated = await this.profileService.updateProfile({
+    profile,
+    displayName: dto.displayName,
+    bio: dto.bio,
+  });
 
-    return new ResponseDto(ProfileResponseDto.fromEntity(updatedProfile));
+  return new ResponseDto(ProfileResponseDto.fromEntity(updated));
+}
+
+@UseGuards(JwtAuthGuard)
+@Patch('picture')
+@UseInterceptors(PictureInterceptor)
+async updateMyProfilePicture(
+  @GetUser() user: User,
+  @UploadedFile() file: Express.Multer.File,
+): Promise<ResponseDto<ProfileResponseDto>> {
+  const profile = await this.profileService.findOneByUserId(user.id);
+  console.log('--- updateMyProfilePicture called ---');
+  console.log('file:', file);
+  // if you want to inspect headers:
+  // console.log('req headers content-type:', (req as any).headers?.['content-type']);
+  if (!file) {
+    throw new BadRequestException('No file uploaded or file rejected by filter');
   }
+  const updated = await this.profileService.updateProfile({
+    profile,
+    picture: file.path,
+  });
+
+  return new ResponseDto(ProfileResponseDto.fromEntity(updated));
+}
+
 }
 ---
 
@@ -10267,24 +10370,21 @@ export default Home;
 
 
 ### FILE: frontend/src/pages/EmailChangeVerifyPage.tsx ###
-import React, { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import {  useVerifyEmailChangeMutation } from '../features/settings/services/emailChangeApiSlice';
+import { useVerifyEmailChangeMutation } from '../features/settings/services/emailChangeApiSlice';
 
 const EmailChangeVerifyPage = () => {
   const query = new URLSearchParams(useLocation().search);
   const token = query.get('token');
-  const [skip, setSkip] = useState(true);
 
-  // Trigger the query only when the token is available
+  const [verifyEmailChange, { isLoading, isSuccess, isError, error }] = useVerifyEmailChangeMutation();
+
   useEffect(() => {
     if (token) {
-      setSkip(false);
+      verifyEmailChange({ token });
     }
-  }, [token]);
-
-  const { data, isLoading, isSuccess, isError, error } =
-    useVerifyEmailChangeMutation({ token: token || '' }, { skip });
+  }, [token, verifyEmailChange]);
 
   let content;
   if (isLoading) {
@@ -10304,7 +10404,7 @@ const EmailChangeVerifyPage = () => {
         Error verifying email change: {(error as any)?.data?.message || 'Invalid or expired token.'}
       </div>
     );
-  } else {
+  } else if (!token) {
     content = <div className="text-red-600">No verification token found.</div>;
   }
 
@@ -11829,6 +11929,7 @@ import { z } from 'zod';
 import { useRequestEmailChangeMutation } from '../services/emailChangeApiSlice';
 import { Modal } from '../../../shared/components/ui/Modal';
 import { Input } from '../../../shared/components/ui/Input';
+import EditUsernameForm from './forms/EditUsernameForm'; // Import EditUsernameForm
 
 const emailChangeSchema = z.object({
   newEmail: z.string().email('Invalid email address'),
@@ -11840,6 +11941,7 @@ type EmailChangeFormInputs = z.infer<typeof emailChangeSchema>;
 const AccountSettings = () => {
   const { user } = useAuth();
   const [showEmailChangeForm, setShowEmailChangeForm] = useState(false);
+  const [showUsernameChangeForm, setShowUsernameChangeForm] = useState(false); // New state for username modal
   const [requestEmailChange, { isLoading, isSuccess, isError, error }] =
     useRequestEmailChangeMutation();
 
@@ -11875,18 +11977,19 @@ const AccountSettings = () => {
         <dt className="text-sm font-medium text-gray-500">Username</dt>
         <dd className="mt-1 flex text-sm text-gray-900 sm:mt-0 sm:col-span-2">
           <span className="flex-grow">{user.username}</span>
-          <button className="ml-4 bg-white py-2 px-3 border border-gray-300 rounded-md shadow-sm text-sm leading-4 font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+          <button
+            onClick={() => setShowUsernameChangeForm(true)} // Open username modal
+            className="ml-4 bg-white py-2 px-3 border border-gray-300 rounded-md shadow-sm text-sm leading-4 font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          >
             Edit
           </button>
         </dd>
       </div>
 
-      <Modal open={showEmailChangeForm} onClose={() => setShowEmailChangeForm(false)} >
+      <Modal open={showEmailChangeForm} onClose={() => setShowEmailChangeForm(false)} title="Change Email">
         <form
           onSubmit={handleSubmit(async (data) => {
             try {
-              console.log(data);
-              
               await requestEmailChange(data).unwrap();
               reset();
               setShowEmailChangeForm(false);
@@ -11958,6 +12061,14 @@ const AccountSettings = () => {
           )}
         </form>
       </Modal>
+
+      {/* Username Change Modal */}
+      <Modal open={showUsernameChangeForm} onClose={() => setShowUsernameChangeForm(false)} title="Change Username">
+        <EditUsernameForm
+          currentUsername={user.username}
+          onClose={() => setShowUsernameChangeForm(false)}
+        />
+      </Modal>
     </div>);
 };
 
@@ -11967,10 +12078,20 @@ export default AccountSettings;
 
 
 ### FILE: frontend/src/features/settings/components/forms/EditBioForm.tsx ###
-import React, { useState } from 'react';
-import  { Button } from '../../../../shared/components/ui/Button';
+import React from 'react';
+import { Button } from '../../../../shared/components/ui/Button';
 import { useUpdateMyProfileMutation } from '../../../profile/services/profileApi';
 import { Textarea } from '../../../../shared/components/ui/TextArea';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { useToastContext } from '../../../../shared/providers/ToastProvider'; // Use custom toast
+
+const bioSchema = z.object({
+  bio: z.string().max(255, 'Bio must not exceed 255 characters').nullable(),
+});
+
+type BioFormInputs = z.infer<typeof bioSchema>;
 
 interface EditBioFormProps {
   currentBio: string | null;
@@ -11978,40 +12099,56 @@ interface EditBioFormProps {
 }
 
 const EditBioForm: React.FC<EditBioFormProps> = ({ currentBio, onClose }) => {
-  const [bio, setBio] = useState(currentBio || '');
   const [updateProfile, { isLoading }] = useUpdateMyProfileMutation();
+  const { showToast } = useToastContext(); // Get showToast from context
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    reset,
+  } = useForm<BioFormInputs>({
+    resolver: zodResolver(bioSchema),
+    defaultValues: {
+      bio: currentBio || null,
+    },
+  });
+
+  const onSubmit = async (data: BioFormInputs) => {
     try {
-      await updateProfile({ bio }).unwrap();
+      if (data.bio === currentBio) {
+        showToast('New bio is the same as the current bio.', 'info');
+        onClose();
+        return;
+      }
+      await updateProfile({ bio: data.bio }).unwrap();
+      showToast('Bio updated successfully!', 'success');
       onClose();
-    } catch (err) {
-      console.error('Failed to update bio:', err);
-      // TODO: Display error message to the user
+    } catch (err: any) {
+      showToast(`Failed to update bio: ${err.data?.message || err.message}`, 'error');
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       <div>
         <label htmlFor="bio" className="block text-sm font-medium text-gray-700">
           Bio
         </label>
         <Textarea
           id="bio"
-          value={bio}
-          onChange={(e) => setBio(e.target.value)}
+          {...register('bio')}
           className="mt-1 block w-full"
           rows={4}
         />
+        {errors.bio && <p className="mt-2 text-sm text-red-600">{errors.bio.message}</p>}
       </div>
       <div className="flex justify-end space-x-2">
-        <Button type="button" variant="outline" onClick={onClose}>
+        <Button type="button" variant="ghost" onClick={onClose} disabled={isLoading}>
           Cancel
         </Button>
         <Button type="submit" isLoading={isLoading}>
-          Save
+          {isLoading ? 'Saving...' : 'Save'}
         </Button>
       </div>
     </form>
@@ -12023,10 +12160,133 @@ export default EditBioForm;
 ---
 
 
+### FILE: frontend/src/features/settings/components/forms/EditUsernameForm.tsx ###
+import React from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { Input } from '../../../../shared/components/ui/Input';
+import { Button } from '../../../../shared/components/ui/Button';
+import { useUpdateUsernameMutation } from '../../../auth/services/authApi';
+import { useAuth } from '../../../auth/hooks/useAuth';
+
+const usernameSchema = z.object({
+  username: z.string().min(3, 'Username must be at least 3 characters').max(20, 'Username must not exceed 20 characters'),
+  currentPassword: z.string().min(1, 'Current password is required'),
+});
+
+type UsernameFormInputs = z.infer<typeof usernameSchema>;
+
+interface EditUsernameFormProps {
+  currentUsername: string;
+  onClose: () => void;
+}
+
+const EditUsernameForm: React.FC<EditUsernameFormProps> = ({ currentUsername, onClose }) => {
+  const { user } = useAuth();
+  const [updateUsername, { isLoading, isError, isSuccess, error }] = useUpdateUsernameMutation();
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    reset,
+    setError,
+  } = useForm<UsernameFormInputs>({
+    resolver: zodResolver(usernameSchema),
+    defaultValues: {
+      username: currentUsername,
+    },
+  });
+
+  const onSubmit = async (data: UsernameFormInputs) => {
+    try {
+      if (data.username === currentUsername) {
+        toast.info('New username is the same as the current username.');
+        onClose();
+        return;
+      }
+      await updateUsername(data).unwrap();
+      toast.success('Username updated successfully!');
+      onClose();
+    } catch (err: any) {
+      if (err.data?.message === 'Incorrect current password.') {
+        setError('currentPassword', { type: 'manual', message: err.data.message });
+      } else if (err.data?.message === 'Username already taken.') {
+        setError('username', { type: 'manual', message: err.data.message });
+      } else {
+        toast.error(`Failed to update username: ${err.data?.message || err.message}`);
+      }
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <div>
+        <label htmlFor="username" className="block text-sm font-medium text-gray-700">
+          New Username
+        </label>
+        <Input
+          id="username"
+          type="text"
+          {...register('username')}
+          className="mt-1 block w-full"
+        />
+        {errors.username && <p className="mt-2 text-sm text-red-600">{errors.username.message}</p>}
+      </div>
+
+      <div>
+        <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700">
+          Current Password
+        </label>
+        <Input
+          id="currentPassword"
+          type="password"
+          {...register('currentPassword')}
+          className="mt-1 block w-full"
+        />
+        {errors.currentPassword && <p className="mt-2 text-sm text-red-600">{errors.currentPassword.message}</p>}
+      </div>
+
+      <div className="flex justify-end space-x-2">
+        <Button type="button" variant="ghost" onClick={onClose} disabled={isLoading}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={isLoading}>
+          {isLoading ? 'Updating...' : 'Update Username'}
+        </Button>
+      </div>
+    </form>
+  );
+};
+
+export default EditUsernameForm;
+
+---
+
+
 ### FILE: frontend/src/features/settings/components/forms/EditPictureForm.tsx ###
-import React, { useState } from 'react';
-import  { Button } from '../../../../shared/components/ui/Button';
-import { useUpdateMyProfileMutation } from '../../../profile/services/profileApi';
+import React, { useState, useRef } from 'react';
+import { Button } from '../../../../shared/components/ui/Button';
+import { useUpdateMyProfileMutation, useUpdateMyProfilePictureMutation } from '../../../profile/services/profileApi';
+import { z } from 'zod';
+import { useToastContext } from '../../../../shared/providers/ToastProvider';
+
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+
+const pictureSchema = z.object({
+  pictureFile: z
+    .any()
+    .refine((file) => file instanceof File || file === null, 'File is required.')
+    .refine((file) => !file || file.size <= MAX_FILE_SIZE, `Max image size is 5MB.`)
+    .refine(
+      (file) => !file || ACCEPTED_IMAGE_TYPES.includes(file.type),
+      'Only .jpg, .jpeg, .png and .webp formats are supported.'
+    ).nullable(),
+});
+
+type PictureFormInputs = z.infer<typeof pictureSchema>;
 
 interface EditPictureFormProps {
   currentPicture: string | null;
@@ -12034,34 +12294,54 @@ interface EditPictureFormProps {
 }
 
 const EditPictureForm: React.FC<EditPictureFormProps> = ({ currentPicture, onClose }) => {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(currentPicture);
-  const [updateProfile, { isLoading }] = useUpdateMyProfileMutation();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [updateProfilePicture, { isLoading }] = useUpdateMyProfilePictureMutation();
+  const { showToast } = useToastContext(); // Get showToast from context
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      setSelectedFile(file);
-      setPreview(URL.createObjectURL(file));
+      const validationResult = pictureSchema.safeParse({ pictureFile: file });
+
+      if (validationResult.success) {
+        setPreview(URL.createObjectURL(file));
+      } else {
+        showToast(validationResult.error.errors[0].message, 'error');
+        // Clear the invalid file input
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+        setPreview(currentPicture); // Reset preview to current if validation fails
+      }
     } else {
-      setSelectedFile(null);
       setPreview(currentPicture);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const selectedFile = fileInputRef.current?.files?.[0] || null;
+
     if (!selectedFile) {
-      console.warn('No file selected.');
+      showToast('No new picture selected.', 'info');
+      onClose();
+      return;
+    }
+
+    const validationResult = pictureSchema.safeParse({ pictureFile: selectedFile });
+
+    if (!validationResult.success) {
+      showToast(validationResult.error.errors[0].message, 'error');
       return;
     }
 
     try {
-      await updateProfile({ pictureFile: selectedFile }).unwrap();
+      await updateProfilePicture({ pictureFile: selectedFile }).unwrap();
+      showToast('Profile picture updated successfully!', 'success');
       onClose();
-    } catch (err) {
-      console.error('Failed to update profile picture:', err);
-      // TODO: Display error message to the user
+    } catch (err: any) {
+      showToast(`Failed to update profile picture: ${err.data?.message || err.message}`, 'error');
     }
   };
 
@@ -12079,6 +12359,7 @@ const EditPictureForm: React.FC<EditPictureFormProps> = ({ currentPicture, onClo
             type="file"
             id="picture"
             accept="image/*"
+            ref={fileInputRef}
             onChange={handleFileChange}
             className="block w-full text-sm text-gray-500
                        file:mr-4 file:py-2 file:px-4
@@ -12090,11 +12371,11 @@ const EditPictureForm: React.FC<EditPictureFormProps> = ({ currentPicture, onClo
         </div>
       </div>
       <div className="flex justify-end space-x-2">
-        <Button type="button" variant="outline" onClick={onClose}>
+        <Button type="button" variant="ghost" onClick={onClose} disabled={isLoading}>
           Cancel
         </Button>
-        <Button type="submit" isLoading={isLoading} disabled={!selectedFile}>
-          Save
+        <Button type="submit" isLoading={isLoading}>
+          {isLoading ? 'Saving...' : 'Save'}
         </Button>
       </div>
     </form>
@@ -12107,10 +12388,20 @@ export default EditPictureForm;
 
 
 ### FILE: frontend/src/features/settings/components/forms/EditDisplayNameForm.tsx ###
-import React, { useState } from 'react';
-import  { Button } from '../../../../shared/components/ui/Button';
+import React from 'react';
+import { Button } from '../../../../shared/components/ui/Button';
 import { Input } from '../../../../shared/components/ui/Input';
 import { useUpdateMyProfileMutation } from '../../../profile/services/profileApi';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { useToastContext } from '../../../../shared/providers/ToastProvider'; // Use custom toast
+
+const displayNameSchema = z.object({
+  displayName: z.string().min(3, 'Display name must be at least 3 characters').max(50, 'Display name must not exceed 50 characters'),
+});
+
+type DisplayNameFormInputs = z.infer<typeof displayNameSchema>;
 
 interface EditDisplayNameFormProps {
   currentDisplayName: string;
@@ -12121,41 +12412,58 @@ const EditDisplayNameForm: React.FC<EditDisplayNameFormProps> = ({
   currentDisplayName,
   onClose,
 }) => {
-  const [displayName, setDisplayName] = useState(currentDisplayName);
   const [updateProfile, { isLoading }] = useUpdateMyProfileMutation();
+  const { showToast } = useToastContext(); // Get showToast from context
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    reset,
+  } = useForm<DisplayNameFormInputs>({
+    resolver: zodResolver(displayNameSchema),
+    defaultValues: {
+      displayName: currentDisplayName,
+    },
+  });
+
+  const onSubmit = async (data: DisplayNameFormInputs) => {
     try {
-      await updateProfile({ displayName }).unwrap();
+      if (data.displayName === currentDisplayName) {
+        showToast('New display name is the same as the current display name.', 'info');
+        onClose();
+        return;
+      }
+      await updateProfile({ displayName: data.displayName }).unwrap();
+      showToast('Display name updated successfully!', 'success');
+      console.log('Update Display Name Success - Returned Data:', data);
       onClose();
-    } catch (err) {
-      console.error('Failed to update display name:', err);
-      // TODO: Display error message to the user
+    } catch (err: any) {
+      showToast(`Failed to update display name: ${err.data?.message || err.message}`, 'error');
     }
   };
 
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       <div>
         <label htmlFor="displayName" className="block text-sm font-medium text-gray-700">
-          Display Name
+          New Display Name
         </label>
         <Input
           type="text"
           id="displayName"
-          value={displayName}
-          onChange={(e) => setDisplayName(e.target.value)}
+          {...register('displayName')}
           className="mt-1 block w-full"
-          required
         />
+        {errors.displayName && <p className="mt-2 text-sm text-red-600">{errors.displayName.message}</p>}
       </div>
       <div className="flex justify-end space-x-2">
-        <Button type="button" variant="outline" onClick={onClose}>
+        <Button type="button" variant="ghost" onClick={onClose} disabled={isLoading}>
           Cancel
         </Button>
         <Button type="submit" isLoading={isLoading}>
-          Save
+          {isLoading ? 'Saving...' : 'Save'}
         </Button>
       </div>
     </form>
@@ -13281,6 +13589,11 @@ export interface RegisterDto {
     data: T;
     message: string;
   }
+
+  export interface UpdateUsernameDto {
+    username: string;
+    currentPassword: string;
+  }
   
 ---
 
@@ -13646,7 +13959,7 @@ export default authSlice.reducer;
 
 ### FILE: frontend/src/features/auth/services/authApi.ts ###
 import { apiSlice } from '../../../shared/services/apiSlice';
-import type { LoginDto, RegisterDto, UserResponseDto, ResponseDto } from '../types';
+import type { LoginDto, RegisterDto, UserResponseDto, ResponseDto, UpdateUsernameDto } from '../types';
 import { setAccessToken, logout as authLogout } from '../stores/authSlice'; // Import setAccessToken and rename logout
 
 export const authApi = apiSlice.injectEndpoints({
@@ -13709,6 +14022,14 @@ export const authApi = apiSlice.injectEndpoints({
         body: { email },
       }),
     }),
+    updateUsername: builder.mutation<ResponseDto<UserResponseDto>, UpdateUsernameDto>({
+      query: (dto) => ({
+        url: 'users/me',
+        method: 'PATCH',
+        body: dto,
+      }),
+      invalidatesTags: ['Me'],
+    }),
   }),
 });
 export const {
@@ -13717,6 +14038,7 @@ export const {
   useLogoutMutation,
   useGetMeQuery,
   useResendEmailVerificationMutation,
+  useUpdateUsernameMutation,
 } = authApi;
 
 ---
@@ -15041,59 +15363,94 @@ export const ProfileEditForm = ({
 ### FILE: frontend/src/features/profile/services/profileApi.ts ###
 import { apiSlice } from '../../../shared/services/apiSlice';
 import type { ResponseDto } from '../../../shared/types';
-import type { Profile } from '../types'; // Assuming types.ts defines Profile
+import type { Profile } from '../types';
 
 export const profileApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
-    getProfileByUserId: builder.query<
-      ResponseDto<Profile>, // Adjust response type if needed
-      number // userId
-    >({
+    getProfileByUserId: builder.query<ResponseDto<Profile>, number>({
       query: (userId) => `/profile/user/${userId}`,
       providesTags: ['Profile'],
     }),
+
     updateMyProfile: builder.mutation<
       ResponseDto<Profile>,
       Partial<Profile> & { pictureFile?: File }
     >({
       query: ({ pictureFile, ...patch }) => {
-        const formData = new FormData();
+        // ✅ CASE 1: picture exists → FormData
         if (pictureFile) {
+          const formData = new FormData();
           formData.append('file', pictureFile);
-        }
-        Object.keys(patch).forEach(key => {
-          if (patch[key] !== undefined) {
-            formData.append(key, patch[key]);
-          }
-        });
 
+          Object.entries(patch).forEach(([key, value]) => {
+            if (value !== undefined && value !== null) {
+              formData.append(key, String(value));
+            }
+          });
+
+          return {
+            url: '/profile',
+            method: 'PATCH',
+            body: formData,
+          };
+        }
+
+        // ✅ CASE 2: no picture → JSON
         return {
-          url: `/profile`,
+          url: '/profile',
           method: 'PATCH',
-          body: formData,
+          body: patch,
         };
       },
       invalidatesTags: ['Me', 'Profile'],
     }),
+
+     updateMyProfilePicture: builder.mutation<
+      ResponseDto<Profile>,
+       { pictureFile: File }
+    >({
+      query: ({ pictureFile }) => {
+        // ✅ CASE 1: picture exists → FormData
+          const formData = new FormData();
+          formData.append('picture', pictureFile);
+
+          return {
+            url: '/profile/picture',
+            method: 'PATCH',
+            body: formData,
+          };
+    
+       
+      },
+      invalidatesTags: ['Me', 'Profile'],
+    }),
+
     createMyProfile: builder.mutation<
       ResponseDto<Profile>,
       Partial<Profile> & { pictureFile?: File }
     >({
       query: ({ pictureFile, ...patch }) => {
-        const formData = new FormData();
         if (pictureFile) {
+          const formData = new FormData();
           formData.append('file', pictureFile);
+
+          Object.entries(patch).forEach(([key, value]) => {
+            if (value !== undefined && value !== null) {
+              formData.append(key, String(value));
+            }
+          });
+
+          return {
+            url: '/profile',
+            method: 'POST',
+            body: formData,
+          };
         }
-        Object.keys(patch).forEach(key => {
-          if (patch[key] !== undefined) {
-            formData.append(key, patch[key]);
-          }
-        });
 
         return {
-          url: `/profile`,
+          url: '/profile',
           method: 'POST',
-          body: formData,
+          body: patch,
         };
       },
       invalidatesTags: ['Me', 'Profile'],
@@ -15104,6 +15461,7 @@ export const profileApi = apiSlice.injectEndpoints({
 export const {
   useGetProfileByUserIdQuery,
   useUpdateMyProfileMutation,
+  useUpdateMyProfilePictureMutation,
   useCreateMyProfileMutation,
 } = profileApi;
 
@@ -17479,31 +17837,75 @@ export const timeAgo = (dateString: string): string => {
 
 
 ### FILE: frontend/src/shared/services/apiSlice.ts ###
-import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react'
+import {
+  
+  createApi,
+  fetchBaseQuery,
+  type BaseQueryFn,
+  type FetchArgs,
+  type FetchBaseQueryError,
+  type RootState,
+} from '@reduxjs/toolkit/query/react';
+import { setAccessToken, logout } from '../../features/auth/stores/authSlice';
 
 // Create a base query with authentication headers
 const baseQuery = fetchBaseQuery({
   baseUrl: 'http://localhost:3000/api/',
   prepareHeaders: (headers, { getState }) => {
     // Assuming your auth slice is named 'auth' and has an 'accessToken' field
-    const token = (getState() as any).auth?.accessToken;
+    const token = (getState() as RootState).auth?.accessToken;
     if (token) {
       headers.set('Authorization', `Bearer ${token}`);
     }
-    
+
     return headers;
   },
   credentials: 'include',
 });
 
+const baseQueryWithReauth: BaseQueryFn<
+  string | FetchArgs,
+  unknown,
+  FetchBaseQueryError
+> = async (args, api, extraOptions) => {
+  let result = await baseQuery(args, api, extraOptions);
+
+  if (result.error && result.error.status === 401) {
+    // try to get a new token
+    const refreshResult = await baseQuery({ url: 'auth/refresh' }, api, extraOptions);
+
+    if (refreshResult.data) {
+      const { accessToken } = (refreshResult.data as any).data;
+      // store the new token
+      api.dispatch(setAccessToken(accessToken));
+      // retry the original query
+      result = await baseQuery(args, api, extraOptions);
+    } else {
+      // Refresh token is invalid or expired, log the user out
+      api.dispatch(logout());
+    }
+  }
+
+  return result;
+};
+
 // Create a base API slice that other API slices can extend
 export const apiSlice = createApi({
   reducerPath: 'api',
-  baseQuery,
+  baseQuery: baseQueryWithReauth,
   // Define common tag types here if any, otherwise leave empty
-  tagTypes: ['Posts', 'Comments', 'Me', 'Profile', 'Reactions',
-     'Communities', 'CommunityMemberships',
-     "CommunityMembershipRequests","CommunityRestrictions", "Reports"],
+  tagTypes: [
+    'Posts',
+    'Comments',
+    'Me',
+    'Profile',
+    'Reactions',
+    'Communities',
+    'CommunityMemberships',
+    'CommunityMembershipRequests',
+    'CommunityRestrictions',
+    'Reports',
+  ],
   endpoints: () => ({}), // Empty endpoints as this is a base slice
 });
 

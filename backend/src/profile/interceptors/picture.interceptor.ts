@@ -19,9 +19,15 @@ export function PictureInterceptor(field = 'picture') {
       },
     }),
     limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
-    fileFilter: (_req, file, callback) => {
-      const allowedTypes = /jpeg|jpg|png|gif/;
-      callback(null, allowedTypes.test(file.mimetype));
-    },
+   fileFilter: (_req, file, callback) => {
+  if (!file.mimetype.startsWith('image/')) {
+    return callback(
+      new Error('Only image files are allowed'),
+      false,
+    );
+  }
+  callback(null, true);
+},
+
   });
 }

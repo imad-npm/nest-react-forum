@@ -9,7 +9,8 @@ import {
   Post,
   ConflictException,
   Param, // NEW
-  ParseIntPipe, // NEW
+  ParseIntPipe,
+  BadRequestException, // NEW
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ProfileService } from './profile.service';
@@ -27,15 +28,17 @@ import { ResponseDto } from 'src/common/dto/response.dto';
 
 @Controller('profile')
 export class ProfileController {
-  constructor(private readonly profileService: ProfileService
+  constructor(private readonly profileService: ProfileService,
+    private configService : ConfigService
 
   ) { }
   @UseGuards(JwtAuthGuard)
   @Get()
   async getMyProfile(@GetUser() user: User): Promise<ResponseDto<ProfileResponseDto>> {
     const profile = await this.profileService.findOneByUserId(user.id);
-    return new ResponseDto(ProfileResponseDto.fromEntity(profile));
-  }
+  return new ResponseDto(
+    ProfileResponseDto.fromEntity(profile, this.configService.get('APP_DOMAIN'))
+  );  }
 
   // New endpoint to get a profile by user ID
   @Get('user/:userId')
@@ -64,23 +67,45 @@ export class ProfileController {
     return new ResponseDto(ProfileResponseDto.fromEntity(profile));
   }
 
+
   @UseGuards(JwtAuthGuard)
   @Patch()
-  @UseInterceptors(PictureInterceptor)
   async updateMyProfile(
     @GetUser() user: User,
-    @Body() updateProfileDto: UpdateProfileDto,
-    @UploadedFile() file: Express.Multer.File,
+    @Body() dto: UpdateProfileDto,
   ): Promise<ResponseDto<ProfileResponseDto>> {
     const profile = await this.profileService.findOneByUserId(user.id);
 
-    const updatedProfile = await this.profileService.updateProfile({
+    const updated = await this.profileService.updateProfile({
       profile,
-      displayName: updateProfileDto.displayName,
-      bio: updateProfileDto.bio,
-      picture: file ? file.path : undefined,
+      displayName: dto.displayName,
+      bio: dto.bio,
     });
 
-    return new ResponseDto(ProfileResponseDto.fromEntity(updatedProfile));
+    return new ResponseDto(ProfileResponseDto.fromEntity(updated));
   }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('picture')
+  @UseInterceptors(PictureInterceptor())
+  async updateMyProfilePicture(
+    @GetUser() user: User,
+    @UploadedFile() file: Express.Multer.File,
+  ): Promise<ResponseDto<ProfileResponseDto>> {
+    const profile = await this.profileService.findOneByUserId(user.id);
+    console.log('--- updateMyProfilePicture called ---');
+    console.log('file:', file);
+    // if you want to inspect headers:
+    // console.log('req headers content-type:', (req as any).headers?.['content-type']);
+    if (!file) {
+      throw new BadRequestException('No file uploaded or file rejected by filter');
+    }
+    const updated = await this.profileService.updateProfile({
+      profile,
+      picture: file.path,
+    });
+
+    return new ResponseDto(ProfileResponseDto.fromEntity(updated));
+  }
+
 }

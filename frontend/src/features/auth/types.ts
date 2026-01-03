@@ -19,4 +19,9 @@ export interface RegisterDto {
     data: T;
     message: string;
   }
+
+  export interface UpdateUsernameDto {
+    username: string;
+    currentPassword: string;
+  }
   

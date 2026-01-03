@@ -1,5 +1,5 @@
 import { apiSlice } from '../../../shared/services/apiSlice';
-import type { LoginDto, RegisterDto, UserResponseDto, ResponseDto } from '../types';
+import type { LoginDto, RegisterDto, UserResponseDto, ResponseDto, UpdateUsernameDto } from '../types';
 import { setAccessToken, logout as authLogout } from '../stores/authSlice'; // Import setAccessToken and rename logout
 
 export const authApi = apiSlice.injectEndpoints({
@@ -62,6 +62,14 @@ export const authApi = apiSlice.injectEndpoints({
         body: { email },
       }),
     }),
+    updateUsername: builder.mutation<ResponseDto<UserResponseDto>, UpdateUsernameDto>({
+      query: (dto) => ({
+        url: 'users/me',
+        method: 'PATCH',
+        body: dto,
+      }),
+      invalidatesTags: ['Me'],
+    }),
   }),
 });
 export const {
@@ -70,4 +78,5 @@ export const {
   useLogoutMutation,
   useGetMeQuery,
   useResendEmailVerificationMutation,
+  useUpdateUsernameMutation,
 } = authApi;
