@@ -6,6 +6,7 @@ import {
   OneToMany,
   OneToOne,
   JoinColumn,
+  CreateDateColumn,
 } from 'typeorm';
 import { Post } from '../../posts/entities/post.entity';
 import { Comment } from '../../comments/entities/comment.entity';
@@ -66,6 +67,9 @@ export class User {
   })
   role: UserRole;
 
+  @CreateDateColumn() // 2. Add this field
+  createdAt: Date;
+  
   // Relations
   @OneToMany(() => Post, (post) => post.author)
   posts: Post[];
