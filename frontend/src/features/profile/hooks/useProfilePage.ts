@@ -15,10 +15,12 @@ export const useProfile = () => {
     error,
     refetch,
   } = useGetProfileByUserIdQuery(parsedUserId);
+
   const { user: currentUser } = useAuth();
 
   const profile = profileResponse?.data;
   const isMyProfile = currentUser?.id === parsedUserId;
+
 
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState<'posts' | 'comments'>('posts');

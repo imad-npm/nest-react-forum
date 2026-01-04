@@ -23,6 +23,7 @@ import EmailChangeVerifyPage from './features/user/pages/EmailChangeVerifyPage';
 
 import ForgotPassword from './features/auth/pages/ForgotPassword';
 import ResetPassword from './features/auth/pages/ResetPassword';
+import GoogleAuthCallback from './features/auth/pages/GoogleAuthCallback'; // Import GoogleAuthCallback
 
 const SessionLoader = ({ children }: { children: React.ReactNode }) => {
   const { isUserLoading } = useAuth();
@@ -50,6 +51,7 @@ export default function App() {
           <Route path="/email-verification" element={<EmailVerification />} />
           <Route path="/verify-email" element={<VerificationResult />} />
           <Route path="/email/change/verify" element={<EmailChangeVerifyPage />} />
+          <Route path="/auth/google/callback" element={<GoogleAuthCallback />} /> {/* New Google OAuth Callback Route */}
 
           {/* --- Standard User Routes (with LeftSidebar) --- */}
           <Route element={<MainLayout />}>

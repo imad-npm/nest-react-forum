@@ -44,7 +44,9 @@ export class ProfileController {
   @Get('user/:userId')
   async getProfileByUserId(@Param('userId', ParseIntPipe) userId: number): Promise<ResponseDto<ProfileResponseDto>> {
     const profile = await this.profileService.findOneByUserId(userId);
-    return new ResponseDto(ProfileResponseDto.fromEntity(profile));
+    return new ResponseDto(
+      ProfileResponseDto.fromEntity(profile,this.configService.get('APP_DOMAIN'))
+    );
   }
 
   @UseGuards(JwtAuthGuard)

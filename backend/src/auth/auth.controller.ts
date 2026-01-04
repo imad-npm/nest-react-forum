@@ -33,7 +33,7 @@ export class AuthController {
   @Post('register')
   async register(@Body() dto: RegisterDto): Promise<ResponseDto<UserResponseDto>> {
     const user = await this.authService.register(
-      dto.name,
+      dto.username,
       dto.email,
       dto.password,
     );
@@ -105,7 +105,8 @@ export class AuthController {
   async googleCallback(
     @Req() req: { user: any },
     @Res({ passthrough: true }) res: Response,
-  ): Promise<ResponseDto<{ user: UserResponseDto; accessToken: string }>> {
+  ) {    
+      console.log('googleCallback req.user =', JSON.stringify(req.user, null, 2));
     const user = await this.authService.googleLogin(req.user);
     const { accessToken, refreshToken } = await this.authService.signIn(user);
 
@@ -114,14 +115,12 @@ export class AuthController {
 
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV !== 'development',
+      secure: true,
       sameSite: 'strict',
       maxAge: maxAgeMs, // Use dynamic maxAge
     });
 
-    return new ResponseDto({
-      user: UserResponseDto.fromEntity(user),
-      accessToken,
-    });
+    const frontendUrl = this.configService.getOrThrow<string>('FRONTEND_URL');
+    return res.redirect(`${frontendUrl}/auth/google/callback?accessToken=${accessToken}`);
   }
 }

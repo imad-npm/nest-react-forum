@@ -16,39 +16,41 @@ export class AuthService {
     private readonly userService: UsersService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
-  ) {}
+  ) { }
 
   // -------------------------------------------------------------------------
   // Register (local account)
   // -------------------------------------------------------------------------
   async register(username: string, email: string, password: string): Promise<User> {
     return this.userService.createUser(
-     { username,
-      email,
-      password, }
+      {
+        username,
+        email,
+        password,
+      }
     );
   }
 
   // -------------------------------------------------------------------------
   // Validate credentials (used by LocalStrategy)
   // -------------------------------------------------------------------------
- // In auth.service.ts, update the validateUser method:
-async validateUser(email: string, password: string): Promise<User> {
-  const user = await this.userService.findByEmail(email);
-  
-  // If user doesn't exist or has no password (social-only account)
-  if (!user || !user.password) {
-    throw new UnauthorizedException('Invalid credentials');
+  // In auth.service.ts, update the validateUser method:
+  async validateUser(email: string, password: string): Promise<User> {
+    const user = await this.userService.findByEmail(email);
+
+    // If user doesn't exist or has no password (social-only account)
+    if (!user || !user.password) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+
+    if (!isMatch) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    return user;
   }
-  
-  const isMatch = await bcrypt.compare(password, user.password);
-  
-  if (!isMatch) {
-    throw new UnauthorizedException('Invalid credentials');
-  }
-  
-  return user;
-}
 
   // -------------------------------------------------------------------------
   // Sign in (called after successful local or refresh validation)
@@ -60,45 +62,44 @@ async validateUser(email: string, password: string): Promise<User> {
   // -------------------------------------------------------------------------
   // Google OAuth login / link
   // -------------------------------------------------------------------------
-  async googleLogin(oauthUser: {
-    email: string;
-    fullName?: string;
-    id: string;
-    picture?: string;
-  }): Promise<User> {
-    if (!oauthUser?.email) {
-      throw new BadRequestException('Google account has no accessible email');
-    }
+ async googleLogin(oauthUser: {
+  email: string;
+  name?: string;
+  provider: 'google';
+  providerId: string;
+  picture?: string;
+}): Promise<User> {
+  if (!oauthUser.email) {
+    throw new BadRequestException('Google account has no accessible email');
+  }
 
-    let user: User | null = null;
+  let user: User | null = null;
 
-    try {
-      user = await this.userService.findByEmail(oauthUser.email);
-    } catch {
-      user = null; // not found
-    }
+  try {
+    user = await this.userService.findByEmail(oauthUser.email);
+  } catch {
+    user = null;
+  }
 
-    if (!user) {
-      // First time → create new user
-     return this.userService.createUser({
-  username: oauthUser.fullName ?? oauthUser.email.split('@')[0],
-  email: oauthUser.email,
-  password: undefined, // no password
-  provider: 'google',
-  providerId: oauthUser.id,
-  emailVerifiedAt: new Date(), // email already verified by Google
-});
-
-    }
-
-    // Existing user → make sure provider data is up-to-date
-    return this.userService.updateUser({user ,
-      username: oauthUser.fullName ?? user.username,
-      provider: 'google',
-      providerId: oauthUser.id,
-      emailVerifiedAt: user.emailVerifiedAt ?? new Date(),
+  if (!user) {
+    return this.userService.createUser({
+      username: oauthUser.name ?? oauthUser.email.split('@')[0],
+      email: oauthUser.email,
+      password: undefined,
+      provider: oauthUser.provider,
+      providerId: oauthUser.providerId, // ✅ correct
+      emailVerifiedAt: new Date(),
     });
   }
+
+  return this.userService.updateUser({
+    user,
+    username: oauthUser.name ?? user.username,
+    provider: oauthUser.provider,
+    providerId: oauthUser.providerId, // ✅ correct
+    emailVerifiedAt: user.emailVerifiedAt ?? new Date(),
+  });
+}
 
   // -------------------------------------------------------------------------
   // Refresh token flow

@@ -56,7 +56,7 @@ export const ProfilePage = () => {
               <img
                 className="h-24 w-24 rounded-full object-cover border-4 border-blue-300"
                 src={profile.picture}
-                alt={`${profile.username}'s profile picture`}
+                alt={`${profile.user.username}'s profile picture`}
               />
             ) : (
               <FaUserCircle className="h-24 w-24 text-gray-400 border-4 border-blue-300 rounded-full p-1" />
@@ -64,18 +64,10 @@ export const ProfilePage = () => {
           </div>
           <div>
             <h1 className="text-4xl font-bold text-gray-800">
-              {profile.username}
+              {profile.user.username}
             </h1>
             <p className="text-gray-600 text-lg">{profile.user.email}</p>
-            {isMyProfile && (
-              <Button
-              
-                onClick={() => setIsEditing(true)}
-              >
-                <FaEdit />
-                <span className='mx-2'>Edit Profile</span>
-              </Button>
-            )}
+          
           </div>
         </div>
 
