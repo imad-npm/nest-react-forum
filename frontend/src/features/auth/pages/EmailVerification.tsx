@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { useResendEmailVerificationMutation } from '../services/authApi';
 import { Button } from '../../../shared/components/ui/Button';
 import { useToastContext } from '../../../shared/providers/ToastProvider';
+import { useResendEmailVerificationMutation } from '../services/emailVerificationApiSlice';
 
 const EmailVerification = () => {
   const location = useLocation();

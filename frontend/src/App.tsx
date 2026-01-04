@@ -21,8 +21,12 @@ import { useAuth } from './features/auth/hooks/useAuth';
 import SettingsPage from './features/settings/pages/SettingsPage';
 import EmailChangeVerifyPage from './features/user/pages/EmailChangeVerifyPage';
 
+import ForgotPassword from './features/auth/pages/ForgotPassword';
+import ResetPassword from './features/auth/pages/ResetPassword';
+
 const SessionLoader = ({ children }: { children: React.ReactNode }) => {
   const { isUserLoading } = useAuth();
+
 
 
   if (isUserLoading) {
@@ -41,6 +45,8 @@ export default function App() {
           {/* --- Public Auth Routes (No Sidebars) --- */}
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/email-verification" element={<EmailVerification />} />
           <Route path="/verify-email" element={<VerificationResult />} />
           <Route path="/email/change/verify" element={<EmailChangeVerifyPage />} />

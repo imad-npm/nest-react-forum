@@ -37,6 +37,20 @@ export const authApi = apiSlice.injectEndpoints({
       }),
       invalidatesTags: ['Me'],
     }),
+    forgotPassword: builder.mutation<ResponseDto<null>, { email: string }>({
+      query: (credentials) => ({
+        url: 'reset-password/forgot',
+        method: 'POST',
+        body: credentials,
+      }),
+    }),
+    resetPassword: builder.mutation<ResponseDto<null>, { token: string; password: string }>({
+      query: (credentials) => ({
+        url: 'reset-password/reset',
+        method: 'POST',
+        body: credentials,
+      }),
+    }),
     refresh: builder.query<ResponseDto<{ user: UserResponseDto; accessToken: string }>, void>({
       query: () => 'auth/refresh',
       async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
@@ -54,5 +68,7 @@ export const {
   useLoginMutation,
   useLogoutMutation,
   useRefreshQuery,
-  useGetMeQuery
+  useGetMeQuery,
+  useForgotPasswordMutation,
+  useResetPasswordMutation,
 } = authApi;

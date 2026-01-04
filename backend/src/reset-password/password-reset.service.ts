@@ -40,8 +40,7 @@ export class PasswordResetService {
 
   public generateResetLink(token: string): string {
     const frontendUrl = this.config.get<string>(
-      'APP_DOMAIN',
-      'http://localhost:3000',
+      'FRONTEND_URL',
     );
     const resetPath = '/reset-password';
     return `${frontendUrl}${resetPath}?token=${token}`;

@@ -8,6 +8,7 @@ import { Input } from '../../../shared/components/ui/Input';
 import { Label } from '../../../shared/components/ui/Label';
 import { InputError } from '../../../shared/components/ui/InputError';
 import { useAuth } from '../hooks/useAuth';
+import { Link } from 'react-router-dom';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -38,6 +39,11 @@ const Login = () => {
             <Label htmlFor="password">Password</Label>
             <Input id="password" type="password" {...formRegister('password')} />
             <InputError message={errors.password?.message} />
+            <div className="text-sm text-right">
+              <Link to="/forgot-password" >
+                Forgot your password?
+              </Link>
+            </div>
           </div>
           <Button type="submit" disabled={isLoggingIn} className="w-full">
             {isLoggingIn ? 'Logging in...' : 'Login'}
