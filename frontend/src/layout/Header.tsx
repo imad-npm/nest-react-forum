@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useAuth } from '../features/auth/hooks/useAuth';
 import { useProfile } from '../features/profile/hooks/useProfile';
 import LogoutButton from '../features/auth/components/LogoutButton';
+import SearchBar from '../features/search/components/SearchBar';
 import { FaHome, FaSignInAlt, FaUserPlus, FaSignOutAlt, FaBell, FaPlus, FaCaretDown, FaUserCircle } from 'react-icons/fa'; // Import icons
 
 const Header = () => {
@@ -16,10 +17,13 @@ const Header = () => {
 
   return (
     <header className=" p-4 border-b border-gray-300">
-      <nav className="container mx-auto flex justify-between items-center">
-        <Link to="/" className="text-2xl font-bold flex items-center space-x-2">
+      <nav className="container mx-auto flex justify-between items-center gap-4">
+        <Link to="/" className="text-2xl font-bold flex items-center space-x-2 flex-shrink-0">
           <FaHome className="inline-block" /> <span>Forum</span>
         </Link>
+        <div className="flex-grow max-w-xl">
+          <SearchBar />
+        </div>
         <div className="flex items-center space-x-4">
           {isAuthenticated ? (
             <>

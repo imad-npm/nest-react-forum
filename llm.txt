@@ -6903,39 +6903,41 @@ export class AuthService {
     private readonly userService: UsersService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
-  ) {}
+  ) { }
 
   // -------------------------------------------------------------------------
   // Register (local account)
   // -------------------------------------------------------------------------
   async register(username: string, email: string, password: string): Promise<User> {
     return this.userService.createUser(
-     { username,
-      email,
-      password, }
+      {
+        username,
+        email,
+        password,
+      }
     );
   }
 
   // -------------------------------------------------------------------------
   // Validate credentials (used by LocalStrategy)
   // -------------------------------------------------------------------------
- // In auth.service.ts, update the validateUser method:
-async validateUser(email: string, password: string): Promise<User> {
-  const user = await this.userService.findByEmail(email);
-  
-  // If user doesn't exist or has no password (social-only account)
-  if (!user || !user.password) {
-    throw new UnauthorizedException('Invalid credentials');
+  // In auth.service.ts, update the validateUser method:
+  async validateUser(email: string, password: string): Promise<User> {
+    const user = await this.userService.findByEmail(email);
+
+    // If user doesn't exist or has no password (social-only account)
+    if (!user || !user.password) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+
+    if (!isMatch) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    return user;
   }
-  
-  const isMatch = await bcrypt.compare(password, user.password);
-  
-  if (!isMatch) {
-    throw new UnauthorizedException('Invalid credentials');
-  }
-  
-  return user;
-}
 
   // -------------------------------------------------------------------------
   // Sign in (called after successful local or refresh validation)
@@ -6947,45 +6949,44 @@ async validateUser(email: string, password: string): Promise<User> {
   // -------------------------------------------------------------------------
   // Google OAuth login / link
   // -------------------------------------------------------------------------
-  async googleLogin(oauthUser: {
-    email: string;
-    fullName?: string;
-    id: string;
-    picture?: string;
-  }): Promise<User> {
-    if (!oauthUser?.email) {
-      throw new BadRequestException('Google account has no accessible email');
-    }
+ async googleLogin(oauthUser: {
+  email: string;
+  name?: string;
+  provider: 'google';
+  providerId: string;
+  picture?: string;
+}): Promise<User> {
+  if (!oauthUser.email) {
+    throw new BadRequestException('Google account has no accessible email');
+  }
 
-    let user: User | null = null;
+  let user: User | null = null;
 
-    try {
-      user = await this.userService.findByEmail(oauthUser.email);
-    } catch {
-      user = null; // not found
-    }
+  try {
+    user = await this.userService.findByEmail(oauthUser.email);
+  } catch {
+    user = null;
+  }
 
-    if (!user) {
-      // First time → create new user
-     return this.userService.createUser({
-  username: oauthUser.fullName ?? oauthUser.email.split('@')[0],
-  email: oauthUser.email,
-  password: undefined, // no password
-  provider: 'google',
-  providerId: oauthUser.id,
-  emailVerifiedAt: new Date(), // email already verified by Google
-});
-
-    }
-
-    // Existing user → make sure provider data is up-to-date
-    return this.userService.updateUser({user ,
-      username: oauthUser.fullName ?? user.username,
-      provider: 'google',
-      providerId: oauthUser.id,
-      emailVerifiedAt: user.emailVerifiedAt ?? new Date(),
+  if (!user) {
+    return this.userService.createUser({
+      username: oauthUser.name ?? oauthUser.email.split('@')[0],
+      email: oauthUser.email,
+      password: undefined,
+      provider: oauthUser.provider,
+      providerId: oauthUser.providerId, // ✅ correct
+      emailVerifiedAt: new Date(),
     });
   }
+
+  return this.userService.updateUser({
+    user,
+    username: oauthUser.name ?? user.username,
+    provider: oauthUser.provider,
+    providerId: oauthUser.providerId, // ✅ correct
+    emailVerifiedAt: user.emailVerifiedAt ?? new Date(),
+  });
+}
 
   // -------------------------------------------------------------------------
   // Refresh token flow
@@ -7049,19 +7050,26 @@ export function parseExpiresInToMs(expiresIn: string): number {
 
 
 ### FILE: backend/src/auth/dtos/register.dto.ts ###
-import { IsEmail, IsString, MinLength } from 'class-validator';
+import {
+  IsEmail,
+  IsEnum,
+  IsOptional,
+  IsString,
+  MinLength,
+  ValidateIf,
+} from 'class-validator';
 
 export class RegisterDto {
-  
+  @IsString()
+  username: string;
+
   @IsEmail()
   email: string;
 
-  @IsString()
-   name: string;
-
-  @IsString()
-  @MinLength(6)
+  @MinLength(8)
+  @IsOptional()
   password: string;
+
 }
 
 ---
@@ -7130,7 +7138,7 @@ export class AuthController {
   @Post('register')
   async register(@Body() dto: RegisterDto): Promise<ResponseDto<UserResponseDto>> {
     const user = await this.authService.register(
-      dto.name,
+      dto.username,
       dto.email,
       dto.password,
     );
@@ -7202,7 +7210,8 @@ export class AuthController {
   async googleCallback(
     @Req() req: { user: any },
     @Res({ passthrough: true }) res: Response,
-  ): Promise<ResponseDto<{ user: UserResponseDto; accessToken: string }>> {
+  ) {    
+      console.log('googleCallback req.user =', JSON.stringify(req.user, null, 2));
     const user = await this.authService.googleLogin(req.user);
     const { accessToken, refreshToken } = await this.authService.signIn(user);
 
@@ -7211,15 +7220,13 @@ export class AuthController {
 
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV !== 'development',
+      secure: true,
       sameSite: 'strict',
       maxAge: maxAgeMs, // Use dynamic maxAge
     });
 
-    return new ResponseDto({
-      user: UserResponseDto.fromEntity(user),
-      accessToken,
-    });
+    const frontendUrl = this.configService.getOrThrow<string>('FRONTEND_URL');
+    return res.redirect(`${frontendUrl}/auth/google/callback?accessToken=${accessToken}`);
   }
 }
 ---
@@ -7641,8 +7648,7 @@ export class PasswordResetService {
 
   public generateResetLink(token: string): string {
     const frontendUrl = this.config.get<string>(
-      'APP_DOMAIN',
-      'http://localhost:3000',
+      'FRONTEND_URL',
     );
     const resetPath = '/reset-password';
     return `${frontendUrl}${resetPath}?token=${token}`;
@@ -8642,7 +8648,9 @@ export class ProfileController {
   @Get('user/:userId')
   async getProfileByUserId(@Param('userId', ParseIntPipe) userId: number): Promise<ResponseDto<ProfileResponseDto>> {
     const profile = await this.profileService.findOneByUserId(userId);
-    return new ResponseDto(ProfileResponseDto.fromEntity(profile));
+    return new ResponseDto(
+      ProfileResponseDto.fromEntity(profile,this.configService.get('APP_DOMAIN'))
+    );
   }
 
   @UseGuards(JwtAuthGuard)
@@ -13355,6 +13363,140 @@ export interface RegisterDto {
 ---
 
 
+### FILE: frontend/src/features/auth/pages/ResetPassword.tsx ###
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { Button } from '../../../shared/components/ui/Button';
+import { Input } from '../../../shared/components/ui/Input';
+import { Label } from '../../../shared/components/ui/Label';
+import { InputError } from '../../../shared/components/ui/InputError';
+import { useResetPasswordMutation } from '../services/authApi';
+import { useSearchParams, Link } from 'react-router-dom';
+
+const resetPasswordSchema = z
+  .object({
+    password: z.string().min(8, 'Password must be at least 8 characters long'),
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords don't match",
+    path: ['confirmPassword'],
+  });
+
+type ResetPasswordDto = z.infer<typeof resetPasswordSchema>;
+
+const ResetPassword = () => {
+  const [searchParams] = useSearchParams();
+  const token = searchParams.get('token');
+  const [resetPassword, { isLoading, isSuccess, error }] = useResetPasswordMutation();
+  const {
+    register: formRegister,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<ResetPasswordDto>({
+    resolver: zodResolver(resetPasswordSchema),
+  });
+
+  const handleResetPassword = (data: ResetPasswordDto) => {
+    if (token) {
+      resetPassword({ token, password: data.password });
+    }
+  };
+
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen">
+      <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-lg shadow-lg border border-gray-300">
+        <h1 className="text-2xl font-bold text-center">Reset Password</h1>
+        {isSuccess ? (
+          <>   <p className="text-center text-green-600">
+            Your password has been reset successfully.
+          </p>
+          <p className="text-center">
+            <Link to="/login" className="text-blue-600 hover:underline">
+              Return to Login
+            </Link>
+          </p>
+          </>
+       
+        ) : (
+          <form onSubmit={handleSubmit(handleResetPassword)} className="space-y-6">
+            <div>
+              <Label htmlFor="password">New Password</Label>
+              <Input id="password" type="password" {...formRegister('password')} />
+              <InputError message={errors.password?.message} />
+            </div>
+            <div>
+              <Label htmlFor="confirmPassword">Confirm New Password</Label>
+              <Input
+                id="confirmPassword"
+                type="password"
+                {...formRegister('confirmPassword')}
+              />
+              <InputError message={errors.confirmPassword?.message} />
+            </div>
+            <Button type="submit" disabled={isLoading || !token} className="w-full">
+              {isLoading ? 'Resetting...' : 'Reset Password'}
+            </Button>
+            {error && (
+              <InputError
+                message={
+                  (error as any).data?.message ||
+                  'An unknown error occurred'
+                }
+              />
+            )}
+             {!token && <InputError message="No reset token found in URL." />}
+          </form>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default ResetPassword;
+
+---
+
+
+### FILE: frontend/src/features/auth/pages/GoogleAuthCallback.tsx ###
+import { useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { useDispatch } from 'react-redux'; // Import useDispatch
+import { setAccessToken } from '../stores/authSlice'; // Import setAccessToken action
+
+const GoogleAuthCallback = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const dispatch = useDispatch(); // Initialize useDispatch
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const accessToken = params.get('accessToken');
+
+    if (accessToken) {
+      dispatch(setAccessToken(accessToken)); // Dispatch the action to set the token
+      navigate('/'); // Redirect to home page
+    } else {
+      // Handle error: No access token found, redirect to login or show error
+      console.error('Google OAuth callback: No access token found.');
+      navigate('/login'); // Redirect to login page
+    }
+  }, [location, navigate, dispatch]); // Add dispatch to dependency array
+
+  return (
+    <div>
+      <p>Processing Google login...</p>
+      {/* You can add a spinner or loading indicator here */}
+    </div>
+  );
+};
+
+export default GoogleAuthCallback;
+
+---
+
+
 ### FILE: frontend/src/features/auth/pages/Register.tsx ###
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -13445,6 +13587,7 @@ import { Input } from '../../../shared/components/ui/Input';
 import { Label } from '../../../shared/components/ui/Label';
 import { InputError } from '../../../shared/components/ui/InputError';
 import { useAuth } from '../hooks/useAuth';
+import { Link } from 'react-router-dom';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -13475,6 +13618,11 @@ const Login = () => {
             <Label htmlFor="password">Password</Label>
             <Input id="password" type="password" {...formRegister('password')} />
             <InputError message={errors.password?.message} />
+            <div className="text-sm text-right">
+              <Link to="/forgot-password" >
+                Forgot your password?
+              </Link>
+            </div>
           </div>
           <Button type="submit" disabled={isLoggingIn} className="w-full">
             {isLoggingIn ? 'Logging in...' : 'Login'}
@@ -13504,6 +13652,82 @@ const Login = () => {
 };
 
 export default Login;
+
+---
+
+
+### FILE: frontend/src/features/auth/pages/ForgotPassword.tsx ###
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { Button } from '../../../shared/components/ui/Button';
+import { Input } from '../../../shared/components/ui/Input';
+import { Label } from '../../../shared/components/ui/Label';
+import { InputError } from '../../../shared/components/ui/InputError';
+import { useForgotPasswordMutation } from '../services/authApi';
+import { Link } from 'react-router-dom';
+
+const forgotPasswordSchema = z.object({
+  email: z.string().email('Invalid email address'),
+});
+
+type ForgotPasswordDto = z.infer<typeof forgotPasswordSchema>;
+
+const ForgotPassword = () => {
+  const [forgotPassword, { isLoading, isSuccess, error }] = useForgotPasswordMutation();
+  const {
+    register: formRegister,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<ForgotPasswordDto>({
+    resolver: zodResolver(forgotPasswordSchema),
+  });
+
+  const handleForgotPassword = (data: ForgotPasswordDto) => {
+    forgotPassword(data);
+  };
+
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen">
+      <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-lg shadow-lg border border-gray-300">
+        <h1 className="text-2xl font-bold text-center">Forgot Password</h1>
+        {isSuccess ? (<>
+            <p className="text-center text-green-600">
+            An email has been sent with instructions to reset your password.
+          </p>
+          <p className="text-center">
+            <Link to="/login" className="text-blue-600 hover:underline">
+              Return to Login
+            </Link>
+          </p>
+        </>
+      
+        ) : (
+          <form onSubmit={handleSubmit(handleForgotPassword)} className="space-y-6">
+            <div>
+              <Label htmlFor="email">Email</Label>
+              <Input id="email" {...formRegister('email')} />
+              <InputError message={errors.email?.message} />
+            </div>
+            <Button type="submit" disabled={isLoading} className="w-full">
+              {isLoading ? 'Sending...' : 'Send Reset Link'}
+            </Button>
+            {error && (
+              <InputError
+                message={
+                  (error as any).data?.message ||
+                  'An unknown error occurred'
+                }
+              />
+            )}
+          </form>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default ForgotPassword;
 
 ---
 
@@ -13549,9 +13773,9 @@ export default VerificationResult;
 ### FILE: frontend/src/features/auth/pages/EmailVerification.tsx ###
 import React, { useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { useResendEmailVerificationMutation } from '../services/authApi';
 import { Button } from '../../../shared/components/ui/Button';
 import { useToastContext } from '../../../shared/providers/ToastProvider';
+import { useResendEmailVerificationMutation } from '../services/emailVerificationApiSlice';
 
 const EmailVerification = () => {
   const location = useLocation();
@@ -13684,7 +13908,6 @@ export default AuthGuard;
 
 ### FILE: frontend/src/features/auth/stores/authSlice.ts ###
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import { authApi } from '../services/authApi';
 
 interface AuthState {
   accessToken: string | null;
@@ -13754,6 +13977,20 @@ export const authApi = apiSlice.injectEndpoints({
       }),
       invalidatesTags: ['Me'],
     }),
+    forgotPassword: builder.mutation<ResponseDto<null>, { email: string }>({
+      query: (credentials) => ({
+        url: 'reset-password/forgot',
+        method: 'POST',
+        body: credentials,
+      }),
+    }),
+    resetPassword: builder.mutation<ResponseDto<null>, { token: string; password: string }>({
+      query: (credentials) => ({
+        url: 'reset-password/reset',
+        method: 'POST',
+        body: credentials,
+      }),
+    }),
     refresh: builder.query<ResponseDto<{ user: UserResponseDto; accessToken: string }>, void>({
       query: () => 'auth/refresh',
       async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
@@ -13771,7 +14008,9 @@ export const {
   useLoginMutation,
   useLogoutMutation,
   useRefreshQuery,
-  useGetMeQuery
+  useGetMeQuery,
+  useForgotPasswordMutation,
+  useResetPasswordMutation,
 } = authApi;
 
 ---
@@ -14907,7 +15146,7 @@ export const ProfilePage = () => {
               <img
                 className="h-24 w-24 rounded-full object-cover border-4 border-blue-300"
                 src={profile.picture}
-                alt={`${profile.username}'s profile picture`}
+                alt={`${profile.user.username}'s profile picture`}
               />
             ) : (
               <FaUserCircle className="h-24 w-24 text-gray-400 border-4 border-blue-300 rounded-full p-1" />
@@ -14915,18 +15154,10 @@ export const ProfilePage = () => {
           </div>
           <div>
             <h1 className="text-4xl font-bold text-gray-800">
-              {profile.username}
+              {profile.user.username}
             </h1>
             <p className="text-gray-600 text-lg">{profile.user.email}</p>
-            {isMyProfile && (
-              <Button
-              
-                onClick={() => setIsEditing(true)}
-              >
-                <FaEdit />
-                <span className='mx-2'>Edit Profile</span>
-              </Button>
-            )}
+          
           </div>
         </div>
 
@@ -15651,10 +15882,12 @@ export const useProfile = () => {
     error,
     refetch,
   } = useGetProfileByUserIdQuery(parsedUserId);
+
   const { user: currentUser } = useAuth();
 
   const profile = profileResponse?.data;
   const isMyProfile = currentUser?.id === parsedUserId;
+
 
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState<'posts' | 'comments'>('posts');
@@ -17073,8 +17306,13 @@ import { useAuth } from './features/auth/hooks/useAuth';
 import SettingsPage from './features/settings/pages/SettingsPage';
 import EmailChangeVerifyPage from './features/user/pages/EmailChangeVerifyPage';
 
+import ForgotPassword from './features/auth/pages/ForgotPassword';
+import ResetPassword from './features/auth/pages/ResetPassword';
+import GoogleAuthCallback from './features/auth/pages/GoogleAuthCallback'; // Import GoogleAuthCallback
+
 const SessionLoader = ({ children }: { children: React.ReactNode }) => {
   const { isUserLoading } = useAuth();
+
 
 
   if (isUserLoading) {
@@ -17093,9 +17331,12 @@ export default function App() {
           {/* --- Public Auth Routes (No Sidebars) --- */}
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/email-verification" element={<EmailVerification />} />
           <Route path="/verify-email" element={<VerificationResult />} />
           <Route path="/email/change/verify" element={<EmailChangeVerifyPage />} />
+          <Route path="/auth/google/callback" element={<GoogleAuthCallback />} /> {/* New Google OAuth Callback Route */}
 
           {/* --- Standard User Routes (with LeftSidebar) --- */}
           <Route element={<MainLayout />}>
@@ -17922,7 +18163,8 @@ const baseQueryWithReauth: BaseQueryFn<
   if (result.error && result.error.status === 401) {
     // try to get a new token
     const refreshResult = await baseQuery({ url: 'auth/refresh' }, api, extraOptions);
-
+ 
+  console.log('refreshResult:', refreshResult);
     if (refreshResult.data) {
       const { accessToken } = (refreshResult.data as any).data;
       // store the new token
