@@ -9,10 +9,18 @@ export interface RegisterDto {
     password: string;
   }
 
+  export interface ProfileResponseDto {
+    id: number;
+    displayName: string;
+    bio: string | null;
+    picture: string | null;
+  }
+
   export interface UserResponseDto {
     id: string;
     username: string;
     email: string;
+    profile?: ProfileResponseDto;
   }
 
   export interface ResponseDto<T> {

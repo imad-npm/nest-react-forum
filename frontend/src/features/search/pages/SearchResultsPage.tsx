@@ -3,9 +3,12 @@ import { useLocation } from 'react-router-dom';
 import { useGetPostsInfiniteQuery } from '../../posts/services/postsApi';
 import { useGetCommunitiesQuery } from '../../communities/services/communitiesApi';
 import { useGetUsersQuery } from '../../user/services/userApiSlice';
+import PostPreview from '../../posts/components/PostPreview';
+import CommunityPreview from '../../communities/components/CommunityPreview';
+import UserPreview from '../../user/components/UserPreview';
+import type { Post } from '../../posts/types';
 import type { UserResponseDto } from '../../auth/types';
 import type { Community } from '../../communities/types';
-import type { Post } from '../../posts/types';
 
 const SearchResultsPage: React.FC = () => {
   const location = useLocation();
@@ -50,19 +53,19 @@ const SearchResultsPage: React.FC = () => {
 
       <div className="flex border-b border-gray-300 mb-4">
         <button
-          className={`py-2 px-4 text-lg font-medium ${activeTab === 'posts' ? 'border-b-2 border-blue-500 text-blue-500' : 'text-gray-500 hover:text-gray-700'}`}
+          className={`py-2 px-4 text-lg font-medium ${activeTab === 'posts' ? 'border-b-2 border-primary-500 text-primary-500' : 'text-gray-500 hover:text-gray-700'}`}
           onClick={() => setActiveTab('posts')}
         >
           Posts
         </button>
         <button
-          className={`py-2 px-4 text-lg font-medium ${activeTab === 'communities' ? 'border-b-2 border-blue-500 text-blue-500' : 'text-gray-500 hover:text-gray-700'}`}
+          className={`py-2 px-4 text-lg font-medium ${activeTab === 'communities' ? 'border-b-2 border-primary-500 text-primary-500' : 'text-gray-500 hover:text-gray-700'}`}
           onClick={() => setActiveTab('communities')}
         >
           Communities
         </button>
         <button
-          className={`py-2 px-4 text-lg font-medium ${activeTab === 'users' ? 'border-b-2 border-blue-500 text-blue-500' : 'text-gray-500 hover:text-gray-700'}`}
+          className={`py-2 px-4 text-lg font-medium ${activeTab === 'users' ? 'border-b-2 border-primary-500 text-primary-500' : 'text-gray-500 hover:text-gray-700'}`}
           onClick={() => setActiveTab('users')}
         >
           Users
@@ -78,10 +81,7 @@ const SearchResultsPage: React.FC = () => {
             {postsData && postsData.pages.map((page, pageIndex) => (
               <React.Fragment key={pageIndex}>
                 {page.data.map((post: Post) => (
-                  <div key={post.id} className="p-4 border-b">
-                    <h3 className="text-xl font-bold">{post.title}</h3>
-                    <p>{post.content}</p>
-                  </div>
+                  <PostPreview key={post.id} post={post} />
                 ))}
               </React.Fragment>
             ))}
@@ -93,10 +93,7 @@ const SearchResultsPage: React.FC = () => {
             {communitiesLoading && <p>Loading communities...</p>}
             {communitiesError && <p>Error loading communities.</p>}
             {communitiesData && communitiesData.data.map((community: Community) => (
-              <div key={community.id} className="p-4 border-b">
-                <h3 className="text-xl font-bold">{community.name}</h3>
-                <p>{community.description}</p>
-              </div>
+              <CommunityPreview key={community.id} community={community} />
             ))}
           </div>
         )}
@@ -106,10 +103,7 @@ const SearchResultsPage: React.FC = () => {
             {usersLoading && <p>Loading users...</p>}
             {usersError && <p>Error loading users.</p>}
             {usersData && usersData.data.map((user: UserResponseDto) => (
-              <div key={user.id} className="p-4 border-b">
-                <h3 className="text-xl font-bold">{user.username}</h3>
-                <p>{user.email}</p>
-              </div>
+              <UserPreview key={user.id} user={user} />
             ))}
           </div>
         )}

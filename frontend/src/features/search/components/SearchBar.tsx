@@ -19,7 +19,7 @@ const SearchBar: React.FC = () => {
       <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
       <Input
         placeholder="Search..."
-        className="pl-10 w-full"
+        className="pl-10 w-full "
         onChange={(e) => setQuery(e.target.value)}
         value={query}
       />
