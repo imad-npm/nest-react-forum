@@ -4,7 +4,7 @@ import { useToastContext } from '../../../shared/providers/ToastProvider';
 import type { PostQueryDto } from '../../posts/types';
 
 export const useFeed = () => {
-  const [queryParams, setQueryParams] = useState<Omit<PostQueryDto, 'page'>>({
+  const [queryParams] = useState<Omit<PostQueryDto, 'page'>>({
     limit: 10,
   });
 
@@ -46,8 +46,6 @@ export const useFeed = () => {
   );
 
   return {
-    queryParams,
-    setQueryParams,
     posts,
     isLoading,
     isFetching,

@@ -1,17 +1,13 @@
 import PostList from '../../posts/components/PostList';
-import FeedFilters from '../components/FeedFilters';
 import SuggestedCommunities from '../../communities/components/SuggestedCommunities';
 import { useFeed } from '../hooks/useFeed';
 
 const FeedPage = () => {
   const {
-    queryParams,
-    setQueryParams,
     posts,
     isLoading,
     isFetching,
     hasNextPage,
-    error,
     lastPostElementRef,
   } = useFeed();
 
@@ -20,12 +16,6 @@ const FeedPage = () => {
       {/* Main Content Area */}
       <div className="md:w-3/4">
         <h1 className="text-3xl font-bold mb-6">Feed</h1>
-
-        <FeedFilters
-          queryParams={queryParams}
-          setQueryParams={setQueryParams}
-          isLoading={isLoading}
-        />
 
         <PostList posts={posts} isLoading={isLoading} error={undefined} />
 

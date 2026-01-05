@@ -2,7 +2,7 @@ import React from 'react';
 import { Button } from '../../../shared/components/ui/Button';
 import type { PostQueryDto } from '../../posts/types';
 import { FaSortAmountDownAlt, FaFire } from 'react-icons/fa';
-import { Select, SelectOption } from '../../../shared/components/ui/Select';
+import DateRangeDropdown from './DateRangeDropdown';
 
 interface FeedFiltersProps {
   queryParams: PostQueryDto;
@@ -11,11 +11,11 @@ interface FeedFiltersProps {
 }
 
 const FeedFilters: React.FC<FeedFiltersProps> = ({ queryParams, setQueryParams, isLoading }) => {
-  const handleSortChange = (sortOption: 'popular' | 'newest') => {
+  const handleSortChange = (sortOption: 'popular' | 'published_at') => {
     setQueryParams((prev) => ({ ...prev, sort: sortOption, page: 1 }));
   };
 
-  const handleDateRangeChange = (range: string | number) => {
+  const handleDateRangeChange = (range: string) => {
     const now = new Date();
     let startDate: string | undefined;
     const endDate = now.toISOString();
@@ -52,20 +52,12 @@ const FeedFilters: React.FC<FeedFiltersProps> = ({ queryParams, setQueryParams, 
     }));
   };
 
-  const dateRangeOptions: SelectOption[] = [
-    { label: 'All Time', value: 'all_time' },
-    { label: 'Past Day', value: 'past_day' },
-    { label: 'Past Week', value: 'past_week' },
-    { label: 'Past Month', value: 'past_month' },
-    { label: 'Past Year', value: 'past_year' },
-  ];
-
   return (
     <div className="flex flex-col sm:flex-row justify-between items-center bg-white p-4 rounded-lg border border-gray-300 mb-6">
       <div className="flex space-x-2">
         <Button
-          variant={queryParams.sort === 'newest' ? 'default' : 'outline'}
-          onClick={() => handleSortChange('newest')}
+          variant={queryParams.sort === 'published_at' ? 'default' : 'outline'}
+          onClick={() => handleSortChange('published_at')}
           disabled={isLoading}
           className="flex items-center space-x-1"
         >
@@ -80,13 +72,8 @@ const FeedFilters: React.FC<FeedFiltersProps> = ({ queryParams, setQueryParams, 
           <FaFire /> <span>Popular</span>
         </Button>
       </div>
-      <div className="mt-4 sm:mt-0 w-48">
-        <Select
-          options={dateRangeOptions}
-          value={queryParams.startDate ? (queryParams.endDate ? 'custom' : 'all_time') : 'all_time'}
-          onChange={handleDateRangeChange}
-          placeholder="Filter by date"
-        />
+      <div className="mt-4 sm:mt-0">
+        <DateRangeDropdown onSelect={handleDateRangeChange} isLoading={isLoading} />
       </div>
     </div>
   );

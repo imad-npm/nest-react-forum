@@ -6,39 +6,51 @@ import { useGetUsersQuery } from '../../user/services/userApiSlice';
 import PostPreview from '../../posts/components/PostPreview';
 import CommunityPreview from '../../communities/components/CommunityPreview';
 import UserPreview from '../../user/components/UserPreview';
-import type { Post } from '../../posts/types';
+import type { Post, PostQueryDto } from '../../posts/types';
 import type { UserResponseDto } from '../../auth/types';
 import type { Community } from '../../communities/types';
+import { Button } from '../../../shared/components/ui/Button';
+import { FaSortAmountDownAlt, FaFire } from 'react-icons/fa';
+
+import FeedFilters from '../../feed/components/FeedFilters';
+
 
 const SearchResultsPage: React.FC = () => {
   const location = useLocation();
-  const [searchQuery, setSearchQuery] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'posts' | 'communities' | 'users'>('posts');
+  const [queryParams, setQueryParams] = useState<PostQueryDto>({
+    page: 1,
+    limit: 10,
+    sort: 'newest',
+  });
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    setSearchQuery(params.get('q'));
+    const searchQuery = params.get('q');
+    setQueryParams((prev) => ({ ...prev, search: searchQuery || undefined }));
   }, [location.search]);
 
   const {
     data: postsData,
     isLoading: postsLoading,
     isError: postsError,
-  } = useGetPostsInfiniteQuery({ search: searchQuery || '' }, { skip: !searchQuery || activeTab !== 'posts' });
+  } = useGetPostsInfiniteQuery(queryParams, {
+    skip: !queryParams.search || activeTab !== 'posts',
+  });
 
   const {
     data: communitiesData,
     isLoading: communitiesLoading,
     isError: communitiesError,
-  } = useGetCommunitiesQuery({ name: searchQuery || '' }, { skip: !searchQuery || activeTab !== 'communities' });
+  } = useGetCommunitiesQuery({ name: queryParams.search || '' }, { skip: !queryParams.search || activeTab !== 'communities' });
 
   const {
     data: usersData,
     isLoading: usersLoading,
     isError: usersError,
-  } = useGetUsersQuery({ search: searchQuery || '' }, { skip: !searchQuery || activeTab !== 'users' });
+  } = useGetUsersQuery({ search: queryParams.search || '' }, { skip: !queryParams.search || activeTab !== 'users' });
 
-  if (!searchQuery) {
+  if (!queryParams.search) {
     return (
       <div className="container mx-auto p-4">
         <h1 className="text-3xl font-bold mb-4">Search Results</h1>
@@ -49,7 +61,7 @@ const SearchResultsPage: React.FC = () => {
 
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-3xl font-bold mb-4">Search Results for "{searchQuery}"</h1>
+      <h1 className="text-3xl font-bold mb-4">Search Results for "{queryParams.search}"</h1>
 
       <div className="flex border-b border-gray-300 mb-4">
         <button
@@ -71,6 +83,14 @@ const SearchResultsPage: React.FC = () => {
           Users
         </button>
       </div>
+
+      {activeTab === 'posts' && (
+        <FeedFilters
+          queryParams={queryParams}
+          setQueryParams={setQueryParams}
+          isLoading={postsLoading}
+        />
+      )}
 
       <div className="search-results-content">
         {activeTab === 'posts' && (
@@ -113,3 +133,5 @@ const SearchResultsPage: React.FC = () => {
 };
 
 export default SearchResultsPage;
+
+
