@@ -1,3 +1,5 @@
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { Notification } from './notifications/entities/notification.entity';
 // src/app.module.ts
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -36,12 +38,13 @@ import { CommunityMembershipRequestsModule } from './community-membership-reques
 import { EmailChangeToken } from './email-change/entities/email-change-token.entity';
 import { EmailChangeModule } from './email-change/email-change.module';
 import { CommunityRestriction } from './community-restrictions/entities/community-restriction.entity';
-import { CommunityRestrictionsModule } from './community-restrictions/community-restrictions.module';
+import { CommunityRestrictionsModule } = require("./community-restrictions/community-restrictions.module");
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }), // loads .env globally
-
+    EventEmitterModule.forRoot(),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -65,6 +68,7 @@ import { CommunityRestrictionsModule } from './community-restrictions/community-
           UserReport,
           CommunityRestriction,
           EmailChangeToken,
+          Notification,
         ],
         migrations: ['./src/migrations/*.ts'],
         synchronize: false,
@@ -85,6 +89,7 @@ import { CommunityRestrictionsModule } from './community-restrictions/community-
     ReportsModule,
     CommunityRestrictionsModule,
     EmailChangeModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

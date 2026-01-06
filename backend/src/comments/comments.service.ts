@@ -1,20 +1,21 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm'; // Added DataSource
+import { DataSource, Repository } from 'typeorm';
 import { Comment } from './entities/comment.entity';
-import { Post } from 'src/posts/entities/post.entity'; // Added Post entity
-
-// import { PostsService } from 'src/posts/posts.service'; // Removed PostsService
+import { Post } from 'src/posts/entities/post.entity';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { CommentCreatedEvent } from './events/comment-created.event';
+import { User } from 'src/users/entities/user.entity';
 
 @Injectable()
 export class CommentsService {
   constructor(
     @InjectRepository(Comment)
     private readonly commentRepo: Repository<Comment>,
-    // private readonly postsService: PostsService, // Removed PostsService
-    @InjectRepository(Post) // Injected Post repository
+    @InjectRepository(Post)
     private readonly postRepo: Repository<Post>,
-    private dataSource: DataSource, // Injected DataSource
+    private dataSource: DataSource,
+    private readonly eventEmitter: EventEmitter2,
   ) { }
 
   async findAll(options: {
@@ -27,7 +28,7 @@ export class CommentsService {
     parentId?: number;
   }): Promise<{ data: Comment[]; count: number }> {
     const { postId, authorId, search, page = 1, limit = 10, currentUserId, parentId } = options;
-console.error('e',postId);
+    console.error('e',postId);
 
     const query = this.commentRepo
       .createQueryBuilder('comment')
@@ -175,8 +176,7 @@ console.error('e',postId);
     await queryRunner.startTransaction();
 
     try {
-      // Get the post directly
-      const post = await queryRunner.manager.findOne(Post, { where: { id: postId } });
+      const post = await queryRunner.manager.findOne(Post, { where: { id: postId }, relations: ['author'] });
       if (!post) {
         throw new NotFoundException('Post not found');
       }
@@ -185,17 +185,21 @@ console.error('e',postId);
         throw new BadRequestException('Comments are locked for this post.');
       }
 
+      const author = await queryRunner.manager.findOne(User, { where: { id: userId } });
+      if (!author) {
+        throw new NotFoundException('User not found');
+      }
       
       const comment = queryRunner.manager.create(Comment, {
         content,
-        authorId: userId,
+        author,
         post: post,
       });
 
       if (parentId) {
         const parent = await queryRunner.manager.findOne(Comment, {
           where: { id: parentId },
-          relations: ['post'],
+          relations: ['post', 'author'],
         });
         if (!parent)
           throw new NotFoundException('Parent comment not found');
@@ -205,15 +209,17 @@ console.error('e',postId);
           );
         }
         comment.parent = parent;
-        await queryRunner.manager.increment(Comment, { id: parentId }, 'repliesCount', 1); // Increment repliesCount directly
+        await queryRunner.manager.increment(Comment, { id: parentId }, 'repliesCount', 1);
       }
 
       const savedComment = await queryRunner.manager.save(comment);
 
-      // Increment commentsCount on the post directly
       await queryRunner.manager.increment(Post, { id: postId }, 'commentsCount', 1);
-
+      
       await queryRunner.commitTransaction();
+
+      this.eventEmitter.emit('comment.created', new CommentCreatedEvent(savedComment));
+      
       return savedComment;
     } catch (err) {
       await queryRunner.rollbackTransaction();
@@ -250,18 +256,16 @@ console.error('e',postId);
     try {
       const comment = await queryRunner.manager.findOne(Comment, {
         where: { id },
-        relations: ['post', 'parent'], // Load post and parent relation to update counts
+        relations: ['post', 'parent'],
       });
       if (!comment) {
         throw new NotFoundException('Comment not found');
       }
 
-      // Decrement commentsCount on the post directly
       if (comment.post) {
         await queryRunner.manager.decrement(Post, { id: comment.post.id }, 'commentsCount', 1);
       }
 
-      // Decrement repliesCount on the parent comment directly
       if (comment.parent) {
         await queryRunner.manager.decrement(Comment, { id: comment.parent.id }, 'repliesCount', 1);
       }
@@ -276,7 +280,4 @@ console.error('e',postId);
       await queryRunner.release();
     }
   }
-
-
-
 }

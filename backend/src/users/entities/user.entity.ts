@@ -1,4 +1,5 @@
 // src/users/entities/user.entity.ts
+import { Notification } from '../../notifications/entities/notification.entity';
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -115,4 +116,10 @@ export class User {
     (restriction) => restriction.user,
   )
   communityRestrictions: CommunityRestriction[];
+
+  @OneToMany(() => Notification, (notification) => notification.recipient)
+  notifications: Notification[];
+
+  @OneToMany(() => Notification, (notification) => notification.actor)
+  sentNotifications: Notification[];
 }

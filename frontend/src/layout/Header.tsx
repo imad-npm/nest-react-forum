@@ -4,7 +4,8 @@ import { useAuth } from '../features/auth/hooks/useAuth';
 import { useProfile } from '../features/profile/hooks/useProfile';
 import LogoutButton from '../features/auth/components/LogoutButton';
 import SearchBar from '../features/search/components/SearchBar';
-import { FaHome, FaSignInAlt, FaUserPlus, FaSignOutAlt, FaBell, FaPlus, FaCaretDown, FaUserCircle } from 'react-icons/fa'; // Import icons
+import { FaHome, FaSignInAlt, FaUserPlus, FaSignOutAlt, FaPlus, FaCaretDown, FaUserCircle } from 'react-icons/fa';
+import NotificationsBell from '../features/notifications/components/NotificationsBell';
 
 const Header = () => {
   const { isAuthenticated, user } = useAuth();
@@ -33,11 +34,7 @@ const Header = () => {
               </Link>
 
               {/* Notification Bell */}
-              <button className="relative hover:text-gray-300">
-                <FaBell className="text-xl" />
-                {/* Optional: Notification Badge */}
-                {/* <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">3</span> */}
-              </button>
+              <NotificationsBell />
 
               {/* User Profile Dropdown */}
               <div className="relative">
