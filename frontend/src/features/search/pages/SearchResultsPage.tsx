@@ -11,8 +11,8 @@ import type { UserResponseDto } from '../../auth/types';
 import type { Community } from '../../communities/types';
 import { Button } from '../../../shared/components/ui/Button';
 import { FaSortAmountDownAlt, FaFire } from 'react-icons/fa';
+import SearchFilters from '../components/Filters';
 
-import FeedFilters from '../../feed/components/FeedFilters';
 
 
 const SearchResultsPage: React.FC = () => {
@@ -85,7 +85,7 @@ const SearchResultsPage: React.FC = () => {
       </div>
 
       {activeTab === 'posts' && (
-        <FeedFilters
+        <SearchFilters
           queryParams={queryParams}
           setQueryParams={setQueryParams}
           isLoading={postsLoading}

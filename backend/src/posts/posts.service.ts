@@ -25,8 +25,7 @@ export class PostsService {
       search?: string;
       authorId?: number;
       sort?: PostSort;
-      startDate?: Date;
-      endDate?: Date;
+      dateRange?: string;
       currentUserId?: number;
       communityId?: number;
       status?: PostStatus;
@@ -41,8 +40,7 @@ export class PostsService {
       search,
       authorId,
       sort,
-      startDate,
-      endDate,
+      dateRange,
       currentUserId,
       communityId,
       status = PostStatus.APPROVED,
@@ -106,13 +104,30 @@ export class PostsService {
       query.andWhere('post.community.id = :communityId', { communityId });
     }
 
-    if (startDate) {
-      query.andWhere('post.createdAt >= :startDate', { startDate });
-    }
+    if (dateRange && dateRange !== 'all_time') {
+      const now = new Date();
+      let startDate: Date | undefined;
 
+      switch (dateRange) {
+        case 'past_day':
+          startDate = new Date(now.setDate(now.getDate() - 1));
+          break;
+        case 'past_week':
+          startDate = new Date(now.setDate(now.getDate() - 7));
+          break;
+        case 'past_month':
+          startDate = new Date(now.setMonth(now.getMonth() - 1));
+          break;
+        case 'past_year':
+          startDate = new Date(now.setFullYear(now.getFullYear() - 1));
+          break;
+        default:
+          startDate = undefined;
+      }
 
-    if (endDate) {
-      query.andWhere('post.createdAt <= :endDate', { endDate });
+      if (startDate) {
+        query.andWhere('post.createdAt >= :startDate', { startDate });
+      }
     }
 
     if (sort === PostSort.POPULAR) {
@@ -122,7 +137,7 @@ export class PostsService {
         .groupBy('post.id')
         .orderBy('reactionCount', 'DESC');
     } else if (sort === PostSort.NEWEST) {
-      query.orderBy('post.createdAt', 'DESC');
+      query.orderBy('post.publishedAt', 'DESC');
     } else if (sort === PostSort.OLDEST) {
       query.orderBy('post.createdAt', 'ASC');
     } else if (sort === PostSort.PUBLISHED_AT) {

@@ -48,8 +48,7 @@ export interface PostQueryDto {
   search?: string;
   authorId?: number;
   sort?: string;
-  startDate?: string;
-  endDate?: string;
+  dateRange?: string;
   communityId?: number;
   status?: PostStatus;
 }

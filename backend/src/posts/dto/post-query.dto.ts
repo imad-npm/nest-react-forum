@@ -32,14 +32,8 @@ export class PostQueryDto extends PaginationDto {
   sort?: PostSort;
 
   @IsOptional()
-  @IsISO8601()
-  @Type(() => Date)
-  startDate?: Date;
-
-  @IsOptional()
-  @IsISO8601()
-  @Type(() => Date)
-  endDate?: Date;
+  @IsString()
+  dateRange?: string;
 
   @IsOptional()
   @IsEnum(PostStatus)
