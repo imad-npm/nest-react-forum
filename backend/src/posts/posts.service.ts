@@ -7,6 +7,8 @@ import { CommunityType } from 'src/communities/types';
 import { Community } from 'src/communities/entities/community.entity';
 import { CommunityMembership } from 'src/community-memberships/entities/community-memberships.entity';
 import { CommunityMembershipRole } from 'src/community-memberships/types';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { PostCreatedEvent } from './events/post-created.event';
 
 @Injectable()
 export class PostsService {
@@ -15,9 +17,10 @@ export class PostsService {
     private postsRepository: Repository<Post>,
     @InjectRepository(Community)
     private readonly communityRepository: Repository<Community>,
-
     @InjectRepository(CommunityMembership)
-    private readonly membershipRepository: Repository<CommunityMembership>) { }
+    private readonly membershipRepository: Repository<CommunityMembership>,
+    private eventEmitter: EventEmitter2,
+  ) {}
   async findAll(
     options: {
       page?: number;
@@ -265,7 +268,11 @@ export class PostsService {
       publishedAt: shouldAutoApprove ? new Date() : null,
     });
 
-    return this.postsRepository.save(post);
+    const savedPost = await this.postsRepository.save(post);
+
+    this.eventEmitter.emit('post.created', new PostCreatedEvent(savedPost));
+
+    return savedPost;
   }
   async update(
     postUpdateData: {

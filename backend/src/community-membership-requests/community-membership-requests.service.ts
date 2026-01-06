@@ -19,6 +19,8 @@ import {
   CommunityMembershipRequestQueryDto,
   CommunityMembershipRequestSort,
 } from './dto/community-membership-request-query.dto';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { CommunityMembershipRequestCreatedEvent } from './events/community-membership-request-created.event';
 
 @Injectable()
 export class CommunityMembershipRequestsService {
@@ -32,6 +34,7 @@ export class CommunityMembershipRequestsService {
     @InjectRepository(Community)
     private readonly communityRepository: Repository<Community>,
     private dataSource: DataSource,
+    private eventEmitter: EventEmitter2,
   ) {}
 
   async findMany(
@@ -123,6 +126,13 @@ export class CommunityMembershipRequestsService {
           communityId,
         });
         await queryRunner.manager.save(request);
+
+        // Emit event
+        this.eventEmitter.emit(
+          'community.membership.request.created',
+          new CommunityMembershipRequestCreatedEvent(request),
+        );
+
         await queryRunner.commitTransaction();
         return request;
       }
