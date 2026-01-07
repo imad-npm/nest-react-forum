@@ -13,16 +13,19 @@ import { UsersModule } from 'src/users/users.module';
 import { CommunityMembershipRequestNotificationListener } from './listeners/community-membership-request-notification.listener';
 import { PostNotificationListener } from './listeners/post-notification.listener';
 import { PostsModule } from 'src/posts/posts.module';
+import { User } from 'src/users/entities/user.entity';
+import { CaslModule } from 'src/casl/casl.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Notification]),
+    TypeOrmModule.forFeature([Notification, User]),
     EventEmitterModule,
     CommentsModule,
     ReactionsModule,
     UsersModule,
     CommunityMembershipRequestsModule,
     PostsModule,
+    CaslModule,
   ],
   controllers: [NotificationsController],
   providers: [
