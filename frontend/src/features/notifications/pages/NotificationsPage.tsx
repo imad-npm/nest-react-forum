@@ -1,6 +1,6 @@
 import { useGetNotificationsInfiniteQuery } from '../services/notificationsApi';
 import NotificationItem from '../components/NotificationsItem';
-import { Button } from '../../../shared/components/ui/Button';
+import { useInfiniteScroll } from '../../../shared/hooks/useInfiniteScroll';
 
 const NotificationsPage = () => {
   const {
@@ -13,6 +13,12 @@ const NotificationsPage = () => {
 
   const notifications =
     data?.pages.flatMap((page) => page.data) ?? [];
+
+  const { sentinelRef } = useInfiniteScroll({
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  });
 
   if (isLoading) {
     return <div className="p-4">Loading...</div>;
@@ -35,15 +41,8 @@ const NotificationsPage = () => {
         </div>
       )}
 
-      {hasNextPage && (
-        <Button
-          onClick={() => fetchNextPage()}
-          disabled={isFetchingNextPage}
-          className="mt-4"
-        >
-          {isFetchingNextPage ? 'Loading…' : 'Load more'}
-        </Button>
-      )}
+      <div ref={sentinelRef} />
+      {isFetchingNextPage && <div className="p-4 text-center">Loading more...</div>}
     </div>
   );
 };

@@ -1,7 +1,7 @@
 import type { Comment } from '../types';
-import { Button } from '../../../shared/components/ui/Button';
 import CommentCard from './CommentCard';
 import { useComments } from '../hooks/useComments';
+import { useInfiniteScroll } from '../../../shared/hooks/useInfiniteScroll';
 
 interface CommentListProps {
   postId: number;
@@ -14,8 +14,15 @@ const CommentList: React.FC<CommentListProps> = ({ postId }) => {
     pagination: { fetchNextPage, hasNextPage, isFetchingNextPage },
   } = useComments({ postId });
 
+  const { sentinelRef } = useInfiniteScroll({
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  });
+
   if (isLoadingComments && !comments.length)
     return <div>Loading comments...</div>;
+console.log(comments);
 
   return (
     <div className="space-y-4">
@@ -31,13 +38,8 @@ const CommentList: React.FC<CommentListProps> = ({ postId }) => {
           />
         ))
       )}
-      {hasNextPage && (
-        <div className="flex justify-center mt-4">
-          <Button onClick={fetchNextPage} disabled={isFetchingNextPage}>
-            {isFetchingNextPage ? 'Loading more...' : 'Load More Comments'}
-          </Button>
-        </div>
-      )}
+      <div ref={sentinelRef} />
+      {isFetchingNextPage && <div className="p-4 text-center">Loading more comments...</div>}
     </div>
   );
 };

@@ -47,13 +47,13 @@ export class NotificationsController {
     });
 
     // 🔥 Keep-alive ping for Firefox
-    const keepAlive$ = interval(15000).pipe(
+ /*   const keepAlive$ = interval(15000).pipe(
       map(() => ({ type: 'ping' })),
     );
-
+*/
     const notifications$ = fromEvent(emitter, 'notification');
 
-    return merge(keepAlive$, notifications$).pipe(
+    return notifications$.pipe(
       map((data) => ({
         data,
       })),
