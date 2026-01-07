@@ -23,37 +23,39 @@ export function useNotificationsSSE() {
     );
 
     eventSourceRef.current = es;
-
+es.onopen = () => {
+      console.log('✅ SSE Connected');
+    };
     es.onmessage = (event) => {
       const notification: INotification = JSON.parse(event.data);
-
+      console.log('📩 New Notification Received:', event.data);
       // Define query arguments for the getNotifications endpoint
       const queryArgs: INotificationQueryDto = { page: 1, limit: 20 }; // Match the default query for getNotifications
 
       dispatch(
-  notificationsApi.util.updateQueryData(
-    'getNotifications',
-    { limit: 20 },
-    (draft) => {
-      if (!draft.pages[0]) return; // no page 1 yet
+        notificationsApi.util.updateQueryData(
+          'getNotifications',
+          { limit: 10 }, // 👈 CHANGED from 20 to 10 to match NotificationsDropdown
+          (draft) => {
+            if (!draft.pages[0]) return; // no page 1 yet
 
-      const firstPage = draft.pages[0];
+            const firstPage = draft.pages[0];
 
-      // deduplicate
-      if (firstPage.data.some(n => n.id === notification.id)) return;
+            // deduplicate
+            if (firstPage.data.some(n => n.id === notification.id)) return;
 
-      firstPage.data.unshift(notification);
+            firstPage.data.unshift(notification);
 
-      // update meta total
-      firstPage.meta.totalItems += 1;
+            // update meta total
+            firstPage.meta.totalItems += 1;
 
-      // optionally trim to page limit
-      if (firstPage.data.length > firstPage.meta.limit) {
-        firstPage.data.pop();
-      }
-    }
-  )
-);
+            // optionally trim to page limit
+            if (firstPage.data.length > firstPage.meta.limit) {
+              firstPage.data.pop();
+            }
+          }
+        )
+      );
 
     };
 

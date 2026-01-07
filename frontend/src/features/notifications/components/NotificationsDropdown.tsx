@@ -25,7 +25,7 @@ const NotificationsDropdown = () => {
   }
 
   return (
-    <div className="absolute right-0 mt-2 w-80 bg-white rounded-md shadow-lg py-1 z-10">
+    <div className="absolute h-screen overflow-scroll right-0 mt-2 p-2 w-80 bg-white rounded-md shadow-lg py-1 z-10">
       <div className="p-2 font-bold border-b">
         Notifications {unreadCount > 0 && `(${unreadCount})`}
       </div>

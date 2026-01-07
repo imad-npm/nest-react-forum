@@ -29,6 +29,8 @@ export class NotificationsService {
     if (emitter) {
       emitter.emit('notification', data);
     }
+    console.log("sent");
+    
   }
 
   async findAll(

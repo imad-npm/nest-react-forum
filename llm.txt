@@ -254,6 +254,111 @@ export async function seedCommunityRestrictions(
 ---
 
 
+### FILE: backend/src/database/seeds/notification.seed.ts ###
+import { DataSource } from 'typeorm';
+import { User } from '../../users/entities/user.entity';
+import { Notification, NotificationResourceType } from '../../notifications/entities/notification.entity';
+import { NotificationType } from '../../notifications/types'; // Import NotificationType
+import { Post } from '../../posts/entities/post.entity';
+import { Comment } from '../../comments/entities/comment.entity';
+
+export async function seedNotifications(
+  dataSource: DataSource,
+  users: User[],
+  posts: Post[],
+  comments: Comment[],
+): Promise<Notification[]> {
+  const notificationRepository = dataSource.getRepository(Notification);
+  const notifications: Notification[] = [];
+
+  // Helper to get random user (excluding recipient for actor)
+  const getRandomUser = (excludeUserId?: number) => {
+    let randomUser: User;
+    do {
+      randomUser = users[Math.floor(Math.random() * users.length)];
+    } while (excludeUserId && randomUser.id === excludeUserId);
+    return randomUser;
+  };
+
+  // Helper to get random post
+  const getRandomPost = () => posts[Math.floor(Math.random() * posts.length)];
+
+  // Helper to get random comment
+  const getRandomComment = () => comments[Math.floor(Math.random() * comments.length)];
+
+  // Type 1: New Post created in a community (if applicable)
+  if (posts.length > 0) {
+    for (let i = 0; i < 5; i++) {
+      const post = getRandomPost();
+      const recipient = getRandomUser(post.author.id); // Notify someone other than the post author
+      const actor = post.author;
+
+      const notification = notificationRepository.create({
+        recipient: recipient,
+        actor: actor,
+        type: NotificationType.NEW_POST, // Use enum
+        read: Math.random() > 0.5, // 50% chance of being read
+        resourceType: NotificationResourceType.POST,
+        resourceId: post.id,
+        createdAt: new Date(Date.now() - Math.random() * 86400000 * 7), // within last 7 days
+      });
+      notifications.push(notification);
+    }
+  }
+
+  // Type 2: New Comment on a Post
+  if (comments.length > 0) {
+    for (let i = 0; i < 5; i++) {
+      const comment = getRandomComment();
+      const post = comment.post;
+      if (!post) continue; // Skip if comment has no associated post
+      
+      const recipient = post.author; // Notify the post author
+      const actor = comment.author;
+
+      if (recipient.id === actor.id) continue; // Don't notify if actor is recipient
+
+      const notification = notificationRepository.create({
+        recipient: recipient,
+        actor: actor,
+        type: NotificationType.NEW_COMMENT, // Use enum
+        read: Math.random() > 0.5,
+        resourceType: NotificationResourceType.COMMENT,
+        resourceId: comment.id,
+        createdAt: new Date(Date.now() - Math.random() * 86400000 * 5), // within last 5 days
+      });
+      notifications.push(notification);
+    }
+  }
+
+  // Type 3: Reaction on a Post (assuming reactions are related to posts)
+  if (posts.length > 0) {
+    for (let i = 0; i < 5; i++) {
+      const post = getRandomPost();
+      const recipient = post.author; // Notify the post author
+      const actor = getRandomUser(post.author.id); // Someone other than the post author
+
+      const notification = notificationRepository.create({
+        recipient: recipient,
+        actor: actor,
+        type: NotificationType.POST_REACTION, // Use enum
+        read: Math.random() > 0.5,
+        resourceType: NotificationResourceType.POST,
+        resourceId: post.id,
+        createdAt: new Date(Date.now() - Math.random() * 86400000 * 3), // within last 3 days
+      });
+      notifications.push(notification);
+    }
+  }
+
+  await notificationRepository.save(notifications);
+  console.log(`Seeded ${notifications.length} notifications.`);
+  return notifications;
+}
+
+---
+
+
 ### FILE: backend/src/database/seeds/comment.seed.ts ###
 import { AppDataSource } from '../../data-source';
 import { commentFactory } from '../factories/comment.factory';
@@ -565,6 +670,7 @@ import { seedCommunities } from './community.seed';
 import { seedCommunityMemberships } from './community-memberships.seed';
 import { seedCommunityMembershipRequests } from './community-membership-request.seed';
 import { seedCommunityRestrictions } from './community-restriction.seed';
+import { seedNotifications } from './notification.seed'; // NEW IMPORT
 import { AppDataSource } from '../../data-source';
 
 async function main() {
@@ -596,6 +702,9 @@ async function main() {
 
     // Seed community restrictions
     await seedCommunityRestrictions(users, communities);
+
+    // Seed notifications
+    await seedNotifications(AppDataSource, users, posts, comments);
 
     console.log('Database seeding complete ✅');
   } catch (error) {
@@ -972,6 +1081,31 @@ export class AddPictureFieldToUser1765627185088 implements MigrationInterface {
         await queryRunner.query(`ALTER TABLE "users" RENAME TO "temporary_users"`);
         await queryRunner.query(`CREATE TABLE "users" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar(100) NOT NULL, "email" varchar(100) NOT NULL, "password" varchar, "emailVerifiedAt" datetime, "provider" varchar CHECK( "provider" IN ('google','github') ), "providerId" varchar, CONSTRAINT "UQ_97672ac88f789774dd47f7c8be3" UNIQUE ("email"))`);
         await queryRunner.query(`INSERT INTO "users"("id", "name", "email", "password", "emailVerifiedAt", "provider", "providerId") SELECT "id", "name", "email", "password", "emailVerifiedAt", "provider", "providerId" FROM "temporary_users"`);
+        await queryRunner.query(`DROP TABLE "temporary_users"`);
+    }
+
+}
+
+---
+
+
+### FILE: backend/src/database/migrations/1767570586868-AddCreatedatToUser.ts ###
+import { MigrationInterface, QueryRunner } from "typeorm";
+
+export class AddCreatedatToUser1767570586868 implements MigrationInterface {
+    name = 'AddCreatedatToUser1767570586868'
+
+    public async up(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`CREATE TABLE "temporary_users" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "username" varchar(100) NOT NULL, "email" varchar(100) NOT NULL, "password" varchar, "emailVerifiedAt" datetime, "provider" varchar CHECK( "provider" IN ('google','github') ), "providerId" varchar, "role" varchar CHECK( "role" IN ('0','1','2') ) NOT NULL DEFAULT (2), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), CONSTRAINT "UQ_4baf95322bd69fe419c26c5430c" UNIQUE ("username"), CONSTRAINT "UQ_97672ac88f789774dd47f7c8be3" UNIQUE ("email"))`);
+        await queryRunner.query(`INSERT INTO "temporary_users"("id", "username", "email", "password", "emailVerifiedAt", "provider", "providerId", "role") SELECT "id", "username", "email", "password", "emailVerifiedAt", "provider", "providerId", "role" FROM "users"`);
+        await queryRunner.query(`DROP TABLE "users"`);
+        await queryRunner.query(`ALTER TABLE "temporary_users" RENAME TO "users"`);
+    }
+
+    public async down(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`ALTER TABLE "users" RENAME TO "temporary_users"`);
+        await queryRunner.query(`CREATE TABLE "users" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "username" varchar(100) NOT NULL, "email" varchar(100) NOT NULL, "password" varchar, "emailVerifiedAt" datetime, "provider" varchar CHECK( "provider" IN ('google','github') ), "providerId" varchar, "role" varchar CHECK( "role" IN ('0','1','2') ) NOT NULL DEFAULT (2), CONSTRAINT "UQ_4baf95322bd69fe419c26c5430c" UNIQUE ("username"), CONSTRAINT "UQ_97672ac88f789774dd47f7c8be3" UNIQUE ("email"))`);
+        await queryRunner.query(`INSERT INTO "users"("id", "username", "email", "password", "emailVerifiedAt", "provider", "providerId", "role") SELECT "id", "username", "email", "password", "emailVerifiedAt", "provider", "providerId", "role" FROM "temporary_users"`);
         await queryRunner.query(`DROP TABLE "temporary_users"`);
     }
 
@@ -2280,6 +2414,33 @@ export class AddingColsToUser1764871406438 implements MigrationInterface {
 ---
 
 
+### FILE: backend/src/database/migrations/1767741618850-AddPolymorphicToNotification.ts ###
+import { MigrationInterface, QueryRunner } from "typeorm";
+
+export class AddPolymorphicToNotification1767741618850 implements MigrationInterface {
+    name = 'AddPolymorphicToNotification1767741618850'
+
+    public async up(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`CREATE TABLE "notifications" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "type" varchar NOT NULL, "read" boolean NOT NULL DEFAULT (0), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "resourceType" varchar CHECK( "resourceType" IN ('Post','Comment','CommunityMembershipRequest') ), "resourceId" integer, "recipientId" integer, "actorId" integer)`);
+        await queryRunner.query(`CREATE TABLE "temporary_notifications" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "type" varchar NOT NULL, "read" boolean NOT NULL DEFAULT (0), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "resourceType" varchar CHECK( "resourceType" IN ('Post','Comment','CommunityMembershipRequest') ), "resourceId" integer, "recipientId" integer, "actorId" integer, CONSTRAINT "FK_db873ba9a123711a4bff527ccd5" FOREIGN KEY ("recipientId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION, CONSTRAINT "FK_44412a2d6f162ff4dc1697d0db7" FOREIGN KEY ("actorId") REFERENCES "users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION)`);
+        await queryRunner.query(`INSERT INTO "temporary_notifications"("id", "type", "read", "createdAt", "resourceType", "resourceId", "recipientId", "actorId") SELECT "id", "type", "read", "createdAt", "resourceType", "resourceId", "recipientId", "actorId" FROM "notifications"`);
+        await queryRunner.query(`DROP TABLE "notifications"`);
+        await queryRunner.query(`ALTER TABLE "temporary_notifications" RENAME TO "notifications"`);
+    }
+
+    public async down(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`ALTER TABLE "notifications" RENAME TO "temporary_notifications"`);
+        await queryRunner.query(`CREATE TABLE "notifications" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "type" varchar NOT NULL, "read" boolean NOT NULL DEFAULT (0), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "resourceType" varchar CHECK( "resourceType" IN ('Post','Comment','CommunityMembershipRequest') ), "resourceId" integer, "recipientId" integer, "actorId" integer)`);
+        await queryRunner.query(`INSERT INTO "notifications"("id", "type", "read", "createdAt", "resourceType", "resourceId", "recipientId", "actorId") SELECT "id", "type", "read", "createdAt", "resourceType", "resourceId", "recipientId", "actorId" FROM "temporary_notifications"`);
+        await queryRunner.query(`DROP TABLE "temporary_notifications"`);
+        await queryRunner.query(`DROP TABLE "notifications"`);
+    }
+
+}
+
+---
+
+
 ### FILE: backend/src/database/migrations/1765209236854-AddEmailVerifiedColumn.ts ###
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
@@ -2476,6 +2637,618 @@ export class RemoveIdFromMembRequests1766761884496 implements MigrationInterface
         await queryRunner.query(`DROP TABLE "temporary_community_membership_requests"`);
     }
 
+}
+
+---
+
+
+### FILE: backend/src/notifications/notifications.controller.ts ###
+import {
+  Controller,
+  Get,
+  Sse,
+  UseGuards,
+  Req,
+  Res,
+  Query,
+  Patch,
+  Param,
+  ParseIntPipe,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
+import { NotificationsService } from './notifications.service';
+import { QueryJwtAuthGuard } from 'src/auth/guards/query-jwt-auth.guard';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard'; // Import JwtAuthGuard
+import { GetUser } from 'src/decorators/user.decorator';
+import { User } from 'src/users/entities/user.entity';
+import { Observable, fromEvent } from 'rxjs';
+import { map } from 'rxjs/operators';
+import type { Response } from 'express';
+import { NotificationQueryDto } from './dto/notification-query.dto';
+import { NotificationDto } from './dto/notification.dto';
+import { ResponseDto } from 'src/common/dto/response.dto';
+import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
+import { PaginationMetaDto } from 'src/common/dto/pagination-meta.dto';
+
+@Controller('notifications')
+export class NotificationsController {
+  constructor(private readonly notificationsService: NotificationsService) {}
+
+  @Get()
+  @UseGuards(JwtAuthGuard)
+  async findAll(
+    @GetUser() user: User,
+    @Query() query: NotificationQueryDto,
+  ): Promise<PaginatedResponseDto<NotificationDto>> {
+    const { data, count } = await this.notificationsService.findAll(
+      user.id,
+      query,
+    );
+
+    const paginationMeta = new PaginationMetaDto(
+      query.page,
+      query.limit,
+      count,
+      data.length,
+    );
+
+    return new PaginatedResponseDto(
+      data.map(NotificationDto.fromEntity),
+      paginationMeta,
+    );
+  }
+
+  @Patch(':id/read')
+  @UseGuards(JwtAuthGuard)
+  async markAsRead(
+    @GetUser() user: User,
+    @Param('id', ParseIntPipe) notificationId: number,
+  ): Promise<ResponseDto<NotificationDto>> {
+    const notification = await this.notificationsService.markAsRead(
+      notificationId,
+      user.id,
+    );
+    return new ResponseDto(NotificationDto.fromEntity(notification));
+  }
+
+  @Patch('mark-all-as-read')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(JwtAuthGuard)
+  async markAllAsRead(@GetUser() user: User): Promise<void> {
+    await this.notificationsService.markAllAsRead(user.id);
+  }
+
+  @Get('sse')
+  @UseGuards(QueryJwtAuthGuard)
+  sse(
+    @GetUser() user: User,
+    @Req() req,
+    @Res() res: Response,
+  ): Observable<MessageEvent> {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+    res.write(':\n\n'); // comment ping to keep connection alive
+
+
+    const eventEmitter = this.notificationsService.addClient(user.id.toString());
+
+    req.on('close', () => {
+      this.notificationsService.removeClient(user.id.toString());
+    });
+
+    return fromEvent(eventEmitter, 'notification').pipe(
+      map((data: any) => {
+        return new MessageEvent('notification', { data });
+      }),
+    );
+  }
+}
+
+---
+
+
+### FILE: backend/src/notifications/types.ts ###
+export enum NotificationType {
+  NEW_POST = 'NEW_POST',
+  NEW_COMMENT = 'NEW_COMMENT',
+  POST_REACTION = 'POST_REACTION',
+  COMMENT_REACTION = 'COMMENT_REACTION',
+  NEW_REPLY_COMMENT = 'NEW_REPLY_COMMENT', // Added for replies
+  COMMUNITY_MEMBERSHIP_REQUEST = 'COMMUNITY_MEMBERSHIP_REQUEST',
+  COMMUNITY_MEMBERSHIP_ACCEPTED = 'COMMUNITY_MEMBERSHIP_ACCEPTED',
+  COMMUNITY_MEMBERSHIP_REJECTED = 'COMMUNITY_MEMBERSHIP_REJECTED',
+  // Add other notification types as needed
+}
+
+---
+
+
+### FILE: backend/src/notifications/listeners/comment-notification.listener.ts ###
+import { Injectable } from '@nestjs/common';
+import { OnEvent } from '@nestjs/event-emitter';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Notification, NotificationResourceType } from '../entities/notification.entity';
+import { NotificationsService } from '../notifications.service';
+import { CommentCreatedEvent } from 'src/comments/events/comment-created.event';
+import { User } from 'src/users/entities/user.entity';
+import { NotificationType } from '../types'; // NEW: Import NotificationType
+
+@Injectable()
+export class CommentNotificationListener {
+  constructor(
+    @InjectRepository(Notification)
+    private readonly notificationRepo: Repository<Notification>,
+    private readonly notificationsService: NotificationsService,
+  ) {}
+
+  @OnEvent('comment.created')
+  async handleCommentCreatedEvent(event: CommentCreatedEvent) {
+    const { comment } = event;
+    const { post, author, parent } = comment;
+
+    if (post.author.id !== author.id) {
+      const notification = this.notificationRepo.create({
+        recipient: post.author,
+        actor: author,
+        type: NotificationType.NEW_COMMENT, // MODIFIED
+        resourceType: NotificationResourceType.COMMENT,
+        resourceId: comment.id,
+        createdAt: new Date(),
+      });
+      const savedNotification = await this.notificationRepo.save(notification);
+      this.notificationsService.sendNotification(
+        post.author.id.toString(),
+        savedNotification,
+      );
+    }
+
+    if (parent && parent.author.id !== author.id) {
+      const notification = this.notificationRepo.create({
+        recipient: parent.author,
+        actor: author,
+        type: NotificationType.NEW_REPLY_COMMENT, // MODIFIED
+        resourceType: NotificationResourceType.COMMENT,
+        resourceId: comment.id,
+        createdAt: new Date(),
+      });
+      const savedNotification = await this.notificationRepo.save(notification);
+      this.notificationsService.sendNotification(
+        parent.author.id.toString(),
+        savedNotification,
+      );
+    }
+  }
+}
+
+
+---
+
+
+### FILE: backend/src/notifications/listeners/reaction-notification.listener.ts ###
+import { Injectable } from '@nestjs/common';
+import { OnEvent } from '@nestjs/event-emitter';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Notification, NotificationResourceType } from '../entities/notification.entity';
+import { NotificationsService } from '../notifications.service';
+import { PostReactionCreatedEvent } from 'src/reactions/events/post-reaction-created.event';
+import { CommentReactionCreatedEvent } from 'src/reactions/events/comment-reaction-created.event';
+import { User } from 'src/users/entities/user.entity';
+import { NotificationType } from '../types'; // NEW: Import NotificationType
+
+@Injectable()
+export class ReactionNotificationListener {
+  constructor(
+    @InjectRepository(Notification)
+    private readonly notificationRepo: Repository<Notification>,
+    private readonly notificationsService: NotificationsService,
+    @InjectRepository(User)
+    private readonly userRepo: Repository<User>,
+  ) {}
+
+  @OnEvent('post.reaction.created')
+  async handlePostReactionCreatedEvent(event: PostReactionCreatedEvent) {
+    const { reaction } = event;
+    const { post, userId } = reaction;
+
+    if (post.author.id !== userId) {
+      const actor = await this.userRepo.findOneBy({ id: userId });
+      if (!actor) return;
+
+      const notification = this.notificationRepo.create({
+        recipient: post.author,
+        actor,
+        type: NotificationType.POST_REACTION, // MODIFIED
+        resourceType: NotificationResourceType.POST,
+        resourceId: post.id,
+        createdAt: new Date(),
+      });
+      const savedNotification = await this.notificationRepo.save(notification);
+      this.notificationsService.sendNotification(
+        post.author.id.toString(),
+        savedNotification,
+      );
+    }
+  }
+
+  @OnEvent('comment.reaction.created')
+  async handleCommentReactionCreatedEvent(event: CommentReactionCreatedEvent) {
+    const { reaction } = event;
+    const { comment, userId } = reaction;
+
+    if (comment.author.id !== userId) {
+      const actor = await this.userRepo.findOneBy({ id: userId });
+      if (!actor) return;
+
+      const notification = this.notificationRepo.create({
+        recipient: comment.author,
+        actor,
+        type: NotificationType.COMMENT_REACTION, // MODIFIED
+        resourceType: NotificationResourceType.COMMENT,
+        resourceId: comment.id,
+        createdAt: new Date(),
+      });
+      const savedNotification = await this.notificationRepo.save(notification);
+      this.notificationsService.sendNotification(
+        comment.author.id.toString(),
+        savedNotification,
+      );
+    }
+  }
+}
+
+---
+
+
+### FILE: backend/src/notifications/listeners/community-membership-request-notification.listener.ts ###
+import { Injectable } from '@nestjs/common';
+import { OnEvent } from '@nestjs/event-emitter';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Notification, NotificationResourceType } from '../entities/notification.entity'; // Import NotificationResourceType
+import { NotificationsService } from '../notifications.service';
+import { CommunityMembershipRequestCreatedEvent } from '../../community-membership-requests/events/community-membership-request-created.event';
+import { User } from 'src/users/entities/user.entity';
+import { NotificationType } from '../types'; // NEW: Import NotificationType
+
+@Injectable()
+export class CommunityMembershipRequestNotificationListener {
+  constructor(
+    @InjectRepository(Notification)
+    private readonly notificationRepo: Repository<Notification>,
+    private readonly notificationsService: NotificationsService,
+    @InjectRepository(User)
+    private readonly userRepo: Repository<User>,
+  ) {}
+
+  @OnEvent('community.membership.request.created')
+  async handleCommunityMembershipRequestCreatedEvent(
+    event: CommunityMembershipRequestCreatedEvent,
+  ) {
+    const { request } = event;
+    const { community, user } = request;
+
+    // Notify the community owner
+    if (community.owner.id !== user.id) {
+      const recipient = community.owner;
+      const actor = user;
+
+      const notification = this.notificationRepo.create({
+        recipient,
+        actor,
+        type: NotificationType.COMMUNITY_MEMBERSHIP_REQUEST, // MODIFIED
+        resourceType: NotificationResourceType.COMMUNITY_MEMBERSHIP_REQUEST,
+        resourceId: community.id,
+        createdAt: new Date(),
+      });
+      const savedNotification = await this.notificationRepo.save(notification);
+      this.notificationsService.sendNotification(
+        recipient.id.toString(),
+        savedNotification,
+      );
+    }
+  }
+}
+
+---
+
+
+### FILE: backend/src/notifications/listeners/post-notification.listener.ts ###
+import { Injectable } from '@nestjs/common';
+import { OnEvent } from '@nestjs/event-emitter';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Notification, NotificationResourceType } from '../entities/notification.entity'; // Import NotificationResourceType
+import { NotificationsService } from '../notifications.service';
+import { PostCreatedEvent } from '../../posts/events/post-created.event';
+import { User } from 'src/users/entities/user.entity';
+import { NotificationType } from '../types'; // NEW: Import NotificationType
+
+@Injectable()
+export class PostNotificationListener {
+  constructor(
+    @InjectRepository(Notification)
+    private readonly notificationRepo: Repository<Notification>,
+    private readonly notificationsService: NotificationsService,
+    @InjectRepository(User)
+    private readonly userRepo: Repository<User>,
+  ) {}
+
+  @OnEvent('post.created')
+  async handlePostCreatedEvent(event: PostCreatedEvent) {
+    const { post } = event;
+    const { community, author } = post;
+
+    // Notify the community owner if the post is in a community and the author is not the owner
+    if (community && community.owner.id !== author.id) {
+      const recipient = community.owner;
+      const actor = author;
+
+      const notification = this.notificationRepo.create({
+        recipient,
+        actor,
+        type: NotificationType.NEW_POST, // MODIFIED
+        resourceType: NotificationResourceType.POST,
+        resourceId: post.id,
+        createdAt: new Date(),
+      });
+      const savedNotification = await this.notificationRepo.save(notification);
+      this.notificationsService.sendNotification(
+        recipient.id.toString(),
+        savedNotification,
+      );
+    }
+  }
+}
+---
+
+
+### FILE: backend/src/notifications/notifications.service.ts ###
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { EventEmitter } from 'events';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, IsNull } from 'typeorm';
+import { Notification } from './entities/notification.entity';
+import { NotificationQueryDto } from './dto/notification-query.dto';
+
+@Injectable()
+export class NotificationsService {
+  private readonly clients: Map<string, EventEmitter> = new Map();
+
+  constructor(
+    @InjectRepository(Notification)
+    private readonly notificationsRepository: Repository<Notification>,
+  ) {}
+
+  addClient(userId: string): EventEmitter {
+    const emitter = new EventEmitter();
+    this.clients.set(userId, emitter);
+    return emitter;
+  }
+
+  removeClient(userId: string): void {
+    this.clients.delete(userId);
+  }
+
+  sendNotification(userId: string, data: any): void {
+    const emitter = this.clients.get(userId);
+    if (emitter) {
+      emitter.emit('notification', data);
+    }
+    console.log("sent");
+    
+  }
+
+  async findAll(
+    userId: number,
+    query: NotificationQueryDto,
+  ): Promise<{ data: Notification[]; count: number }> {
+    const { page, limit, read } = query;
+    const skip = (page - 1) * limit;
+
+    const queryBuilder = this.notificationsRepository
+      .createQueryBuilder('notification')
+      .leftJoinAndSelect('notification.recipient', 'recipient') // Eager load recipient
+      .leftJoinAndSelect('notification.actor', 'actor')
+      .where('notification.recipient.id = :userId', { userId });
+
+    if (read !== undefined) {
+      queryBuilder.andWhere('notification.read = :read', { read });
+    }
+
+    const [data, count] = await queryBuilder
+      .orderBy('notification.createdAt', 'DESC')
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
+
+    return { data, count };
+  }
+
+  async markAsRead(notificationId: number, userId: number): Promise<Notification> {
+    const notification = await this.notificationsRepository.findOne({
+      where: { id: notificationId, recipient: { id: userId } },
+    });
+
+    if (!notification) {
+      throw new NotFoundException(`Notification with ID ${notificationId} not found or not accessible.`);
+    }
+
+    notification.read = true;
+    return this.notificationsRepository.save(notification);
+  }
+
+  async markAllAsRead(userId: number): Promise<number> {
+    const result = await this.notificationsRepository
+      .createQueryBuilder()
+      .update(Notification)
+      .set({ read: true })
+      .where('recipient.id = :userId', { userId })
+      .andWhere('read = :readStatus', { readStatus: false })
+      .execute();
+
+    return result.affected || 0;
+  }
+}
+
+
+---
+
+
+### FILE: backend/src/notifications/entities/notification.entity.ts ###
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn } from 'typeorm';
+import { User } from '../../users/entities/user.entity';
+import { NotificationType } from '../types'; // Import NotificationType
+
+export enum NotificationResourceType {
+  POST = 'Post',
+  COMMENT = 'Comment',
+  COMMUNITY_MEMBERSHIP_REQUEST = 'CommunityMembershipRequest',
+  // Add other resource types as needed
+}
+
+@Entity('notifications')
+export class Notification {
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @ManyToOne(() => User)
+  recipient: User;
+
+  @ManyToOne(() => User, { nullable: true })
+  actor: User;
+
+  @Column({ type: 'simple-enum', enum: NotificationType }) // Changed to use NotificationType enum
+  type: NotificationType;
+
+  @Column({ default: false })
+  read: boolean;
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @Column({
+    type: 'simple-enum',
+    enum: NotificationResourceType,
+    nullable: true,
+  })
+  resourceType?: NotificationResourceType;
+
+  @Column({ nullable: true })
+  resourceId?: number;
+}
+
+---
+
+
+### FILE: backend/src/notifications/events/notification-created.event.ts ###
+export class NotificationCreatedEvent {
+  constructor(
+    public readonly recipient: any,
+    public readonly actor: any,
+    public readonly type: string,
+    public readonly postId: number,
+    public readonly commentId: number,
+  ) {}
+}
+
+---
+
+
+### FILE: backend/src/notifications/notifications.module.ts ###
+import { CommunityMembershipRequestsModule } from 'src/community-membership-requests/community-membership-requests.module';
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { NotificationsController } from './notifications.controller';
+import { NotificationsService } from './notifications.service';
+import { Notification } from './entities/notification.entity';
+import { CommentNotificationListener } from './listeners/comment-notification.listener';
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { CommentsModule } from 'src/comments/comments.module';
+import { ReactionNotificationListener } from './listeners/reaction-notification.listener';
+import { ReactionsModule } from 'src/reactions/reactions.module';
+import { UsersModule } from 'src/users/users.module';
+import { CommunityMembershipRequestNotificationListener } from './listeners/community-membership-request-notification.listener';
+import { PostNotificationListener } from './listeners/post-notification.listener';
+import { PostsModule } from 'src/posts/posts.module';
+import { User } from 'src/users/entities/user.entity';
+import { CaslModule } from 'src/casl/casl.module';
+
+@Module({
+  imports: [
+    TypeOrmModule.forFeature([Notification, User]),
+    EventEmitterModule,
+    CommentsModule,
+    ReactionsModule,
+    UsersModule,
+    CommunityMembershipRequestsModule,
+    PostsModule,
+    CaslModule,
+  ],
+  controllers: [NotificationsController],
+  providers: [
+    NotificationsService,
+    CommentNotificationListener,
+    ReactionNotificationListener,
+    CommunityMembershipRequestNotificationListener,
+    PostNotificationListener,
+  ],
+  exports: [NotificationsService],
+})
+export class NotificationsModule {}
+
+---
+
+
+### FILE: backend/src/notifications/dto/notification-query.dto.ts ###
+import { IsOptional, IsNumberString, IsBooleanString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { PaginationDto } from 'src/common/dto/pagination.dto';
+
+export class NotificationQueryDto extends PaginationDto {
+
+  @IsOptional()
+  @IsBooleanString()
+  @Type(() => Boolean)
+  read?: boolean;
+}
+
+---
+
+
+### FILE: backend/src/notifications/dto/notification.dto.ts ###
+import { Notification, NotificationResourceType } from '../entities/notification.entity';
+import { User } from 'src/users/entities/user.entity';
+import { NotificationType } from '../types'; // Import NotificationType
+
+export class NotificationDto {
+  id: number;
+  recipientId: number;
+  actorId?: number;
+  actorUsername?: string;
+  type: NotificationType; // Changed to NotificationType
+  read: boolean;
+  createdAt: Date;
+  resourceType?: NotificationResourceType;
+  resourceId?: number;
+
+  static fromEntity(notification: Notification): NotificationDto {
+    const dto = new NotificationDto();
+    dto.id = notification.id;
+    dto.recipientId = notification.recipient.id;
+    dto.actorId = notification.actor?.id;
+    dto.actorUsername = notification.actor?.username;
+    dto.type = notification.type;
+    dto.read = notification.read;
+    dto.createdAt = notification.createdAt;
+    dto.resourceType = notification.resourceType;
+    dto.resourceId = notification.resourceId;
+    return dto;
+  }
 }
 
 ---
@@ -3253,8 +4026,23 @@ export class UserQueryDto extends PaginationDto {
 
 
 ### FILE: backend/src/users/dtos/user-response.dto.ts ###
-import { Exclude, Expose, plainToInstance } from 'class-transformer';
+import { Exclude, Expose, plainToInstance, Type } from 'class-transformer';
 import { User } from '../entities/user.entity';
+import { Profile } from '../../profile/entities/profile.entity'; // Import Profile entity
+
+@Exclude()
+export class ProfileResponseDto {
+  @Expose() readonly id: number;
+  @Expose() readonly displayName: string;
+  @Expose() readonly bio: string | null;
+  @Expose() readonly picture: string | null;
+
+  static fromEntity(entity: Profile): ProfileResponseDto {
+    return plainToInstance(ProfileResponseDto, entity, {
+      excludeExtraneousValues: true,
+    });
+  }
+}
 
 @Exclude()
 export class UserResponseDto {
@@ -3263,6 +4051,10 @@ export class UserResponseDto {
   @Expose() readonly email: string;
   @Expose() readonly emailVerifiedAt: Date | null;
   @Expose() readonly provider: string | null;
+
+  @Expose()
+  @Type(() => ProfileResponseDto)
+  readonly profile: ProfileResponseDto;
 
   static fromEntity(entity: User): UserResponseDto {
     return plainToInstance(UserResponseDto, entity, {
@@ -3285,7 +4077,7 @@ import { UsersController } from './users.controller';
   imports: [TypeOrmModule.forFeature([User])], // Add ProfileModule here
   controllers: [UsersController],
   providers: [UsersService],
-  exports: [UsersService], // Export the service so it can be injected elsewhere
+  exports: [TypeOrmModule.forFeature([User]), UsersService], // Export the service and TypeOrmFeature so it can be injected elsewhere
 })
 export class UsersModule {}
 
@@ -3294,6 +4086,7 @@ export class UsersModule {}
 
 ### FILE: backend/src/users/entities/user.entity.ts ###
 // src/users/entities/user.entity.ts
+import { Notification } from '../../notifications/entities/notification.entity';
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -3301,6 +4094,7 @@ import {
   OneToMany,
   OneToOne,
   JoinColumn,
+  CreateDateColumn,
 } from 'typeorm';
 import { Post } from '../../posts/entities/post.entity';
 import { Comment } from '../../comments/entities/comment.entity';
@@ -3361,6 +4155,9 @@ export class User {
   })
   role: UserRole;
 
+  @CreateDateColumn() // 2. Add this field
+  createdAt: Date;
+  
   // Relations
   @OneToMany(() => Post, (post) => post.author)
   posts: Post[];
@@ -3406,6 +4203,12 @@ export class User {
     (restriction) => restriction.user,
   )
   communityRestrictions: CommunityRestriction[];
+
+  @OneToMany(() => Notification, (notification) => notification.recipient)
+  notifications: Notification[];
+
+  @OneToMany(() => Notification, (notification) => notification.actor)
+  sentNotifications: Notification[];
 }
 ---
 
@@ -3540,7 +4343,7 @@ export class CommunityMembershipRequestsController {
   }
 
 
-@Delete('me')
+@Delete('own')
 removeOwnRequest(
   @Param('communityId', ParseIntPipe) communityId: number,
   @GetUser() user: User,
@@ -3615,6 +4418,8 @@ import {
   CommunityMembershipRequestQueryDto,
   CommunityMembershipRequestSort,
 } from './dto/community-membership-request-query.dto';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { CommunityMembershipRequestCreatedEvent } from './events/community-membership-request-created.event';
 
 @Injectable()
 export class CommunityMembershipRequestsService {
@@ -3628,6 +4433,7 @@ export class CommunityMembershipRequestsService {
     @InjectRepository(Community)
     private readonly communityRepository: Repository<Community>,
     private dataSource: DataSource,
+    private eventEmitter: EventEmitter2,
   ) {}
 
   async findMany(
@@ -3719,6 +4525,13 @@ export class CommunityMembershipRequestsService {
           communityId,
         });
         await queryRunner.manager.save(request);
+
+        // Emit event
+        this.eventEmitter.emit(
+          'community.membership.request.created',
+          new CommunityMembershipRequestCreatedEvent(request),
+        );
+
         await queryRunner.commitTransaction();
         return request;
       }
@@ -3904,6 +4717,16 @@ export class CommunityMembershipRequest {
 
   @CreateDateColumn()
   createdAt: Date;
+}
+
+---
+
+
+### FILE: backend/src/community-membership-requests/events/community-membership-request-created.event.ts ###
+import { CommunityMembershipRequest } from '../entities/community-membership-request.entity';
+
+export class CommunityMembershipRequestCreatedEvent {
+  constructor(public readonly request: CommunityMembershipRequest) {}
 }
 
 ---
@@ -4193,38 +5016,32 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm'; // Added DataSource
-
+import { DataSource, Repository } from 'typeorm';
 import { PostReaction } from './entities/post-reaction.entity';
 import { CommentReaction } from './entities/comment-reaction.entity';
 import { ReactionType } from './reactions.types';
-// import { PostsService } from 'src/posts/posts.service'; // Removed
-// import { CommentsService } from 'src/comments/comments.service'; // Removed
 import { UpdateReactionDto } from './dto/update-reaction.dto';
-import { Post } from 'src/posts/entities/post.entity'; // Added Post entity
-import { Comment } from 'src/comments/entities/comment.entity'; // Added Comment entity
+import { Post } from 'src/posts/entities/post.entity';
+import { Comment } from 'src/comments/entities/comment.entity';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { PostReactionCreatedEvent } from './events/post-reaction-created.event';
+import { CommentReactionCreatedEvent } from './events/comment-reaction-created.event';
 
 @Injectable()
 export class ReactionsService {
   constructor(
     @InjectRepository(PostReaction)
     private readonly postReactionRepo: Repository<PostReaction>,
-
     @InjectRepository(CommentReaction)
     private readonly commentReactionRepo: Repository<CommentReaction>,
-
-    // private readonly postsService: PostsService, // Removed
-    // private readonly commentsService: CommentsService, // Removed
-    @InjectRepository(Post) // Injected Post repository
+    @InjectRepository(Post)
     private readonly postRepo: Repository<Post>,
-    @InjectRepository(Comment) // Injected Comment repository
+    @InjectRepository(Comment)
     private readonly commentRepo: Repository<Comment>,
-    private dataSource: DataSource, // Injected DataSource
+    private dataSource: DataSource,
+    private readonly eventEmitter: EventEmitter2,
   ) { }
 
-  // ─────────────────────────────────────────────
-  // CREATE
-  // ─────────────────────────────────────────────
   async create({
     type,
     userId,
@@ -4252,7 +5069,7 @@ export class ReactionsService {
 
     try {
       if (postId) {
-        const post = await queryRunner.manager.findOne(Post, { where: { id: postId } });
+        const post = await queryRunner.manager.findOne(Post, { where: { id: postId }, relations: ['author'] });
         if (!post) throw new NotFoundException(`Post with ID ${postId} not found`);
 
         const existing = await queryRunner.manager.findOne(PostReaction, {
@@ -4265,7 +5082,7 @@ export class ReactionsService {
           );
         }
 
-        const newReaction = queryRunner.manager.create(PostReaction, { type, userId, postId });
+        const newReaction = queryRunner.manager.create(PostReaction, { type, userId, post });
         await queryRunner.manager.save(newReaction);
 
         if (newReaction.type === ReactionType.LIKE) {
@@ -4274,10 +5091,11 @@ export class ReactionsService {
           await queryRunner.manager.increment(Post, { id: postId }, 'dislikesCount', 1);
         }
         await queryRunner.commitTransaction();
+        this.eventEmitter.emit('post.reaction.created', new PostReactionCreatedEvent(newReaction));
         return newReaction;
       }
       else if (commentId) {
-        const comment = await queryRunner.manager.findOne(Comment, { where: { id: commentId } });
+        const comment = await queryRunner.manager.findOne(Comment, { where: { id: commentId }, relations: ['author'] });
         if (!comment) throw new NotFoundException(`Comment with ID ${commentId} not found`);
 
         const existing = await queryRunner.manager.findOne(CommentReaction, {
@@ -4290,7 +5108,7 @@ export class ReactionsService {
           );
         }
 
-        const newReaction = queryRunner.manager.create(CommentReaction, { type, userId, commentId });
+        const newReaction = queryRunner.manager.create(CommentReaction, { type, userId, comment });
         await queryRunner.manager.save(newReaction);
 
         if (newReaction.type === ReactionType.LIKE) {
@@ -4299,6 +5117,7 @@ export class ReactionsService {
           await queryRunner.manager.increment(Comment, { id: commentId }, 'dislikesCount', 1);
         }
         await queryRunner.commitTransaction();
+        this.eventEmitter.emit('comment.reaction.created', new CommentReactionCreatedEvent(newReaction));
         return newReaction;
       }
       throw new BadRequestException(
@@ -4387,10 +5206,7 @@ export class ReactionsService {
     return reaction;
   }
 
-  // ─────────────────────────────────────────────
-  // UPDATE
-  // ─────────────────────────────────────────────
- async updatePostReaction({
+  async updatePostReaction({
   id,
   type
 }: {
@@ -4405,7 +5221,6 @@ export class ReactionsService {
     const reaction = await queryRunner.manager.findOne(PostReaction, { where: { id } });
     if (!reaction) throw new NotFoundException('Post reaction not found');
     
-    // Return early if no change
     if (reaction.type === type) {
       await queryRunner.commitTransaction();
       return reaction;
@@ -4415,7 +5230,6 @@ export class ReactionsService {
     const newType = type;
     const postId = reaction.postId;
 
-    // Update counters based on change
     if (oldType === ReactionType.LIKE) {
       await queryRunner.manager.decrement(Post, { id: postId }, 'likesCount', 1);
     } else if (oldType === ReactionType.DISLIKE) {
@@ -4428,7 +5242,6 @@ export class ReactionsService {
       await queryRunner.manager.increment(Post, { id: postId }, 'dislikesCount', 1);
     }
 
-    // Update reaction type
     reaction.type = newType;
     await queryRunner.manager.save(reaction);
 
@@ -4457,7 +5270,6 @@ async updateCommentReaction({
     const reaction = await queryRunner.manager.findOne(CommentReaction, { where: { id } });
     if (!reaction) throw new NotFoundException('Comment reaction not found');
 
-    // Return early if no change
     if (reaction.type === type) {
       await queryRunner.commitTransaction();
       return reaction;
@@ -4467,7 +5279,6 @@ async updateCommentReaction({
     const newType = type;
     const commentId = reaction.commentId;
 
-    // Update counters based on change
     if (oldType === ReactionType.LIKE) {
       await queryRunner.manager.decrement(Comment, { id: commentId }, 'likesCount', 1);
     } else if (oldType === ReactionType.DISLIKE) {
@@ -4480,7 +5291,6 @@ async updateCommentReaction({
       await queryRunner.manager.increment(Comment, { id: commentId }, 'dislikesCount', 1);
     }
 
-    // Update reaction type
     reaction.type = newType;
     await queryRunner.manager.save(reaction);
 
@@ -4493,9 +5303,6 @@ async updateCommentReaction({
     await queryRunner.release();
   }
 }
-  // ─────────────────────────────────────────────
-  // DELETE
-  // ─────────────────────────────────────────────
   async deletePostReaction(id: number) {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -4509,7 +5316,6 @@ async updateCommentReaction({
 
       const result = await queryRunner.manager.delete(PostReaction, id);
       if (result.affected) {
-        // No need to fetch post explicitly, can directly decrement
         if (reaction.type === ReactionType.LIKE) {
           await queryRunner.manager.decrement(Post, { id: reaction.postId }, 'likesCount', 1);
         } else {
@@ -4537,7 +5343,6 @@ async updateCommentReaction({
 
       const result = await queryRunner.manager.delete(CommentReaction, id);
       if (result.affected) {
-        // No need to fetch comment explicitly, can directly decrement
         if (reaction.type === ReactionType.LIKE) {
           await queryRunner.manager.decrement(Comment, { id: reaction.commentId }, 'likesCount', 1);
         } else {
@@ -4552,6 +5357,7 @@ async updateCommentReaction({
       await queryRunner.release();
     }
   }}
+
 
 ---
 
@@ -4681,6 +5487,26 @@ export class CommentReaction {
 
   @UpdateDateColumn()
   updatedAt: Date;
+}
+
+---
+
+
+### FILE: backend/src/reactions/events/comment-reaction-created.event.ts ###
+import { CommentReaction } from '../entities/comment-reaction.entity';
+
+export class CommentReactionCreatedEvent {
+  constructor(public readonly reaction: CommentReaction) {}
+}
+
+---
+
+
+### FILE: backend/src/reactions/events/post-reaction-created.event.ts ###
+import { PostReaction } from '../entities/post-reaction.entity';
+
+export class PostReactionCreatedEvent {
+  constructor(public readonly reaction: PostReaction) {}
 }
 
 ---
@@ -6091,6 +6917,8 @@ import { CommunityType } from 'src/communities/types';
 import { Community } from 'src/communities/entities/community.entity';
 import { CommunityMembership } from 'src/community-memberships/entities/community-memberships.entity';
 import { CommunityMembershipRole } from 'src/community-memberships/types';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { PostCreatedEvent } from './events/post-created.event';
 
 @Injectable()
 export class PostsService {
@@ -6099,9 +6927,10 @@ export class PostsService {
     private postsRepository: Repository<Post>,
     @InjectRepository(Community)
     private readonly communityRepository: Repository<Community>,
-
     @InjectRepository(CommunityMembership)
-    private readonly membershipRepository: Repository<CommunityMembership>) { }
+    private readonly membershipRepository: Repository<CommunityMembership>,
+    private eventEmitter: EventEmitter2,
+  ) {}
   async findAll(
     options: {
       page?: number;
@@ -6109,8 +6938,7 @@ export class PostsService {
       search?: string;
       authorId?: number;
       sort?: PostSort;
-      startDate?: Date;
-      endDate?: Date;
+      dateRange?: string;
       currentUserId?: number;
       communityId?: number;
       status?: PostStatus;
@@ -6125,8 +6953,7 @@ export class PostsService {
       search,
       authorId,
       sort,
-      startDate,
-      endDate,
+      dateRange,
       currentUserId,
       communityId,
       status = PostStatus.APPROVED,
@@ -6190,13 +7017,30 @@ export class PostsService {
       query.andWhere('post.community.id = :communityId', { communityId });
     }
 
-    if (startDate) {
-      query.andWhere('post.createdAt >= :startDate', { startDate });
-    }
+    if (dateRange && dateRange !== 'all_time') {
+      const now = new Date();
+      let startDate: Date | undefined;
 
+      switch (dateRange) {
+        case 'past_day':
+          startDate = new Date(now.setDate(now.getDate() - 1));
+          break;
+        case 'past_week':
+          startDate = new Date(now.setDate(now.getDate() - 7));
+          break;
+        case 'past_month':
+          startDate = new Date(now.setMonth(now.getMonth() - 1));
+          break;
+        case 'past_year':
+          startDate = new Date(now.setFullYear(now.getFullYear() - 1));
+          break;
+        default:
+          startDate = undefined;
+      }
 
-    if (endDate) {
-      query.andWhere('post.createdAt <= :endDate', { endDate });
+      if (startDate) {
+        query.andWhere('post.createdAt >= :startDate', { startDate });
+      }
     }
 
     if (sort === PostSort.POPULAR) {
@@ -6206,7 +7050,7 @@ export class PostsService {
         .groupBy('post.id')
         .orderBy('reactionCount', 'DESC');
     } else if (sort === PostSort.NEWEST) {
-      query.orderBy('post.createdAt', 'DESC');
+      query.orderBy('post.publishedAt', 'DESC');
     } else if (sort === PostSort.OLDEST) {
       query.orderBy('post.createdAt', 'ASC');
     } else if (sort === PostSort.PUBLISHED_AT) {
@@ -6334,7 +7178,11 @@ export class PostsService {
       publishedAt: shouldAutoApprove ? new Date() : null,
     });
 
-    return this.postsRepository.save(post);
+    const savedPost = await this.postsRepository.save(post);
+
+    this.eventEmitter.emit('post.created', new PostCreatedEvent(savedPost));
+
+    return savedPost;
   }
   async update(
     postUpdateData: {
@@ -6621,8 +7469,7 @@ export class PostsController {
       search: query.search,
       authorId: query.authorId,
       sort: query.sort,
-      startDate: query.startDate,
-      endDate: query.endDate,
+      dateRange: query.dateRange,
       currentUserId: req.user?.id ?? undefined,
       communityId: query.communityId,
       status: query.status,
@@ -6725,6 +7572,13 @@ export class PostsController {
 ---
 
 
+### FILE: backend/src/posts/events/post-created.event.ts ###
+export class PostCreatedEvent {
+  constructor(public readonly post: any) {}
+}
+---
+
+
 ### FILE: backend/src/posts/dto/update-post.dto.ts ###
 // src/posts/dto/update-post.dto.ts
 
@@ -6798,14 +7652,8 @@ export class PostQueryDto extends PaginationDto {
   sort?: PostSort;
 
   @IsOptional()
-  @IsISO8601()
-  @Type(() => Date)
-  startDate?: Date;
-
-  @IsOptional()
-  @IsISO8601()
-  @Type(() => Date)
-  endDate?: Date;
+  @IsString()
+  dateRange?: string;
 
   @IsOptional()
   @IsEnum(PostStatus)
@@ -7333,6 +8181,25 @@ import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export class JwtRefreshGuard extends AuthGuard('jwt-refresh') {}
+
+---
+
+
+### FILE: backend/src/auth/guards/query-jwt-auth.guard.ts ###
+import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
+
+@Injectable()
+export class QueryJwtAuthGuard extends AuthGuard('jwt') {
+  getRequest(context: ExecutionContext) {
+    const request = context.switchToHttp().getRequest();
+    // Look for the token in the 'token' query parameter
+    if (request.query && request.query.token) {
+      request.headers.authorization = `Bearer ${request.query.token}`;
+    }
+    return request;
+  }
+}
 
 ---
 
@@ -9299,6 +10166,8 @@ export enum CommunityRestrictionType {
 
 
 ### FILE: backend/src/app.module.ts ###
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { Notification } from './notifications/entities/notification.entity';
 // src/app.module.ts
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -9337,12 +10206,13 @@ import { CommunityMembershipRequestsModule } from './community-membership-reques
 import { EmailChangeToken } from './email-change/entities/email-change-token.entity';
 import { EmailChangeModule } from './email-change/email-change.module';
 import { CommunityRestriction } from './community-restrictions/entities/community-restriction.entity';
-import { CommunityRestrictionsModule } from './community-restrictions/community-restrictions.module';
+import { CommunityRestrictionsModule } from "./community-restrictions/community-restrictions.module";
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }), // loads .env globally
-
+    EventEmitterModule.forRoot(),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -9366,6 +10236,7 @@ import { CommunityRestrictionsModule } from './community-restrictions/community-
           UserReport,
           CommunityRestriction,
           EmailChangeToken,
+          Notification,
         ],
         migrations: ['./src/migrations/*.ts'],
         synchronize: false,
@@ -9386,6 +10257,7 @@ import { CommunityRestrictionsModule } from './community-restrictions/community-
     ReportsModule,
     CommunityRestrictionsModule,
     EmailChangeModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
@@ -9415,6 +10287,7 @@ import { UserReport } from './reports/entities/user-report.entity';
 
 import { CommunityMembershipRequest } from './community-membership-requests/entities/community-membership-request.entity';
 import { EmailChangeToken } from './email-change/entities/email-change-token.entity';
+import { Notification } from './notifications/entities/notification.entity'; // Import Notification entity
 
 config(); // load .env manually
 
@@ -9443,6 +10316,7 @@ export const AppDataSource = new DataSource({
     CommentReport,
     UserReport,
     CommunityRestriction,
+    Notification, // Add Notification entity here
   ],
   synchronize: false,
   migrations: ['src/database/migrations/*.ts'],
@@ -9742,21 +10616,22 @@ export class CommentPipe implements PipeTransform<string, Promise<Comment>> {
 ### FILE: backend/src/comments/comments.service.ts ###
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm'; // Added DataSource
+import { DataSource, Repository } from 'typeorm';
 import { Comment } from './entities/comment.entity';
-import { Post } from 'src/posts/entities/post.entity'; // Added Post entity
-
-// import { PostsService } from 'src/posts/posts.service'; // Removed PostsService
+import { Post } from 'src/posts/entities/post.entity';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { CommentCreatedEvent } from './events/comment-created.event';
+import { User } from 'src/users/entities/user.entity';
 
 @Injectable()
 export class CommentsService {
   constructor(
     @InjectRepository(Comment)
     private readonly commentRepo: Repository<Comment>,
-    // private readonly postsService: PostsService, // Removed PostsService
-    @InjectRepository(Post) // Injected Post repository
+    @InjectRepository(Post)
     private readonly postRepo: Repository<Post>,
-    private dataSource: DataSource, // Injected DataSource
+    private dataSource: DataSource,
+    private readonly eventEmitter: EventEmitter2,
   ) { }
 
   async findAll(options: {
@@ -9769,7 +10644,7 @@ export class CommentsService {
     parentId?: number;
   }): Promise<{ data: Comment[]; count: number }> {
     const { postId, authorId, search, page = 1, limit = 10, currentUserId, parentId } = options;
-console.error('e',postId);
+    console.error('e',postId);
 
     const query = this.commentRepo
       .createQueryBuilder('comment')
@@ -9917,8 +10792,7 @@ console.error('e',postId);
     await queryRunner.startTransaction();
 
     try {
-      // Get the post directly
-      const post = await queryRunner.manager.findOne(Post, { where: { id: postId } });
+      const post = await queryRunner.manager.findOne(Post, { where: { id: postId }, relations: ['author'] });
       if (!post) {
         throw new NotFoundException('Post not found');
       }
@@ -9927,17 +10801,21 @@ console.error('e',postId);
         throw new BadRequestException('Comments are locked for this post.');
       }
 
+      const author = await queryRunner.manager.findOne(User, { where: { id: userId } });
+      if (!author) {
+        throw new NotFoundException('User not found');
+      }
       
       const comment = queryRunner.manager.create(Comment, {
         content,
-        authorId: userId,
+        author,
         post: post,
       });
 
       if (parentId) {
         const parent = await queryRunner.manager.findOne(Comment, {
           where: { id: parentId },
-          relations: ['post'],
+          relations: ['post', 'author'],
         });
         if (!parent)
           throw new NotFoundException('Parent comment not found');
@@ -9947,15 +10825,17 @@ console.error('e',postId);
           );
         }
         comment.parent = parent;
-        await queryRunner.manager.increment(Comment, { id: parentId }, 'repliesCount', 1); // Increment repliesCount directly
+        await queryRunner.manager.increment(Comment, { id: parentId }, 'repliesCount', 1);
       }
 
       const savedComment = await queryRunner.manager.save(comment);
 
-      // Increment commentsCount on the post directly
       await queryRunner.manager.increment(Post, { id: postId }, 'commentsCount', 1);
-
+      
       await queryRunner.commitTransaction();
+
+      this.eventEmitter.emit('comment.created', new CommentCreatedEvent(savedComment));
+      
       return savedComment;
     } catch (err) {
       await queryRunner.rollbackTransaction();
@@ -9992,18 +10872,16 @@ console.error('e',postId);
     try {
       const comment = await queryRunner.manager.findOne(Comment, {
         where: { id },
-        relations: ['post', 'parent'], // Load post and parent relation to update counts
+        relations: ['post', 'parent'],
       });
       if (!comment) {
         throw new NotFoundException('Comment not found');
       }
 
-      // Decrement commentsCount on the post directly
       if (comment.post) {
         await queryRunner.manager.decrement(Post, { id: comment.post.id }, 'commentsCount', 1);
       }
 
-      // Decrement repliesCount on the parent comment directly
       if (comment.parent) {
         await queryRunner.manager.decrement(Comment, { id: comment.parent.id }, 'repliesCount', 1);
       }
@@ -10018,9 +10896,6 @@ console.error('e',postId);
       await queryRunner.release();
     }
   }
-
-
-
 }
 
 ---
@@ -10264,6 +11139,16 @@ export class CommentsModule {}
 ---
 
 
+### FILE: backend/src/comments/events/comment-created.event.ts ###
+import { Comment } from '../entities/comment.entity';
+
+export class CommentCreatedEvent {
+  constructor(public readonly comment: Comment) {}
+}
+
+---
+
+
 ### FILE: backend/src/comments/dto/comment-response.dto.ts ###
 import { Exclude, Expose, Type, plainToInstance } from 'class-transformer';
 import { UserResponseDto } from '../../users/dtos/user-response.dto';
@@ -10399,7 +11284,9 @@ import { useState } from 'react';
 import { useAuth } from '../features/auth/hooks/useAuth';
 import { useProfile } from '../features/profile/hooks/useProfile';
 import LogoutButton from '../features/auth/components/LogoutButton';
-import { FaHome, FaSignInAlt, FaUserPlus, FaSignOutAlt, FaBell, FaPlus, FaCaretDown, FaUserCircle } from 'react-icons/fa'; // Import icons
+import SearchBar from '../features/search/components/SearchBar';
+import { FaHome, FaSignInAlt, FaUserPlus, FaSignOutAlt, FaPlus, FaCaretDown, FaUserCircle } from 'react-icons/fa';
+import NotificationsBell from '../features/notifications/components/NotificationsBell';
 
 const Header = () => {
   const { isAuthenticated, user } = useAuth();
@@ -10412,10 +11299,13 @@ const Header = () => {
 
   return (
     <header className=" p-4 border-b border-gray-300">
-      <nav className="container mx-auto flex justify-between items-center">
-        <Link to="/" className="text-2xl font-bold flex items-center space-x-2">
+      <nav className="container mx-auto flex justify-between items-center gap-4">
+        <Link to="/" className="text-2xl font-bold flex items-center space-x-2 flex-shrink-0">
           <FaHome className="inline-block" /> <span>Forum</span>
         </Link>
+        <div className="flex-grow max-w-xl">
+          <SearchBar />
+        </div>
         <div className="flex items-center space-x-4">
           {isAuthenticated ? (
             <>
@@ -10425,11 +11315,7 @@ const Header = () => {
               </Link>
 
               {/* Notification Bell */}
-              <button className="relative hover:text-gray-300">
-                <FaBell className="text-xl" />
-                {/* Optional: Notification Badge */}
-                {/* <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">3</span> */}
-              </button>
+              <NotificationsBell />
 
               {/* User Profile Dropdown */}
               <div className="relative">
@@ -10630,23 +11516,515 @@ export default ModLayout;
 
 
 ### FILE: frontend/src/layout/MainLayout.tsx ###
-// frontend/src/layout/MainLayout.tsx
+import { useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import Header from './Header';
 import LeftSidebar from './LeftSidebar';
 
-const MainLayout = () => (
-  <>
-    <Header />
-    <div className="flex">
-      <LeftSidebar />
-      <main className="flex-grow p-4">
-        <Outlet /> 
-      </main>
-    </div>
-  </>
-);
+const MainLayout = () => {
+
+  return (
+    <>
+      <Header />
+      <div className="flex">
+        <LeftSidebar />
+        <main className="flex-grow p-4">
+          <Outlet />
+        </main>
+      </div>
+    </>
+  );
+};
 export default MainLayout;
+---
+
+
+### FILE: frontend/src/features/notifications/types.ts ###
+export const NotificationType = {
+  NEW_POST: 'NEW_POST',
+  NEW_COMMENT: 'NEW_COMMENT',
+  POST_REACTION: 'POST_REACTION',
+  COMMENT_REACTION: 'COMMENT_REACTION',
+  NEW_REPLY_COMMENT: 'NEW_REPLY_COMMENT',
+  COMMUNITY_MEMBERSHIP_REQUEST: 'COMMUNITY_MEMBERSHIP_REQUEST',
+  COMMUNITY_MEMBERSHIP_ACCEPTED: 'COMMUNITY_MEMBERSHIP_ACCEPTED',
+  COMMUNITY_MEMBERSHIP_REJECTED: 'COMMUNITY_MEMBERSHIP_REJECTED',
+  // Add other notification types as needed
+} as const;
+
+export type NotificationType = (typeof NotificationType)[keyof typeof NotificationType];
+
+export interface INotificationQueryDto {
+  page?: number;
+  limit?: number;
+  read?: boolean;
+}
+
+export interface INotification {
+  id: number;
+  recipient: any; // Consider refining this type if User interface is available
+  actor: any; // Consider refining this type if User interface is available
+  type: NotificationType;
+  resourceType?: 'Post' | 'Comment' | 'CommunityMembershipRequest';
+  resourceId?: number;
+  read: boolean;
+  createdAt: string;
+}
+
+---
+
+
+### FILE: frontend/src/features/notifications/pages/NotificationsPage.tsx ###
+import React, { useState } from 'react';
+import { useGetNotificationsQuery, useMarkNotificationAsReadMutation, useMarkAllNotificationsAsReadMutation } from '../services/notificationsApi';
+import { INotification, NotificationType } from '../types';
+import { Link } from 'react-router-dom';
+import { FaCheckCircle, FaRegCircle } from 'react-icons/fa';
+import { Button } from '../../../shared/components/ui/Button';
+import { Spinner } from '../../../shared/components/ui/Spinner';
+
+export const NotificationsPage: React.FC = () => {
+  const [page, setPage] = useState(1);
+  const { data, isLoading, isError, error, refetch } = useGetNotificationsQuery({ page, limit: 10 });
+  const [markAsRead] = useMarkNotificationAsReadMutation();
+  const [markAllAsRead] = useMarkAllNotificationsAsReadMutation();
+
+  const handleMarkAsRead = async (notificationId: number) => {
+    await markAsRead(notificationId);
+    refetch(); // Refetch to update the list
+  };
+
+  const handleMarkAllAsRead = async () => {
+    await markAllAsRead();
+    refetch(); // Refetch to update the list
+  };
+
+  if (isLoading) {
+    return <Spinner />;
+  }
+
+  if (isError) {
+    return <div className="text-red-500">Error: {error?.toString()}</div>;
+  }
+
+  const notifications = data?.data || [];
+  const meta = data?.meta;
+
+  const getNotificationMessage = (notification: INotification) => {
+    const { actor, type, resourceType, resourceId } = notification;
+    const actorName = actor?.username || 'Someone';
+
+    switch (type) {
+      case NotificationType.NEW_POST:
+        return `${actorName} created a new post.`;
+      case NotificationType.NEW_COMMENT:
+        return `${actorName} commented on your ${resourceType?.toLowerCase()}.`;
+      case NotificationType.NEW_REPLY_COMMENT:
+        return `${actorName} replied to your comment.`;
+      case NotificationType.POST_REACTION:
+        return `${actorName} reacted to your post.`;
+      case NotificationType.COMMENT_REACTION:
+        return `${actorName} reacted to your comment.`;
+      case NotificationType.COMMUNITY_MEMBERSHIP_REQUEST:
+        return `${actorName} requested to join your community.`;
+      case NotificationType.COMMUNITY_MEMBERSHIP_ACCEPTED:
+        return `${actorName} accepted your community membership request.`;
+      case NotificationType.COMMUNITY_MEMBERSHIP_REJECTED:
+        return `${actorName} rejected your community membership request.`;
+      default:
+        return `New notification from ${actorName}.`;
+    }
+  };
+
+  const getNotificationLink = (notification: INotification) => {
+    const { resourceType, resourceId } = notification;
+    switch (resourceType) {
+      case 'Post':
+        return `/posts/${resourceId}`;
+      case 'Comment':
+        // Assuming comments are nested within posts, this might need refinement to link to the specific comment
+        return `/posts/${notification.resourceId}`; // Temporarily link to post, refine later if needed
+      case 'CommunityMembershipRequest':
+        return `/mod/community/${resourceId}/queues`;
+      default:
+        return '#';
+    }
+  };
+
+  return (
+    <div className="container mx-auto p-4">
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-2xl font-bold">Notifications</h1>
+        {notifications.length > 0 && (
+          <Button onClick={handleMarkAllAsRead} disabled={isLoading}>
+            Mark All as Read
+          </Button>
+        )}
+      </div>
+
+      {notifications.length === 0 ? (
+        <p>No new notifications.</p>
+      ) : (
+        <ul className="space-y-4">
+          {notifications.map((notification) => (
+            <li
+              key={notification.id}
+              className={`p-4 rounded-lg shadow-md flex items-center justify-between ${notification.read ? 'bg-gray-100' : 'bg-blue-50'
+                }`}
+            >
+              <Link to={getNotificationLink(notification)} className="flex-grow">
+                <p className="font-semibold">{getNotificationMessage(notification)}</p>
+                <p className="text-sm text-gray-500">
+                  {new Date(notification.createdAt).toLocaleString()}
+                </p>
+              </Link>
+              <Button
+                onClick={() => handleMarkAsRead(notification.id)}
+                disabled={notification.read || isLoading}
+                variant="ghost"
+                className="ml-4"
+                title={notification.read ? 'Already Read' : 'Mark as Read'}
+              >
+                {notification.read ? (
+                  <FaCheckCircle className="text-green-500" />
+                ) : (
+                  <FaRegCircle className="text-gray-400" />
+                )}
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {meta && meta.totalPages > 1 && (
+        <div className="flex justify-center mt-4 space-x-2">
+          {Array.from({ length: meta.totalPages }, (_, i) => i + 1).map((p) => (
+            <Button
+              key={p}
+              onClick={() => setPage(p)}
+              disabled={p === page || isLoading}
+              variant={p === page ? 'solid' : 'outline'}
+            >
+              {p}
+            </Button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+---
+
+
+### FILE: frontend/src/features/notifications/components/NotificationsDropdown.tsx ###
+import { Button } from '../../../shared/components/ui/Button';
+import { useGetNotificationsInfiniteQuery } from '../services/notificationsApi';
+import NotificationItem from './NotificationsItem';
+
+const NotificationsDropdown = () => {
+  const {
+    data,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useGetNotificationsInfiniteQuery({ limit: 10 });
+
+  // 🔑 Flatten pages
+  const notifications =
+    data?.pages.flatMap((page) => page.data) ?? [];
+
+    console.log(notifications);
+    
+  // 🔑 Derived unread count (no Redux slice)
+  const unreadCount = notifications.filter(n => !n.read).length;
+
+  if (isLoading) {
+    return <div className="p-2">Loading...</div>;
+  }
+
+  return (
+    <div className="absolute right-0 mt-2 w-80 bg-white rounded-md shadow-lg py-1 z-10">
+      <div className="p-2 font-bold border-b">
+        Notifications {unreadCount > 0 && `(${unreadCount})`}
+      </div>
+
+      {notifications.length === 0 ? (
+        <div className="p-2">No notifications</div>
+      ) : (
+        notifications.map((notification) => (
+          <NotificationItem
+            key={notification.id}
+            notification={notification}
+          />
+        ))
+      )}
+
+      {hasNextPage && (
+        <Button
+          onClick={() => fetchNextPage()}
+          disabled={isFetchingNextPage}
+        >
+          {isFetchingNextPage ? 'Loading…' : 'Load more'}
+        </Button>
+      )}
+    </div>
+  );
+};
+
+export default NotificationsDropdown;
+
+---
+
+
+### FILE: frontend/src/features/notifications/components/NotificationsBell.tsx ###
+import { useState } from 'react';
+import { FaBell } from 'react-icons/fa';
+import { useSelector } from 'react-redux';
+import type { RootState } from '../../../shared/stores/store';
+import NotificationsDropdown from './NotificationsDropdown';
+
+const NotificationsBell = () => {
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  const toggleDropdown = () => {
+    setIsDropdownOpen(!isDropdownOpen);
+  };
+
+  return (
+    <div className="relative">
+      <button onClick={toggleDropdown} className="relative hover:text-gray-300">
+        <FaBell className="text-xl" />
+        
+     
+      </button>
+      {isDropdownOpen && <NotificationsDropdown />}
+    </div>
+  );
+};
+
+export default NotificationsBell;
+
+---
+
+
+### FILE: frontend/src/features/notifications/components/NotificationsItem.tsx ###
+import { useMarkNotificationAsReadMutation } from '../services/notificationsApi';
+import type { INotification } from '../types';
+import { NotificationType } from '../types';
+
+const NotificationItem = ({ notification }: { notification: INotification }) => {
+  const [markAsRead] = useMarkNotificationAsReadMutation();
+
+  const handleMarkAsRead = () => {
+    if (notification.read) return;
+    markAsRead(notification.id);
+  };
+
+  const getNotificationMessage = (notification: INotification) => {
+    const actor = notification.actor?.username ?? 'Someone';
+
+    switch (notification.type) {
+      case NotificationType.NEW_COMMENT:
+        return `${actor} commented on your post.`;
+
+      case NotificationType.NEW_POST:
+        return `${actor} created a new post in your community.`;
+
+      case NotificationType.POST_REACTION:
+        return `${actor} reacted to your post.`;
+
+      case NotificationType.COMMENT_REACTION:
+        return `${actor} reacted to your comment.`;
+
+      case NotificationType.COMMUNITY_MEMBERSHIP_REQUEST:
+        return `${actor} sent a membership request to your community.`;
+
+      case NotificationType.COMMUNITY_MEMBERSHIP_ACCEPTED:
+        return `Your membership request was accepted.`;
+
+      case NotificationType.COMMUNITY_MEMBERSHIP_REJECTED:
+        return `Your membership request was rejected.`;
+
+      default:
+        return 'You have a new notification.';
+    }
+  };
+
+  const getResourceLink = (notification: INotification) => {
+    if (!notification.resourceType || !notification.resourceId) return '#';
+
+    switch (notification.resourceType) {
+      case 'Post':
+        return `/posts/${notification.resourceId}`;
+
+      case 'Comment':
+        return `/comments/${notification.resourceId}`;
+
+      case 'CommunityMembershipRequest':
+        return `/community-membership-requests/${notification.resourceId}`;
+
+      default:
+        return '#';
+    }
+  };
+
+  return (
+    <div
+      className={`p-2 border-b ${
+        notification.read ? 'bg-white' : 'bg-blue-50'
+      }`}
+    >
+      <a href={getResourceLink(notification)} className="block">
+        <p>{getNotificationMessage(notification)}</p>
+      </a>
+
+      {!notification.read && (
+        <button
+          onClick={handleMarkAsRead}
+          className="text-sm text-blue-600"
+        >
+          Mark as read
+        </button>
+      )}
+    </div>
+  );
+};
+
+export default NotificationItem;
+
+---
+
+
+### FILE: frontend/src/features/notifications/services/notificationsApi.ts ###
+// notificationsApi.ts
+import { apiSlice } from '../../../shared/services/apiSlice';
+import type { INotification } from '../types';
+import type { PaginatedResponse, ResponseDto } from '../../../shared/types';
+
+export const notificationsApi = apiSlice.injectEndpoints({
+  endpoints: (builder) => ({
+    getNotifications: builder.infiniteQuery<
+      PaginatedResponse<INotification>,
+      { limit?: number } | void,
+      number
+    >({
+      infiniteQueryOptions: {
+        initialPageParam: 1,
+        getNextPageParam: (lastPage) => {
+          const { page, totalPages } = lastPage.meta;
+          return page < totalPages ? page + 1 : undefined;
+        },
+      },
+
+      query: ({ queryArg, pageParam }) => ({
+        url: '/notifications',
+        params: {
+          page: pageParam,
+          limit: queryArg?.limit ?? 20,
+        },
+      }),
+
+      keepUnusedDataFor: 60,
+      providesTags: ['Notifications'],
+    }),
+
+    markNotificationAsRead: builder.mutation<ResponseDto<boolean>, number>({
+      query: (id) => ({
+        url: `/notifications/${id}/read`,
+        method: 'PATCH',
+      }),
+      invalidatesTags: ['Notifications'],
+    }),
+  }),
+});
+
+export const {
+  useGetNotificationsInfiniteQuery,
+  useMarkNotificationAsReadMutation,
+} = notificationsApi;
+
+---
+
+
+### FILE: frontend/src/features/notifications/hooks/useNotificationsSSE.ts ###
+// useNotificationsSSE.ts
+import { useEffect, useRef } from 'react';
+import { useAppDispatch, useAppSelector } from '../../../shared/stores/hooks';
+import { notificationsApi } from '../services/notificationsApi';
+import type { INotification, INotificationQueryDto } from '../types'; // Import NotificationQueryDto
+
+export function useNotificationsSSE() {
+  const dispatch = useAppDispatch();
+  const accessToken = useAppSelector(
+    (state) => state.auth.accessToken
+  );
+
+  const eventSourceRef = useRef<EventSource | null>(null);
+
+  useEffect(() => {
+    if (!accessToken) return;
+
+    // Prevent duplicate connections
+    if (eventSourceRef.current) return;
+
+    const es = new EventSource(
+      `http://localhost:3000/api/notifications/sse?token=${accessToken}`
+    );
+
+    eventSourceRef.current = es;
+es.onopen = () => {
+      console.log('✅ SSE Connected');
+    };
+    es.onmessage = (event) => {
+      const notification: INotification = JSON.parse(event.data);
+      console.log('📩 New Notification Received:', event.data);
+      // Define query arguments for the getNotifications endpoint
+      const queryArgs: INotificationQueryDto = { page: 1, limit: 20 }; // Match the default query for getNotifications
+
+      dispatch(
+        notificationsApi.util.updateQueryData(
+          'getNotifications',
+          { limit: 10 }, // 👈 CHANGED from 20 to 10 to match NotificationsDropdown
+          (draft) => {
+            if (!draft.pages[0]) return; // no page 1 yet
+
+            const firstPage = draft.pages[0];
+
+            // deduplicate
+            if (firstPage.data.some(n => n.id === notification.id)) return;
+
+            firstPage.data.unshift(notification);
+
+            // update meta total
+            firstPage.meta.totalItems += 1;
+
+            // optionally trim to page limit
+            if (firstPage.data.length > firstPage.meta.limit) {
+              firstPage.data.pop();
+            }
+          }
+        )
+      );
+
+    };
+
+    es.onerror = () => {
+      console.warn('Notifications SSE disconnected');
+      es.close();
+      eventSourceRef.current = null;
+    };
+
+    return () => {
+      es.close();
+      eventSourceRef.current = null;
+    };
+  }, [accessToken, dispatch]);
+}
+
+
 ---
 
 
@@ -10966,19 +12344,15 @@ export const useCommunityMemberships = () => {
 
 ### FILE: frontend/src/features/feed/pages/FeedPage.tsx ###
 import PostList from '../../posts/components/PostList';
-import FeedFilters from '../components/FeedFilters';
 import SuggestedCommunities from '../../communities/components/SuggestedCommunities';
 import { useFeed } from '../hooks/useFeed';
 
 const FeedPage = () => {
   const {
-    queryParams,
-    setQueryParams,
     posts,
     isLoading,
     isFetching,
     hasNextPage,
-    error,
     lastPostElementRef,
   } = useFeed();
 
@@ -10987,12 +12361,6 @@ const FeedPage = () => {
       {/* Main Content Area */}
       <div className="md:w-3/4">
         <h1 className="text-3xl font-bold mb-6">Feed</h1>
-
-        <FeedFilters
-          queryParams={queryParams}
-          setQueryParams={setQueryParams}
-          isLoading={isLoading}
-        />
 
         <PostList posts={posts} isLoading={isLoading} error={undefined} />
 
@@ -11038,76 +12406,6 @@ export default FeedPage;
 ---
 
 
-### FILE: frontend/src/features/feed/components/FeedFilters.tsx ###
-import React from 'react';
-import { Button } from '../../../shared/components/ui/Button';
-import { Input } from '../../../shared/components/ui/Input';
-import type { PostQueryDto } from '../../posts/types';
-import { FaSearch, FaSortAmountDownAlt, FaFire, FaCalendarAlt } from 'react-icons/fa';
-
-interface FeedFiltersProps {
-  queryParams: PostQueryDto;
-  setQueryParams: React.Dispatch<React.SetStateAction<PostQueryDto>>;
-  isLoading: boolean;
-}
-
-
-const FeedFilters: React.FC<FeedFiltersProps> = ({ queryParams, setQueryParams, isLoading }) => {
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setQueryParams((prev) => ({ ...prev, search: e.target.value, page: 1 }));
-  };
-console.log(queryParams);
-
-  const handleSortChange = (sortOption: string) => {
-    setQueryParams((prev) => ({ ...prev, sort: sortOption, page: 1 }));
-  };
-
-  return (
-    <div className="flex flex-col sm:flex-row justify-between items-center bg-white p-4 rounded-lg border border-gray-300 mb-6">
-      <div className="relative flex-grow mb-3 sm:mb-0 sm:mr-4">
-        <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-        <Input
-          placeholder="Search posts..."
-          className="pl-10 w-full"
-          onChange={handleSearchChange}
-          value={queryParams.search || ''}
-        />
-      </div>
-      <div className="flex space-x-2">
-        <Button
-          variant={queryParams.sort === 'newest' ? 'default' : 'outline'}
-          onClick={() => handleSortChange('newest')}
-          disabled={isLoading}
-          className="flex items-center space-x-1"
-        >
-          <FaSortAmountDownAlt /> <span>Newest</span>
-        </Button>
-        <Button
-          variant={queryParams.sort === 'popular' ? 'default' : 'outline'}
-          onClick={() => handleSortChange('popular')}
-          disabled={isLoading}
-          className="flex items-center space-x-1"
-        >
-          <FaFire /> <span>Popular</span>
-        </Button>
-        <Button
-          variant={queryParams.sort === 'published_at' ? 'default' : 'outline'}
-          onClick={() => handleSortChange('published_at')}
-          disabled={isLoading}
-          className="flex items-center space-x-1"
-        >
-          <FaCalendarAlt /> <span>Published</span>
-        </Button>
-      </div>
-    </div>
-  );
-};
-
-export default FeedFilters;
-
----
-
-
 ### FILE: frontend/src/features/feed/hooks/useFeed.ts ###
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { useGetPostsInfiniteQuery } from '../../posts/services/postsApi';
@@ -11115,7 +12413,7 @@ import { useToastContext } from '../../../shared/providers/ToastProvider';
 import type { PostQueryDto } from '../../posts/types';
 
 export const useFeed = () => {
-  const [queryParams, setQueryParams] = useState<Omit<PostQueryDto, 'page'>>({
+  const [queryParams] = useState<Omit<PostQueryDto, 'page'>>({
     limit: 10,
   });
 
@@ -11157,8 +12455,6 @@ export const useFeed = () => {
   );
 
   return {
-    queryParams,
-    setQueryParams,
     posts,
     isLoading,
     isFetching,
@@ -11861,6 +13157,254 @@ export const useReportsQueue = () => {
 ---
 
 
+### FILE: frontend/src/features/search/pages/SearchResultsPage.tsx ###
+import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
+import { useGetPostsInfiniteQuery } from '../../posts/services/postsApi';
+import { useGetCommunitiesQuery } from '../../communities/services/communitiesApi';
+import { useGetUsersQuery } from '../../user/services/userApiSlice';
+import PostPreview from '../../posts/components/PostPreview';
+import CommunityPreview from '../../communities/components/CommunityPreview';
+import UserPreview from '../../user/components/UserPreview';
+import type { Post, PostQueryDto } from '../../posts/types';
+import type { UserResponseDto } from '../../auth/types';
+import type { Community } from '../../communities/types';
+import { Button } from '../../../shared/components/ui/Button';
+import { FaSortAmountDownAlt, FaFire } from 'react-icons/fa';
+import SearchFilters from '../components/Filters';
+
+
+
+const SearchResultsPage: React.FC = () => {
+  const location = useLocation();
+  const [activeTab, setActiveTab] = useState<'posts' | 'communities' | 'users'>('posts');
+  const [queryParams, setQueryParams] = useState<PostQueryDto>({
+    page: 1,
+    limit: 10,
+    sort: 'newest',
+  });
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const searchQuery = params.get('q');
+    setQueryParams((prev) => ({ ...prev, search: searchQuery || undefined }));
+  }, [location.search]);
+
+  const {
+    data: postsData,
+    isLoading: postsLoading,
+    isError: postsError,
+  } = useGetPostsInfiniteQuery(queryParams, {
+    skip: !queryParams.search || activeTab !== 'posts',
+  });
+
+  const {
+    data: communitiesData,
+    isLoading: communitiesLoading,
+    isError: communitiesError,
+  } = useGetCommunitiesQuery({ name: queryParams.search || '' }, { skip: !queryParams.search || activeTab !== 'communities' });
+
+  const {
+    data: usersData,
+    isLoading: usersLoading,
+    isError: usersError,
+  } = useGetUsersQuery({ search: queryParams.search || '' }, { skip: !queryParams.search || activeTab !== 'users' });
+
+  if (!queryParams.search) {
+    return (
+      <div className="container mx-auto p-4">
+        <h1 className="text-3xl font-bold mb-4">Search Results</h1>
+        <p>Please enter a search query.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto p-4">
+      <h1 className="text-3xl font-bold mb-4">Search Results for "{queryParams.search}"</h1>
+
+      <div className="flex border-b border-gray-300 mb-4">
+        <button
+          className={`py-2 px-4 text-lg font-medium ${activeTab === 'posts' ? 'border-b-2 border-primary-500 text-primary-500' : 'text-gray-500 hover:text-gray-700'}`}
+          onClick={() => setActiveTab('posts')}
+        >
+          Posts
+        </button>
+        <button
+          className={`py-2 px-4 text-lg font-medium ${activeTab === 'communities' ? 'border-b-2 border-primary-500 text-primary-500' : 'text-gray-500 hover:text-gray-700'}`}
+          onClick={() => setActiveTab('communities')}
+        >
+          Communities
+        </button>
+        <button
+          className={`py-2 px-4 text-lg font-medium ${activeTab === 'users' ? 'border-b-2 border-primary-500 text-primary-500' : 'text-gray-500 hover:text-gray-700'}`}
+          onClick={() => setActiveTab('users')}
+        >
+          Users
+        </button>
+      </div>
+
+      {activeTab === 'posts' && (
+        <SearchFilters
+          queryParams={queryParams}
+          setQueryParams={setQueryParams}
+          isLoading={postsLoading}
+        />
+      )}
+
+      <div className="search-results-content">
+        {activeTab === 'posts' && (
+          <div>
+            <h2 className="text-2xl font-semibold mb-2">Posts Results</h2>
+            {postsLoading && <p>Loading posts...</p>}
+            {postsError && <p>Error loading posts.</p>}
+            {postsData && postsData.pages.map((page, pageIndex) => (
+              <React.Fragment key={pageIndex}>
+                {page.data.map((post: Post) => (
+                  <PostPreview key={post.id} post={post} />
+                ))}
+              </React.Fragment>
+            ))}
+          </div>
+        )}
+        {activeTab === 'communities' && (
+          <div>
+            <h2 className="text-2xl font-semibold mb-2">Communities Results</h2>
+            {communitiesLoading && <p>Loading communities...</p>}
+            {communitiesError && <p>Error loading communities.</p>}
+            {communitiesData && communitiesData.data.map((community: Community) => (
+              <CommunityPreview key={community.id} community={community} />
+            ))}
+          </div>
+        )}
+        {activeTab === 'users' && (
+          <div>
+            <h2 className="text-2xl font-semibold mb-2">Users Results</h2>
+            {usersLoading && <p>Loading users...</p>}
+            {usersError && <p>Error loading users.</p>}
+            {usersData && usersData.data.map((user: UserResponseDto) => (
+              <UserPreview key={user.id} user={user} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default SearchResultsPage;
+
+
+
+---
+
+
+### FILE: frontend/src/features/search/components/Filters.tsx ###
+import React from 'react';
+import { Button } from '../../../shared/components/ui/Button';
+import type { PostQueryDto } from '../../posts/types';
+import { FaSortAmountDownAlt, FaFire } from 'react-icons/fa';
+import { Select, type SelectOption } from '../../../shared/components/ui/Select';
+
+interface SearchFiltersProps {
+  queryParams: PostQueryDto;
+  setQueryParams: React.Dispatch<React.SetStateAction<PostQueryDto>>;
+  isLoading: boolean;
+}
+
+const SearchFilters: React.FC<SearchFiltersProps> = ({ queryParams, setQueryParams, isLoading }) => {
+  const handleSortChange = (sortOption: 'popular' | 'newest') => {
+    setQueryParams((prev) => ({ ...prev, sort: sortOption, page: 1 }));
+  };
+
+  const handleDateRangeChange = (range: string | number) => {
+    setQueryParams((prev) => ({
+      ...prev,
+      dateRange: range as string,
+      page: 1,
+    }));
+  };
+
+  const dateRangeOptions: SelectOption[] = [
+    { label: 'All Time', value: 'all_time' },
+    { label: 'Past Day', value: 'past_day' },
+    { label: 'Past Week', value: 'past_week' },
+    { label: 'Past Month', value: 'past_month' },
+    { label: 'Past Year', value: 'past_year' },
+  ];
+
+  return (
+    <div className="flex flex-col sm:flex-row justify-between items-center bg-white p-4 rounded-lg border border-gray-300 mb-6">
+      <div className="flex space-x-2">
+        <Button
+          variant={queryParams.sort === 'newest' ? 'default' : 'outline'}
+          onClick={() => handleSortChange('newest')}
+          disabled={isLoading}
+          className="flex items-center space-x-1"
+        >
+          <FaSortAmountDownAlt /> <span>Newest</span>
+        </Button>
+        <Button
+          variant={queryParams.sort === 'popular' ? 'default' : 'outline'}
+          onClick={() => handleSortChange('popular')}
+          disabled={isLoading}
+          className="flex items-center space-x-1"
+        >
+          <FaFire /> <span>Popular</span>
+        </Button>
+      </div>
+      <div className="mt-4 sm:mt-0 w-48">
+        <Select
+          options={dateRangeOptions}
+          value={queryParams.dateRange || 'all_time'}
+          onChange={handleDateRangeChange}
+          placeholder="Filter by date"
+        />
+      </div>
+    </div>
+  );
+};
+
+export default SearchFilters;
+
+---
+
+
+### FILE: frontend/src/features/search/components/SearchBar.tsx ###
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { FaSearch } from 'react-icons/fa';
+import { Input } from '../../../shared/components/ui/Input';
+
+const SearchBar: React.FC = () => {
+  const [query, setQuery] = useState('');
+  const navigate = useNavigate();
+
+  const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (query.trim()) {
+      navigate(`/search?q=${encodeURIComponent(query.trim())}`);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSearch} className="relative flex-grow">
+      <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+      <Input
+        placeholder="Search..."
+        className="pl-10 w-full "
+        onChange={(e) => setQuery(e.target.value)}
+        value={query}
+      />
+    </form>
+  );
+};
+
+export default SearchBar;
+
+---
+
+
 ### FILE: frontend/src/features/settings/pages/SettingsPage.tsx ###
 import React from 'react';
 import Tabs from '../components/Tabs';
@@ -12149,8 +13693,7 @@ export interface PostQueryDto {
   search?: string;
   authorId?: number;
   sort?: string;
-  startDate?: string;
-  endDate?: string;
+  dateRange?: string;
   communityId?: number;
   status?: PostStatus;
 }
@@ -12291,6 +13834,52 @@ const PostDetailCard: React.FC<PostDetailCardProps> = ({ post }) => {
 };
 
 export default PostDetailCard;
+
+---
+
+
+### FILE: frontend/src/features/posts/components/PostPreview.tsx ###
+import React from 'react';
+import { type Post } from '../types';
+import { Link } from 'react-router-dom';
+import { FaUser, FaUsers } from 'react-icons/fa';
+
+interface PostPreviewProps {
+  post: Post;
+}
+
+const PostPreview: React.FC<PostPreviewProps> = ({ post }) => {
+  return (
+    <div className="bg-white border border-gray-300 rounded-lg p-4 mb-4 shadow-sm hover:shadow-md transition-shadow duration-200">
+      <div className="flex items-center text-sm text-gray-500 mb-2">
+        {post.community && (
+          <div className="flex items-center mr-4">
+            <FaUsers className="mr-1" />
+            <Link to={`/communities/${post.community.id}`} className="font-bold hover:underline">
+              {post.community.name}
+            </Link>
+          </div>
+        )}
+        <div className="flex items-center">
+          <FaUser className="mr-1" />
+          <span>Posted by</span>
+          <Link to={`/profile/${post.author.id}`} className="ml-1 font-bold hover:underline">
+            {post.author.username}
+          </Link>
+        </div>
+      </div>
+      <h3 className="text-xl font-bold mb-2">
+        <Link to={`/posts/${post.id}`} className="hover:underline">
+          {post.title}
+        </Link>
+      </h3>
+      <p className="text-gray-700">{post.content.substring(0, 150)}...</p>
+    </div>
+  );
+};
+
+export default PostPreview;
+
 
 ---
 
@@ -13020,6 +14609,17 @@ export const usePosts = () => {
 ---
 
 
+### FILE: frontend/src/features/user/types.ts ###
+export interface UserQueryDto {
+  page?: number;
+  limit?: number;
+  search?: string;
+  provider?: string;
+}
+
+---
+
+
 ### FILE: frontend/src/features/user/pages/EmailChangeVerifyPage.tsx ###
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
@@ -13068,6 +14668,37 @@ const EmailChangeVerifyPage = () => {
 };
 
 export default EmailChangeVerifyPage;
+
+---
+
+
+### FILE: frontend/src/features/user/components/UserPreview.tsx ###
+import React from 'react';
+import type { UserResponseDto } from '../../auth/types';
+import { Link } from 'react-router-dom';
+import { FaUserCircle } from 'react-icons/fa';
+
+interface UserPreviewProps {
+  user: UserResponseDto;
+}
+
+const UserPreview: React.FC<UserPreviewProps> = ({ user }) => {
+  return (
+    <div className="bg-white border border-gray-300 rounded-lg p-4 mb-4 shadow-sm hover:shadow-md transition-shadow duration-200 flex items-center">
+      <FaUserCircle className="text-gray-500 text-3xl mr-4" />
+      <div>
+        <h3 className="text-xl font-bold">
+          <Link to={`/profile/${user.id}`} className="hover:underline">
+            {user.username}
+          </Link>
+        </h3>
+        {user.profile?.bio && <p className="text-sm text-gray-700">{user.profile.bio}</p>}
+      </div>
+    </div>
+  );
+};
+
+export default UserPreview;
 
 ---
 
@@ -13310,10 +14941,18 @@ export const { useRequestEmailChangeMutation, useVerifyEmailChangeMutation } =
 ### FILE: frontend/src/features/user/services/userApiSlice.ts ###
 import { apiSlice } from '../../../shared/services/apiSlice';
 import type { ResponseDto, UserResponseDto, UpdateUsernameDto } from '../../auth/types';
+import type { PaginatedResponse } from '../../../shared/types';
+import type { UserQueryDto } from '../types';
 
 export const userApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
-   
+    getUsers: builder.query<PaginatedResponse<UserResponseDto>, UserQueryDto>({
+      query: (params) => ({
+        url: 'users',
+        params,
+      }),
+      providesTags: ['Users'],
+    }),
     updateUsername: builder.mutation<ResponseDto<UserResponseDto>, UpdateUsernameDto>({
       query: (dto) => ({
         url: 'users/me',
@@ -13324,8 +14963,10 @@ export const userApi = apiSlice.injectEndpoints({
     }),
   }),
 });
+    
 
 export const {
+  useGetUsersQuery,
   useUpdateUsernameMutation,
 } = userApi;
 
@@ -13344,10 +14985,18 @@ export interface RegisterDto {
     password: string;
   }
 
+  export interface ProfileResponseDto {
+    id: number;
+    displayName: string;
+    bio: string | null;
+    picture: string | null;
+  }
+
   export interface UserResponseDto {
     id: string;
     username: string;
     email: string;
+    profile?: ProfileResponseDto;
   }
 
   export interface ResponseDto<T> {
@@ -14481,6 +16130,40 @@ export default SuggestedCommunities;
 ---
 
 
+### FILE: frontend/src/features/communities/components/CommunityPreview.tsx ###
+import React from 'react';
+import type { Community } from '../types';
+import { Link } from 'react-router-dom';
+import { FaUsers } from 'react-icons/fa';
+
+interface CommunityPreviewProps {
+  community: Community;
+}
+
+const CommunityPreview: React.FC<CommunityPreviewProps> = ({ community }) => {
+  return (
+    <div className="bg-white border border-gray-300 rounded-lg p-4 mb-4 shadow-sm hover:shadow-md transition-shadow duration-200 flex items-center justify-between">
+      <div className="flex items-center">
+        <FaUsers className="text-gray-500 text-3xl mr-4" />
+        <div>
+          <h3 className="text-xl font-bold">
+            <Link to={`/communities/${community.id}`} className="hover:underline">
+              {community.name}
+            </Link>
+          </h3>
+          <p className="text-sm text-gray-500 mb-1">{community.membersCount} members</p>
+          <p className="text-sm text-gray-700">{community.description}</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default CommunityPreview;
+
+---
+
+
 ### FILE: frontend/src/features/communities/components/CommunityCard.tsx ###
 import React from 'react';
 import type { Community } from '../types';
@@ -14727,7 +16410,7 @@ export const CommunityMembershipActionButton: React.FC<
       );
     case 'pending':
       return (
-        <Button onClick={handleCancelRequest} disabled={isRejectingRequest}>
+        <Button variant='outline' onClick={handleCancelRequest} disabled={isRejectingRequest}>
           {isRejectingRequest ? 'Cancelling...' : 'Cancel Request'}
         </Button>
       );
@@ -17305,10 +18988,12 @@ import { ProfilePage } from './features/profile/pages/ProfilePage';
 import { useAuth } from './features/auth/hooks/useAuth';
 import SettingsPage from './features/settings/pages/SettingsPage';
 import EmailChangeVerifyPage from './features/user/pages/EmailChangeVerifyPage';
+import SearchResultsPage from './features/search/pages/SearchResultsPage'; // Import SearchResultsPage
 
 import ForgotPassword from './features/auth/pages/ForgotPassword';
 import ResetPassword from './features/auth/pages/ResetPassword';
 import GoogleAuthCallback from './features/auth/pages/GoogleAuthCallback'; // Import GoogleAuthCallback
+import { useNotificationsSSE } from './features/notifications/hooks/useNotificationsSSE';
 
 const SessionLoader = ({ children }: { children: React.ReactNode }) => {
   const { isUserLoading } = useAuth();
@@ -17324,6 +19009,7 @@ const SessionLoader = ({ children }: { children: React.ReactNode }) => {
 
 
 export default function App() {
+  useNotificationsSSE()
   return (
     <BrowserRouter>
       <SessionLoader>
@@ -17348,6 +19034,7 @@ export default function App() {
             <Route path="/explore-communities" element={<AuthGuard><ExploreCommunitiesPage /></AuthGuard>} />
             <Route path="/profile/:userId" element={<AuthGuard><ProfilePage /></AuthGuard>} /> {/* Changed Route */}
             <Route path="/settings" element={<AuthGuard><SettingsPage /></AuthGuard>} />
+            <Route path="/search" element={<AuthGuard><SearchResultsPage /></AuthGuard>} /> {/* New Search Results Route */}
           </Route>
 
           {/* --- Moderation Routes (with ModSidebar) --- */}
@@ -18078,11 +19765,11 @@ import { apiSlice } from '../services/apiSlice';
 
 export const store = configureStore({
   reducer: {
-    [apiSlice.reducerPath]: apiSlice.reducer, // Use the base apiSlice reducer
+    [apiSlice.reducerPath]: apiSlice.reducer,
     auth: authReducer,
   },
   middleware: (getDefaultMiddleware) =>
-    getDefaultMiddleware().concat(apiSlice.middleware), // Use the base apiSlice middleware
+    getDefaultMiddleware().concat(apiSlice.middleware),
 });
 
 setupListeners(store.dispatch);
@@ -18196,9 +19883,21 @@ export const apiSlice = createApi({
     'CommunityMembershipRequests',
     'CommunityRestrictions',
     'Reports',
+    "Users",
+    'Notifications'
   ],
   endpoints: () => ({}), // Empty endpoints as this is a base slice
 });
+
+---
+
+
+### FILE: frontend/src/shared/services/event-source.ts ###
+export class CustomEventSource extends EventSource {
+  constructor(url: string, eventSourceInitDict?: EventSourceInit) {
+    super(url, { ...eventSourceInitDict });
+  }
+}
 
 ---
 
