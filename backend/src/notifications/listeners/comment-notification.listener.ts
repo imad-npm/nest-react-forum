@@ -2,10 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Notification, NotificationResourceType } from '../entities/notification.entity'; // Import NotificationResourceType
+import { Notification, NotificationResourceType } from '../entities/notification.entity';
 import { NotificationsService } from '../notifications.service';
 import { CommentCreatedEvent } from 'src/comments/events/comment-created.event';
 import { User } from 'src/users/entities/user.entity';
+import { NotificationType } from '../types'; // NEW: Import NotificationType
 
 @Injectable()
 export class CommentNotificationListener {
@@ -24,9 +25,9 @@ export class CommentNotificationListener {
       const notification = this.notificationRepo.create({
         recipient: post.author,
         actor: author,
-        type: 'comment',
-        resourceType: NotificationResourceType.COMMENT, // Use resourceType
-        resourceId: comment.id, // Use resourceId
+        type: NotificationType.NEW_COMMENT, // MODIFIED
+        resourceType: NotificationResourceType.COMMENT,
+        resourceId: comment.id,
         createdAt: new Date(),
       });
       const savedNotification = await this.notificationRepo.save(notification);
@@ -40,9 +41,9 @@ export class CommentNotificationListener {
       const notification = this.notificationRepo.create({
         recipient: parent.author,
         actor: author,
-        type: 'reply',
-        resourceType: NotificationResourceType.COMMENT, // Use resourceType
-        resourceId: comment.id, // Use resourceId
+        type: NotificationType.NEW_REPLY_COMMENT, // MODIFIED
+        resourceType: NotificationResourceType.COMMENT,
+        resourceId: comment.id,
         createdAt: new Date(),
       });
       const savedNotification = await this.notificationRepo.save(notification);

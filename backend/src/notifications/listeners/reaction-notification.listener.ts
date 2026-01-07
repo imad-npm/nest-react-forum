@@ -2,11 +2,12 @@ import { Injectable } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Notification, NotificationResourceType } from '../entities/notification.entity'; // Import NotificationResourceType
+import { Notification, NotificationResourceType } from '../entities/notification.entity';
 import { NotificationsService } from '../notifications.service';
 import { PostReactionCreatedEvent } from 'src/reactions/events/post-reaction-created.event';
 import { CommentReactionCreatedEvent } from 'src/reactions/events/comment-reaction-created.event';
 import { User } from 'src/users/entities/user.entity';
+import { NotificationType } from '../types'; // NEW: Import NotificationType
 
 @Injectable()
 export class ReactionNotificationListener {
@@ -30,9 +31,9 @@ export class ReactionNotificationListener {
       const notification = this.notificationRepo.create({
         recipient: post.author,
         actor,
-        type: 'post_reaction',
-        resourceType: NotificationResourceType.POST, // Use resourceType
-        resourceId: post.id, // Use resourceId
+        type: NotificationType.POST_REACTION, // MODIFIED
+        resourceType: NotificationResourceType.POST,
+        resourceId: post.id,
         createdAt: new Date(),
       });
       const savedNotification = await this.notificationRepo.save(notification);
@@ -55,9 +56,9 @@ export class ReactionNotificationListener {
       const notification = this.notificationRepo.create({
         recipient: comment.author,
         actor,
-        type: 'comment_reaction',
-        resourceType: NotificationResourceType.COMMENT, // Use resourceType
-        resourceId: comment.id, // Use resourceId
+        type: NotificationType.COMMENT_REACTION, // MODIFIED
+        resourceType: NotificationResourceType.COMMENT,
+        resourceId: comment.id,
         createdAt: new Date(),
       });
       const savedNotification = await this.notificationRepo.save(notification);

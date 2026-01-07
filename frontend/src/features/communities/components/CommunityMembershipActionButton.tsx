@@ -67,7 +67,7 @@ export const CommunityMembershipActionButton: React.FC<
       );
     case 'pending':
       return (
-        <Button onClick={handleCancelRequest} disabled={isRejectingRequest}>
+        <Button variant='outline' onClick={handleCancelRequest} disabled={isRejectingRequest}>
           {isRejectingRequest ? 'Cancelling...' : 'Cancel Request'}
         </Button>
       );

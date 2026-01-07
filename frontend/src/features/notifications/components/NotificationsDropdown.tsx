@@ -15,6 +15,8 @@ const NotificationsDropdown = () => {
   const notifications =
     data?.pages.flatMap((page) => page.data) ?? [];
 
+    console.log(notifications);
+    
   // 🔑 Derived unread count (no Redux slice)
   const unreadCount = notifications.filter(n => !n.read).length;
 

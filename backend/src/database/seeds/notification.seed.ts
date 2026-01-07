@@ -1,6 +1,7 @@
 import { DataSource } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Notification, NotificationResourceType } from '../../notifications/entities/notification.entity';
+import { NotificationType } from '../../notifications/types'; // Import NotificationType
 import { Post } from '../../posts/entities/post.entity';
 import { Comment } from '../../comments/entities/comment.entity';
 
@@ -38,7 +39,7 @@ export async function seedNotifications(
       const notification = notificationRepository.create({
         recipient: recipient,
         actor: actor,
-        type: 'New Post',
+        type: NotificationType.NEW_POST, // Use enum
         read: Math.random() > 0.5, // 50% chance of being read
         resourceType: NotificationResourceType.POST,
         resourceId: post.id,
@@ -63,7 +64,7 @@ export async function seedNotifications(
       const notification = notificationRepository.create({
         recipient: recipient,
         actor: actor,
-        type: 'New Comment',
+        type: NotificationType.NEW_COMMENT, // Use enum
         read: Math.random() > 0.5,
         resourceType: NotificationResourceType.COMMENT,
         resourceId: comment.id,
@@ -83,7 +84,7 @@ export async function seedNotifications(
       const notification = notificationRepository.create({
         recipient: recipient,
         actor: actor,
-        type: 'Reaction on Post',
+        type: NotificationType.POST_REACTION, // Use enum
         read: Math.random() > 0.5,
         resourceType: NotificationResourceType.POST,
         resourceId: post.id,

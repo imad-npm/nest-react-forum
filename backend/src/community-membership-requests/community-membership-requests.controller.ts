@@ -73,7 +73,7 @@ export class CommunityMembershipRequestsController {
   }
 
 
-@Delete('me')
+@Delete('own')
 removeOwnRequest(
   @Param('communityId', ParseIntPipe) communityId: number,
   @GetUser() user: User,

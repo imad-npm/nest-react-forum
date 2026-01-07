@@ -1,12 +1,13 @@
 import { Notification, NotificationResourceType } from '../entities/notification.entity';
 import { User } from 'src/users/entities/user.entity';
+import { NotificationType } from '../types'; // Import NotificationType
 
 export class NotificationDto {
   id: number;
   recipientId: number;
   actorId?: number;
   actorUsername?: string;
-  type: string;
+  type: NotificationType; // Changed to NotificationType
   read: boolean;
   createdAt: Date;
   resourceType?: NotificationResourceType;

@@ -6,6 +6,7 @@ import { Notification, NotificationResourceType } from '../entities/notification
 import { NotificationsService } from '../notifications.service';
 import { PostCreatedEvent } from '../../posts/events/post-created.event';
 import { User } from 'src/users/entities/user.entity';
+import { NotificationType } from '../types'; // NEW: Import NotificationType
 
 @Injectable()
 export class PostNotificationListener {
@@ -30,9 +31,9 @@ export class PostNotificationListener {
       const notification = this.notificationRepo.create({
         recipient,
         actor,
-        type: 'post_created',
-        resourceType: NotificationResourceType.POST, // Use resourceType
-        resourceId: post.id, // Use resourceId
+        type: NotificationType.NEW_POST, // MODIFIED
+        resourceType: NotificationResourceType.POST,
+        resourceId: post.id,
         createdAt: new Date(),
       });
       const savedNotification = await this.notificationRepo.save(notification);

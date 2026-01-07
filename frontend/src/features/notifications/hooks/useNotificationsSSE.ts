@@ -2,7 +2,7 @@
 import { useEffect, useRef } from 'react';
 import { useAppDispatch, useAppSelector } from '../../../shared/stores/hooks';
 import { notificationsApi } from '../services/notificationsApi';
-import type { INotification } from '../types';
+import type { INotification, INotificationQueryDto } from '../types'; // Import NotificationQueryDto
 
 export function useNotificationsSSE() {
   const dispatch = useAppDispatch();
@@ -27,22 +27,34 @@ export function useNotificationsSSE() {
     es.onmessage = (event) => {
       const notification: INotification = JSON.parse(event.data);
 
+      // Define query arguments for the getNotifications endpoint
+      const queryArgs: INotificationQueryDto = { page: 1, limit: 20 }; // Match the default query for getNotifications
+
       dispatch(
-        notificationsApi.util.updateQueryData(
-          'getNotifications',
-          { page: 1, limit: 20 },
-          (draft) => {
-            if (draft.data.some((n) => n.id === notification.id)) return;
+  notificationsApi.util.updateQueryData(
+    'getNotifications',
+    { limit: 20 },
+    (draft) => {
+      if (!draft.pages[0]) return; // no page 1 yet
 
-            draft.data.unshift(notification);
-            draft.meta.totalItems += 1;
+      const firstPage = draft.pages[0];
 
-            if (draft.data.length > 20) {
-              draft.data.pop();
-            }
-          }
-        )
-      );
+      // deduplicate
+      if (firstPage.data.some(n => n.id === notification.id)) return;
+
+      firstPage.data.unshift(notification);
+
+      // update meta total
+      firstPage.meta.totalItems += 1;
+
+      // optionally trim to page limit
+      if (firstPage.data.length > firstPage.meta.limit) {
+        firstPage.data.pop();
+      }
+    }
+  )
+);
+
     };
 
     es.onerror = () => {
@@ -57,3 +69,4 @@ export function useNotificationsSSE() {
     };
   }, [accessToken, dispatch]);
 }
+

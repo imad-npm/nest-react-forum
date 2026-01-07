@@ -6,6 +6,7 @@ import { Notification, NotificationResourceType } from '../entities/notification
 import { NotificationsService } from '../notifications.service';
 import { CommunityMembershipRequestCreatedEvent } from '../../community-membership-requests/events/community-membership-request-created.event';
 import { User } from 'src/users/entities/user.entity';
+import { NotificationType } from '../types'; // NEW: Import NotificationType
 
 @Injectable()
 export class CommunityMembershipRequestNotificationListener {
@@ -32,9 +33,9 @@ export class CommunityMembershipRequestNotificationListener {
       const notification = this.notificationRepo.create({
         recipient,
         actor,
-        type: 'community_membership_request',
-        resourceType: NotificationResourceType.COMMUNITY_MEMBERSHIP_REQUEST, // Use resourceType
-        resourceId: community.id, // Use community.id as resourceId
+        type: NotificationType.COMMUNITY_MEMBERSHIP_REQUEST, // MODIFIED
+        resourceType: NotificationResourceType.COMMUNITY_MEMBERSHIP_REQUEST,
+        resourceId: community.id,
         createdAt: new Date(),
       });
       const savedNotification = await this.notificationRepo.save(notification);

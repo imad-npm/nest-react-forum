@@ -1,5 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
+import { NotificationType } from '../types'; // Import NotificationType
 
 export enum NotificationResourceType {
   POST = 'Post',
@@ -19,8 +20,8 @@ export class Notification {
   @ManyToOne(() => User, { nullable: true })
   actor: User;
 
-  @Column()
-  type: string;
+  @Column({ type: 'simple-enum', enum: NotificationType }) // Changed to use NotificationType enum
+  type: NotificationType;
 
   @Column({ default: false })
   read: boolean;

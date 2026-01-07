@@ -1,5 +1,6 @@
 import { useMarkNotificationAsReadMutation } from '../services/notificationsApi';
 import type { INotification } from '../types';
+import { NotificationType } from '../types';
 
 const NotificationItem = ({ notification }: { notification: INotification }) => {
   const [markAsRead] = useMarkNotificationAsReadMutation();
@@ -13,18 +14,27 @@ const NotificationItem = ({ notification }: { notification: INotification }) => 
     const actor = notification.actor?.username ?? 'Someone';
 
     switch (notification.type) {
-      case 'comment':
+      case NotificationType.NEW_COMMENT:
         return `${actor} commented on your post.`;
-      case 'reply':
-        return `${actor} replied to your comment.`;
-      case 'post_reaction':
-        return `${actor} reacted to your post.`;
-      case 'comment_reaction':
-        return `${actor} reacted to your comment.`;
-      case 'community_membership_request':
-        return `${actor} sent a membership request to your community.`;
-      case 'post_created':
+
+      case NotificationType.NEW_POST:
         return `${actor} created a new post in your community.`;
+
+      case NotificationType.POST_REACTION:
+        return `${actor} reacted to your post.`;
+
+      case NotificationType.COMMENT_REACTION:
+        return `${actor} reacted to your comment.`;
+
+      case NotificationType.COMMUNITY_MEMBERSHIP_REQUEST:
+        return `${actor} sent a membership request to your community.`;
+
+      case NotificationType.COMMUNITY_MEMBERSHIP_ACCEPTED:
+        return `Your membership request was accepted.`;
+
+      case NotificationType.COMMUNITY_MEMBERSHIP_REJECTED:
+        return `Your membership request was rejected.`;
+
       default:
         return 'You have a new notification.';
     }
@@ -36,10 +46,13 @@ const NotificationItem = ({ notification }: { notification: INotification }) => 
     switch (notification.resourceType) {
       case 'Post':
         return `/posts/${notification.resourceId}`;
+
       case 'Comment':
         return `/comments/${notification.resourceId}`;
+
       case 'CommunityMembershipRequest':
         return `/community-membership-requests/${notification.resourceId}`;
+
       default:
         return '#';
     }

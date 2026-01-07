@@ -85,6 +85,8 @@ export class NotificationsController {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders();
+    res.write(':\n\n'); // comment ping to keep connection alive
+
 
     const eventEmitter = this.notificationsService.addClient(user.id.toString());
 
