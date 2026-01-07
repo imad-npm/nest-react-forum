@@ -60,8 +60,8 @@ const NotificationItem = ({ notification }: { notification: INotification }) => 
 
   return (
     <div
-      className={`p-2 border-b ${
-        notification.read ? 'bg-white' : 'bg-blue-50'
+      className={`p-2  ${
+        notification.read ? 'bg-white' : 'bg-gray-50'
       }`}
     >
       <a href={getResourceLink(notification)} className="block">
@@ -71,7 +71,7 @@ const NotificationItem = ({ notification }: { notification: INotification }) => 
       {!notification.read && (
         <button
           onClick={handleMarkAsRead}
-          className="text-sm text-blue-600"
+          className="text-sm text-primary-600"
         >
           Mark as read
         </button>

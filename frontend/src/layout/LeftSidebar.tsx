@@ -17,7 +17,7 @@ const LeftSidebar: React.FC = () => {
   };
 
   return (
-    <aside className="w-64 bg-white p-4 border-r border-gray-300 min-h-screen sticky top-0 hidden md:block">
+<aside className="w-64 bg-white p-4 border-r border-gray-300 sticky top-20 h-[calc(100vh-5rem)] overflow-y-auto hidden md:block self-start">
       <nav className="space-y-4">
         <div>
           <h2 className="text-lg font-semibold text-gray-800 mb-2">Navigation</h2>

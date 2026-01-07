@@ -35,7 +35,7 @@ es.onopen = () => {
       dispatch(
         notificationsApi.util.updateQueryData(
           'getNotifications',
-          { limit: 10 }, // 👈 CHANGED from 20 to 10 to match NotificationsDropdown
+          { limit: 10 },
           (draft) => {
             if (!draft.pages[0]) return; // no page 1 yet
 

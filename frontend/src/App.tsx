@@ -21,6 +21,7 @@ import { useAuth } from './features/auth/hooks/useAuth';
 import SettingsPage from './features/settings/pages/SettingsPage';
 import EmailChangeVerifyPage from './features/user/pages/EmailChangeVerifyPage';
 import SearchResultsPage from './features/search/pages/SearchResultsPage'; // Import SearchResultsPage
+import NotificationsPage from './features/notifications/pages/NotificationsPage';
 
 import ForgotPassword from './features/auth/pages/ForgotPassword';
 import ResetPassword from './features/auth/pages/ResetPassword';
@@ -67,6 +68,7 @@ export default function App() {
             <Route path="/profile/:userId" element={<AuthGuard><ProfilePage /></AuthGuard>} /> {/* Changed Route */}
             <Route path="/settings" element={<AuthGuard><SettingsPage /></AuthGuard>} />
             <Route path="/search" element={<AuthGuard><SearchResultsPage /></AuthGuard>} /> {/* New Search Results Route */}
+            <Route path="/notifications" element={<AuthGuard><NotificationsPage /></AuthGuard>} />
           </Route>
 
           {/* --- Moderation Routes (with ModSidebar) --- */}

@@ -1,24 +1,12 @@
-import { useState } from 'react';
 import { FaBell } from 'react-icons/fa';
-import { useSelector } from 'react-redux';
-import type { RootState } from '../../../shared/stores/store';
-import NotificationsDropdown from './NotificationsDropdown';
+import { Link } from 'react-router-dom';
 
 const NotificationsBell = () => {
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-
-  const toggleDropdown = () => {
-    setIsDropdownOpen(!isDropdownOpen);
-  };
-
   return (
     <div className="relative">
-      <button onClick={toggleDropdown} className="relative hover:text-gray-300">
+      <Link to="/notifications" className="relative hover:text-gray-300">
         <FaBell className="text-xl" />
-        
-     
-      </button>
-      {isDropdownOpen && <NotificationsDropdown />}
+      </Link>
     </div>
   );
 };
