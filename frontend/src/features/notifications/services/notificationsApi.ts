@@ -9,20 +9,14 @@ export const notificationsApi = apiSlice.injectEndpoints({
         url: '/notifications',
         params: { page, limit },
       }),
-      providesTags: (result) =>
-        result
-          ? [
-              ...result.data.map(({ id }) => ({ type: 'Notifications' as const, id })),
-              { type: 'Notifications', id: 'LIST' },
-            ]
-          : [{ type: 'Notifications', id: 'LIST' }],
+      providesTags: ['Notifications'],
     }),
     markNotificationAsRead: builder.mutation<ResponseDto<boolean>, number>({
       query: (id) => ({
         url: `/notifications/${id}/read`,
         method: 'PATCH',
       }),
-      invalidatesTags: (result, error, id) => [{ type: 'Notifications', id }],
+      invalidatesTags:['Notifications'],
     }),
   }),
 });

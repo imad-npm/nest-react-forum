@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Notification } from '../entities/notification.entity';
+import { Notification, NotificationResourceType } from '../entities/notification.entity'; // Import NotificationResourceType
 import { NotificationsService } from '../notifications.service';
 import { PostReactionCreatedEvent } from 'src/reactions/events/post-reaction-created.event';
 import { CommentReactionCreatedEvent } from 'src/reactions/events/comment-reaction-created.event';
@@ -31,7 +31,8 @@ export class ReactionNotificationListener {
         recipient: post.author,
         actor,
         type: 'post_reaction',
-        postId: post.id,
+        resourceType: NotificationResourceType.POST, // Use resourceType
+        resourceId: post.id, // Use resourceId
         createdAt: new Date(),
       });
       const savedNotification = await this.notificationRepo.save(notification);
@@ -55,8 +56,8 @@ export class ReactionNotificationListener {
         recipient: comment.author,
         actor,
         type: 'comment_reaction',
-        commentId: comment.id,
-        postId: comment.post.id,
+        resourceType: NotificationResourceType.COMMENT, // Use resourceType
+        resourceId: comment.id, // Use resourceId
         createdAt: new Date(),
       });
       const savedNotification = await this.notificationRepo.save(notification);

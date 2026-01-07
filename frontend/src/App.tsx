@@ -25,6 +25,7 @@ import SearchResultsPage from './features/search/pages/SearchResultsPage'; // Im
 import ForgotPassword from './features/auth/pages/ForgotPassword';
 import ResetPassword from './features/auth/pages/ResetPassword';
 import GoogleAuthCallback from './features/auth/pages/GoogleAuthCallback'; // Import GoogleAuthCallback
+import { useNotificationsSSE } from './features/notifications/hooks/useNotificationsSSE';
 
 const SessionLoader = ({ children }: { children: React.ReactNode }) => {
   const { isUserLoading } = useAuth();
@@ -40,6 +41,7 @@ const SessionLoader = ({ children }: { children: React.ReactNode }) => {
 
 
 export default function App() {
+  useNotificationsSSE()
   return (
     <BrowserRouter>
       <SessionLoader>

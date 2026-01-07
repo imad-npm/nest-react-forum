@@ -1,5 +1,12 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
+
+export enum NotificationResourceType {
+  POST = 'Post',
+  COMMENT = 'Comment',
+  COMMUNITY_MEMBERSHIP_REQUEST = 'CommunityMembershipRequest',
+  // Add other resource types as needed
+}
 
 @Entity('notifications')
 export class Notification {
@@ -9,21 +16,25 @@ export class Notification {
   @ManyToOne(() => User)
   recipient: User;
 
+  @ManyToOne(() => User, { nullable: true })
+  actor: User;
+
   @Column()
   type: string;
 
   @Column({ default: false })
   read: boolean;
 
-  @Column()
+  @CreateDateColumn()
   createdAt: Date;
 
-  @Column({ nullable: true })
-  postId?: number;
+  @Column({
+    type: 'simple-enum',
+    enum: NotificationResourceType,
+    nullable: true,
+  })
+  resourceType?: NotificationResourceType;
 
   @Column({ nullable: true })
-  commentId?: number;
-
-  @ManyToOne(() => User)
-  actor: User;
+  resourceId?: number;
 }

@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Notification } from '../entities/notification.entity';
+import { Notification, NotificationResourceType } from '../entities/notification.entity'; // Import NotificationResourceType
 import { NotificationsService } from '../notifications.service';
 import { CommentCreatedEvent } from 'src/comments/events/comment-created.event';
 import { User } from 'src/users/entities/user.entity';
@@ -25,8 +25,8 @@ export class CommentNotificationListener {
         recipient: post.author,
         actor: author,
         type: 'comment',
-        postId: post.id,
-        commentId: comment.id,
+        resourceType: NotificationResourceType.COMMENT, // Use resourceType
+        resourceId: comment.id, // Use resourceId
         createdAt: new Date(),
       });
       const savedNotification = await this.notificationRepo.save(notification);
@@ -41,8 +41,8 @@ export class CommentNotificationListener {
         recipient: parent.author,
         actor: author,
         type: 'reply',
-        postId: post.id,
-        commentId: comment.id,
+        resourceType: NotificationResourceType.COMMENT, // Use resourceType
+        resourceId: comment.id, // Use resourceId
         createdAt: new Date(),
       });
       const savedNotification = await this.notificationRepo.save(notification);
@@ -53,3 +53,4 @@ export class CommentNotificationListener {
     }
   }
 }
+

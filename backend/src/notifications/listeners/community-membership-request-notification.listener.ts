@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Notification } from '../entities/notification.entity';
+import { Notification, NotificationResourceType } from '../entities/notification.entity'; // Import NotificationResourceType
 import { NotificationsService } from '../notifications.service';
 import { CommunityMembershipRequestCreatedEvent } from '../../community-membership-requests/events/community-membership-request-created.event';
 import { User } from 'src/users/entities/user.entity';
@@ -33,7 +33,8 @@ export class CommunityMembershipRequestNotificationListener {
         recipient,
         actor,
         type: 'community_membership_request',
-        communityId: community.id,
+        resourceType: NotificationResourceType.COMMUNITY_MEMBERSHIP_REQUEST, // Use resourceType
+        resourceId: community.id, // Use community.id as resourceId
         createdAt: new Date(),
       });
       const savedNotification = await this.notificationRepo.save(notification);

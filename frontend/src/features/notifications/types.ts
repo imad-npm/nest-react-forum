@@ -1,10 +1,10 @@
 export interface INotification {
   id: number;
-  recipient: any;
-  actor: any;
+  recipient: any; // Consider refining this type if User interface is available
+  actor: any; // Consider refining this type if User interface is available
   type: string;
-  postId?: number;
-  commentId?: number;
+  resourceType?: 'Post' | 'Comment' | 'CommunityMembershipRequest'; // Updated to polymorphic
+  resourceId?: number; // Updated to polymorphic
   read: boolean;
   createdAt: string;
 }

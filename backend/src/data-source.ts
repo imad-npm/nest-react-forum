@@ -17,6 +17,7 @@ import { UserReport } from './reports/entities/user-report.entity';
 
 import { CommunityMembershipRequest } from './community-membership-requests/entities/community-membership-request.entity';
 import { EmailChangeToken } from './email-change/entities/email-change-token.entity';
+import { Notification } from './notifications/entities/notification.entity'; // Import Notification entity
 
 config(); // load .env manually
 
@@ -45,6 +46,7 @@ export const AppDataSource = new DataSource({
     CommentReport,
     UserReport,
     CommunityRestriction,
+    Notification, // Add Notification entity here
   ],
   synchronize: false,
   migrations: ['src/database/migrations/*.ts'],

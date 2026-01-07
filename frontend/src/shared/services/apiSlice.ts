@@ -67,7 +67,8 @@ export const apiSlice = createApi({
     'CommunityMembershipRequests',
     'CommunityRestrictions',
     'Reports',
-    "Users"
+    "Users",
+    'Notifications'
   ],
   endpoints: () => ({}), // Empty endpoints as this is a base slice
 });

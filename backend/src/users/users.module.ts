@@ -8,6 +8,6 @@ import { UsersController } from './users.controller';
   imports: [TypeOrmModule.forFeature([User])], // Add ProfileModule here
   controllers: [UsersController],
   providers: [UsersService],
-  exports: [UsersService], // Export the service so it can be injected elsewhere
+  exports: [TypeOrmModule.forFeature([User]), UsersService], // Export the service and TypeOrmFeature so it can be injected elsewhere
 })
 export class UsersModule {}

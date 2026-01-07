@@ -1,9 +1,9 @@
 import { useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { RootState } from '../../../shared/stores/store';
+import type { RootState } from '../../../shared/stores/store';
 import { useGetNotificationsQuery, useMarkNotificationAsReadMutation } from '../services/notificationsApi';
 import { setNotifications, setUnreadCount } from '../services/notificationsSlice';
-import { INotification } from '../types';
+import type { INotification } from '../types';
 
 const NotificationItem = ({ notification }: { notification: INotification }) => {
   const [markAsRead] = useMarkNotificationAsReadMutation();
@@ -11,7 +11,48 @@ const NotificationItem = ({ notification }: { notification: INotification }) => 
 
   const handleMarkAsRead = () => {
     markAsRead(notification.id);
-    dispatch(markAsRead(notification.id));
+
+  };
+
+  const getNotificationMessage = (notification: INotification) => {
+    const actor = notification.actor?.username || 'Someone'; // Fallback if actor is not available
+
+    switch (notification.type) {
+      case 'comment':
+        return `${actor} commented on your post.`;
+      case 'reply':
+        return `${actor} replied to your comment.`;
+      case 'post_reaction':
+        return `${actor} reacted to your post.`;
+      case 'comment_reaction':
+        return `${actor} reacted to your comment.`;
+      case 'community_membership_request':
+        return `${actor} sent a membership request to your community.`;
+      case 'post_created':
+        return `${actor} created a new post in your community.`;
+      default:
+        return 'You have a new notification.';
+    }
+  };
+
+  // Function to generate a link based on resourceType and resourceId
+  const getResourceLink = (notification: INotification) => {
+    if (!notification.resourceType || !notification.resourceId) {
+      return '#'; // No specific link
+    }
+
+    switch (notification.resourceType) {
+      case 'Post':
+        return `/posts/${notification.resourceId}`;
+      case 'Comment':
+        // For comments, we might want to link to the post and scroll to the comment
+        return `/comments/${notification.resourceId}`; // This would navigate to a specific comment's page or section
+      case 'CommunityMembershipRequest':
+        return `/community-membership-requests/${notification.resourceId}`;
+      // Add other cases for other resource types
+      default:
+        return '#';
+    }
   };
 
   return (
@@ -20,7 +61,9 @@ const NotificationItem = ({ notification }: { notification: INotification }) => 
         notification.read ? 'bg-white' : 'bg-blue-50'
       }`}
     >
-      <p>{notification.actor.username} {notification.type === 'comment' ? 'commented on your post' : 'replied to your comment'}</p>
+      <a href={getResourceLink(notification)} className="block">
+        <p>{getNotificationMessage(notification)}</p>
+      </a>
       <button onClick={handleMarkAsRead} disabled={notification.read}>Mark as read</button>
     </div>
   );

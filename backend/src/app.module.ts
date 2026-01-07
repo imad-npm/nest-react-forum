@@ -38,7 +38,7 @@ import { CommunityMembershipRequestsModule } from './community-membership-reques
 import { EmailChangeToken } from './email-change/entities/email-change-token.entity';
 import { EmailChangeModule } from './email-change/email-change.module';
 import { CommunityRestriction } from './community-restrictions/entities/community-restriction.entity';
-import { CommunityRestrictionsModule } = require("./community-restrictions/community-restrictions.module");
+import { CommunityRestrictionsModule } from "./community-restrictions/community-restrictions.module";
 import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({

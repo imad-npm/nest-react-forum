@@ -1,18 +1,18 @@
 import { Controller, Get, Sse, UseGuards, Req, Res } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
-import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { QueryJwtAuthGuard } from 'src/auth/guards/query-jwt-auth.guard'; // Import the new guard
 import { GetUser } from 'src/decorators/user.decorator';
 import { User } from 'src/users/entities/user.entity';
 import { Observable, fromEvent } from 'rxjs';
 import { map } from 'rxjs/operators';
-import { Response } from 'express';
+import type { Response } from 'express';
 
 @Controller('notifications')
 export class NotificationsController {
   constructor(private readonly notificationsService: NotificationsService) {}
 
   @Get('sse')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(QueryJwtAuthGuard) // Use the new guard
   sse(
     @GetUser() user: User,
     @Req() req,

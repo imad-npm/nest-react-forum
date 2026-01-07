@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { FaBell } from 'react-icons/fa';
 import { useSelector } from 'react-redux';
-import { RootState } from '../../../shared/stores/store';
+import type { RootState } from '../../../shared/stores/store';
 import NotificationsDropdown from './NotificationsDropdown';
 
 const NotificationsBell = () => {
