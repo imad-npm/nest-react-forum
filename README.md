@@ -61,17 +61,10 @@ A full-stack social platform built with NestJS (backend) and React (frontend). S
 
 ### Backend (NestJS)
 - TypeORM with SQLite (migrations and seeds provided)
-- Entities: User, Profile, Post, Comment, Community, CommunityMembership, CommunityRestriction, Reaction, Notification
-- Factories and comprehensive seed scripts for development data
-- RTK Query-compatible API endpoints
 
 ### Frontend (React)
 - React Router v6 with protected routes
 - Redux Toolkit + RTK Query for state and data fetching
-- Infinite queries for posts/comments
-- Toast provider
-- Custom hooks (infinite scroll, auth, notifications SSE)
-- Layouts: MainLayout (sidebar), ModLayout (moderation sidebar)
 
 
 ## Getting Started
