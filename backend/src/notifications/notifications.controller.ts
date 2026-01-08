@@ -103,4 +103,12 @@ export class NotificationsController {
     await this.notificationsService.markAllAsRead(user.id);
   }
 
+  @Get('unread-count')
+  @UseGuards(JwtAuthGuard)
+  async getUnreadCount(
+    @GetUser() user: User,
+  ): Promise<ResponseDto<{ count: number }>> {
+    const count = await this.notificationsService.getUnreadCount(user.id);
+    return new ResponseDto({ count });
+  }
 }

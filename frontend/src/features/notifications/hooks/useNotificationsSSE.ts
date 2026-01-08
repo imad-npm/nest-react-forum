@@ -57,6 +57,17 @@ es.onopen = () => {
         )
       );
 
+      dispatch(
+        notificationsApi.util.updateQueryData(
+          'getUnreadCount',
+          undefined,
+          (draft) => {
+            if (draft.data) {
+              draft.data.count += 1;
+            }
+          }
+        )
+      );
     };
 
     es.onerror = () => {

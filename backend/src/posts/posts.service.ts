@@ -216,6 +216,8 @@ export class PostsService {
       }
       const isCommunityModerator = post.communityId ? await this.isModerator(currentUserId, post.communityId) : false;
       const isAuthor = post.authorId === currentUserId;
+      console.log(isAuthor,isCommunityModerator,currentUserId,post.communityId);
+      
 
       if (!isCommunityModerator && !isAuthor) {
         throw new ForbiddenException('You do not have permission to view this post.');
@@ -332,10 +334,10 @@ export class PostsService {
     if (!community) {
       return false;
     }
-    if (community.ownerId === userId) {
+   /* if (community.ownerId === userId) {
       return true;
     }
-
+*/
     const membership = await this.membershipRepository.findOne({
       where: { communityId, userId },
     });
@@ -352,10 +354,10 @@ export class PostsService {
     if (!community) {
       throw new NotFoundException('Community not found');
     }
-    if (community.ownerId === userId) {
+  /*  if (community.ownerId === userId) {
       return true;
     }
-
+*/
     const membership = await this.membershipRepository.findOne({
       where: { communityId, userId },
     });

@@ -83,5 +83,11 @@ export class NotificationsService {
 
     return result.affected || 0;
   }
+
+  async getUnreadCount(userId: number): Promise<number> {
+    return this.notificationsRepository.count({
+      where: { recipient: { id: userId }, read: false },
+    });
+  }
 }
 

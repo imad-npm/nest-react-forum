@@ -19,13 +19,13 @@ export const CommunityHeader: React.FC<CommunityHeaderProps> = ({ communityId })
 
 const { data: membershipData } = useGetCommunityMembershipsQuery({
     communityId,
-    userId: currentUser?.id,
+    userId: +currentUser?.id,
   }, { skip: !currentUser?.id });
 
   console.log(membershipData);
   
   const membership = membershipData?.data?.[0];
-  const isMod = membership?.role === 'admin' || membership?.role === 'moderator'|| membership?.role === 'owner';
+  const isMod =  membership?.role === 'moderator';
   if (isLoading) {
     return <div className="h-40 animate-pulse rounded-lg bg-gray-200" />;
   }
