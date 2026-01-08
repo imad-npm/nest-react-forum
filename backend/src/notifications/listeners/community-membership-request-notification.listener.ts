@@ -25,9 +25,9 @@ export class CommunityMembershipRequestNotificationListener {
     const { request } = event;
     const { community, user } = request;
 
-    // Notify the community owner
-    if (community.owner.id !== user.id) {
-      const recipient = community.owner;
+    // Notify the community createdBy
+    if (community.createdBy.id !== user.id) {
+      const recipient = community.createdBy;
       const actor = user;
 
       const notification = this.notificationRepo.create({

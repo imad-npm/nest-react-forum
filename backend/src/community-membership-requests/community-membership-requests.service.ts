@@ -88,7 +88,7 @@ export class CommunityMembershipRequestsService {
 
       const community = await queryRunner.manager.findOne(Community, {
         where: { id: communityId },
-        select: ['id', 'ownerId', 'communityType'], // Select communityType
+        select: ['id', 'createdById', 'communityType'], // Select communityType
       });
       if (!community) {
         throw new NotFoundException('Community not found');

@@ -12,7 +12,7 @@ export async function seedCommunityRestrictions(
   const communityRestrictionRepository = AppDataSource.getRepository(CommunityRestriction);
 
   for (const community of communities) {
-    const bannedUser = users.find((user) => user.id !== community.ownerId);
+    const bannedUser = users.find((user) => user.id !== community.createdById);
     const creatorUser = users[Math.floor(Math.random() * users.length)];
 
     if (bannedUser && creatorUser) {

@@ -310,7 +310,7 @@ export class PostsService {
       throw new NotFoundException('Post not found');
     }
 
-    // Only allow owner/moderator to change status
+    // Only allow createdBy/moderator to change status
     await this.canManagePosts(userId, post.community.id);
 
     post.status = newStatus;
@@ -334,7 +334,7 @@ export class PostsService {
     if (!community) {
       return false;
     }
-   /* if (community.ownerId === userId) {
+   /* if (community.createdById === userId) {
       return true;
     }
 */
@@ -354,7 +354,7 @@ export class PostsService {
     if (!community) {
       throw new NotFoundException('Community not found');
     }
-  /*  if (community.ownerId === userId) {
+  /*  if (community.createdById === userId) {
       return true;
     }
 */

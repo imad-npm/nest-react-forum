@@ -60,8 +60,8 @@ export class CaslAbilityFactory {
     can(Action.Delete, CommentReaction, { userId: user.id });
     can(Action.Update, CommentReaction, { userId: user.id });
 
-    can(Action.Delete, Community, { ownerId: user.id });
-    can(Action.Update, Community, { ownerId: user.id });
+    can(Action.Delete, Community, { createdById: user.id });
+    can(Action.Update, Community, { createdById: user.id });
 
 
 

@@ -28,10 +28,10 @@ export class Community {
   description: string;
 
   @ManyToOne(() => User, (user) => user.createdCommunities)
-  owner: User;
+  createdBy: User;
 
   @Column({ nullable: true })
-  ownerId: number;
+  createdById: number;
 
   @CreateDateColumn()
   createdAt: Date;

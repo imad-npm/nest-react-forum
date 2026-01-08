@@ -17,7 +17,7 @@ const Header = () => {
   };
 
   return (
-    <header className=" p-4 border-b bg-white sticky top-0 border-gray-300">
+    <header className=" p-4 border-b bg-white sticky z-99 top-0 border-gray-300">
       <nav className="container mx-auto  flex justify-between items-center gap-4">
         <Link to="/" className="text-2xl font-bold flex items-center space-x-2 flex-shrink-0">
           <FaHome className="inline-block" /> <span>Forum</span>

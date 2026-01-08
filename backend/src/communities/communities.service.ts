@@ -40,7 +40,7 @@ export class CommunitiesService {
     const { limit = 10, page = 1, name, displayName, communityType, sort } = query;
     const queryBuilder = this.communitiesRepository
       .createQueryBuilder('community')
-      .leftJoinAndSelect('community.owner', 'owner')
+      .leftJoinAndSelect('community.createdBy','createdBy')
       .take(limit)
       .skip((page - 1) * limit);
 
@@ -72,7 +72,7 @@ export class CommunitiesService {
 
       const community = manager.create(Community, {
         ...data,
-        owner: { id: data.userId },
+        createdBy: { id: data.userId },
       });
       const savedCommunity = await manager.save(community);
 
@@ -96,7 +96,7 @@ export class CommunitiesService {
   async findOne(id: number, user?: User): Promise<Community> {
     const community = await this.communitiesRepository.findOne({
       where: { id },
-      relations: ['owner'],
+      relations: ['createdBy'],
     });
 
     if (!community) throw new NotFoundException(`Community with ID ${id} not found.`);

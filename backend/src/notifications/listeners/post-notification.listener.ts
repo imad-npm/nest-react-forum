@@ -23,9 +23,9 @@ export class PostNotificationListener {
     const { post } = event;
     const { community, author } = post;
 
-    // Notify the community owner if the post is in a community and the author is not the owner
-    if (community && community.owner.id !== author.id) {
-      const recipient = community.owner;
+    // Notify the community createdBy if the post is in a community and the author is not the createdBy
+    if (community && community.createdBy.id !== author.id) {
+      const recipient = community.createdBy;
       const actor = author;
 
       const notification = this.notificationRepo.create({
