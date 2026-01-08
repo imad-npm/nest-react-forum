@@ -1,33 +1,92 @@
 # nest-react-forum
+# Community Forum
+
+A full-stack social platform built with NestJS (backend) and React (frontend). Supports communities, posts, nested comments, reactions, moderation, notifications, and user management.
+
+## Features
+
+- **Authentication**
+  - Login/register with email/password
+  - Google OAuth
+  - Email verification
+  - Password reset
+  - JWT + refresh token flow
+
+- **Users & Profiles**
+  - User profiles with display name, bio, avatar
+  - Profile page viewing
+
+- **Communities**
+  - Create/join communities
+  - Public/private types
+ 
+- **Posts**
+  - Create posts in communities
+  - Feed (home) with posts from joined communities
+  - Post detail view
+  - Like/dislike reactions
+  - Comment count and view count
+
+- **Comments**
+  - Nested/reply comments (multi-level)
+  - Infinite scroll loading
+  - Like/dislike reactions
+  - Reply input with cancel
+
+- **Reactions**
+  - Like/dislike on posts and comments
+  - Counter updates via subqueries
+
+- **Notifications**
+  - Real-time via SSE (new posts, comments, reactions)
+ 
+
+- **Moderation Tools** (per community)
+  - Moderation queues
+  - Member management
+  - Moderator management
+  - Restricted users (ban/mute with reason and expiry)
+
+- **Settings**
+  - User settings page
+  - Email change verification
+
+- **UI Components**
+  - Reusable components: Button, Input, Textarea, Modal, Toast, Dropdown, Select, SearchableSelect, Label, InputError
+  - Tailwind CSS styling
+  - Toast notifications
+  - Infinite scroll hook
+
+## Tech Stack
+
+### Backend (NestJS)
+- TypeORM with SQLite (migrations and seeds provided)
+- Entities: User, Profile, Post, Comment, Community, CommunityMembership, CommunityRestriction, Reaction, Notification
+- Factories and comprehensive seed scripts for development data
+- RTK Query-compatible API endpoints
+
+### Frontend (React)
+- React Router v6 with protected routes
+- Redux Toolkit + RTK Query for state and data fetching
+- Infinite queries for posts/comments
+- Toast provider
+- Custom hooks (infinite scroll, auth, notifications SSE)
+- Layouts: MainLayout (sidebar), ModLayout (moderation sidebar)
 
 
-# ForumStack
+## Getting Started
 
-A full-stack, community-driven forum platform built with a high-performance **NestJS** backend and a reactive **React** frontend. This project demonstrates advanced architectural patterns for handling complex data relationships and scalable database operations.
+### Backend Setup
 
-## 🚀 Technical Highlights
-
-* 
-**Recursive Threaded Discussions:** Implemented an infinite-depth nested commenting system using a hierarchical data model.
-
-
-* 
-**SQL Performance Optimization:** Utilized **raw SQL subqueries** within TypeORM to eliminate N+1 performance issues for real-time counters (likes, dislikes, and comments).
+1. Install dependencies: `npm install`
+2. Run migrations: `npm run migration:run`
+3. Seed the database: `npm run seed` 
 
 
-* 
-**Granular Moderation & RBAC:** Developed a sophisticated Role-Based Access Control (RBAC) system for communities, including moderator ranks and automated restriction logic for timed **Bans** and **Mutes**.
+4. Start server: `npm run start:dev`
 
+### Frontend Setup
 
-* 
-**Dynamic Notification Engine:** Built an event-driven system to deliver context-aware notifications across various resource types (Posts, Comments, Reactions).
+1. Install dependencies: `npm install`
+2. Start development server: `npm run dev`
 
-
-* **Advanced Frontend UX:** Integrated the **Intersection Observer API** to handle performant infinite scrolling for large discussion threads.
-
-## 🛠️ Tech Stack
-
-* **Backend:** NestJS, TypeScript, TypeORM, PostgreSQL/SQLite.
-* **Frontend:** React, TypeScript, Redux Toolkit, Tailwind CSS.
-* 
-**Workflow:** Automated database migrations and factory-based data seeding with Faker.js.
