@@ -9,6 +9,7 @@ import { CommunityMembership } from 'src/community-memberships/entities/communit
 import { CommunityMembershipRole } from 'src/community-memberships/types';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PostCreatedEvent } from './events/post-created.event';
+import { buffer } from 'stream/consumers';
 
 @Injectable()
 export class PostsService {
@@ -31,7 +32,7 @@ export class PostsService {
       dateRange?: string;
       currentUserId?: number;
       communityId?: number;
-      status?: PostStatus;
+      status?: PostStatus | "all";
     },
   ): Promise<{
     data: Post[];
@@ -54,6 +55,8 @@ export class PostsService {
       .leftJoinAndSelect('post.community', 'community');
 
     // Handle status filtering and authorization
+    if(status!="all"){
+
     if (status === PostStatus.PENDING || status === PostStatus.REJECTED) {
       if (!currentUserId) {
         throw new ForbiddenException('You must be logged in to view pending or rejected posts.');
@@ -78,7 +81,7 @@ export class PostsService {
     } else { // status === PostStatus.APPROVED
       query.andWhere('post.status = :status', { status: PostStatus.APPROVED });
     }
-
+  }
     if (currentUserId) {
       query.leftJoinAndMapOne(
         'post.userReaction',
@@ -276,7 +279,7 @@ export class PostsService {
 
     return savedPost;
   }
-  async update(
+  async update(userId:number ,
     postUpdateData: {
       id: number;
       title?: string;
@@ -288,17 +291,25 @@ export class PostsService {
       throw new NotFoundException('Post not found');
     }
 
+ const isMod=await this.isModerator(userId,post.communityId)
+  if (userId !== post.authorId || !isMod ) {
+    throw new ForbiddenException('You cannot manage this post.');
+  }
     if (postUpdateData.title !== undefined) post.title = postUpdateData.title;
     if (postUpdateData.content !== undefined) post.content = postUpdateData.content;
 
     return this.postsRepository.save(post);
   }
 
-  async remove(id: number): Promise<boolean> {
+  async remove(id: number,userId:number): Promise<boolean> {
     const post = await this.postsRepository.findOneBy({ id });
     if (!post) {
       throw new NotFoundException('Post not found'); // TODO: Use a more specific NestJS exception
     }
+ const isMod=await this.isModerator(userId,post.communityId)
+  if (userId !== post.authorId || !isMod ) {
+    throw new ForbiddenException('You cannot manage this post.');
+  }
     const res = await this.postsRepository.remove(post);
     return !!res;
   }
@@ -320,11 +331,15 @@ export class PostsService {
     return this.postsRepository.save(post);
   }
 
-  async updateCommentsLockedStatus(postId: number, commentsLocked: boolean): Promise<Post> {
+  async updateCommentsLockedStatus(userId: number,postId: number, commentsLocked: boolean): Promise<Post> {
     const post = await this.postsRepository.findOneBy({ id: postId });
     if (!post) {
       throw new NotFoundException('Post not found');
     }
+    const isMod=await this.isModerator(userId,post.communityId)
+  if (userId !== post.authorId || !isMod ) {
+    throw new ForbiddenException('You cannot manage this post.');
+  }
     post.commentsLocked = commentsLocked;
     return this.postsRepository.save(post);
   }

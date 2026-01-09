@@ -50,6 +50,6 @@ export interface PostQueryDto {
   sort?: string;
   dateRange?: string;
   communityId?: number;
-  status?: PostStatus;
+  status?: PostStatus |'all';
 }
 

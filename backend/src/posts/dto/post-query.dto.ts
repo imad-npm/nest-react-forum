@@ -36,6 +36,5 @@ export class PostQueryDto extends PaginationDto {
   dateRange?: string;
 
   @IsOptional()
-  @IsEnum(PostStatus)
-  status?: PostStatus;
+  status?: PostStatus | 'all';
 }

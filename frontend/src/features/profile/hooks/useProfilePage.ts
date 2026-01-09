@@ -41,7 +41,7 @@ export const useProfile = () => {
     hasNextPage: hasNextPostsPage,
     isFetchingNextPage: isFetchingNextPostsPage,
     isLoading: isLoadingPosts,
-  } = useGetPostsInfiniteQuery({ authorId: parsedUserId });
+  } = useGetPostsInfiniteQuery({ authorId: parsedUserId,status:"all" });
 
   const posts = postsData?.pages.flatMap((page) => page.data) ?? [];
 

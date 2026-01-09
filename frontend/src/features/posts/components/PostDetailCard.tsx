@@ -15,7 +15,7 @@ const PostDetailCard: React.FC<PostDetailCardProps> = ({ post }) => {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg   mb-20 ">
       {/* Post Metadata */}
-      <div className="mb-3">
+      <div className="mb-2">
             <PostMetaData post={post} />
  
       </div>
@@ -25,10 +25,12 @@ const PostDetailCard: React.FC<PostDetailCardProps> = ({ post }) => {
         {post.title}
       </h1>
 
-      {/* Post Content */}
-      <p className="text-gray-700 dark:text-gray-300 text-base mb-6  leading-[1.8] ">
-        {post.content}
-      </p>
+    
+<div 
+className="text-gray-700 dark:text-gray-300 text-sm  line-clamp-3 mb-8"
+      
+    dangerouslySetInnerHTML={{ __html: post.content }} 
+/>
 
       {/* Actions */}
        <PostCardFooter post={post}/>

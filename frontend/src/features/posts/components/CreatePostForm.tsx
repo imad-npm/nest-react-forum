@@ -8,7 +8,7 @@ import { InputError } from '../../../shared/components/ui/InputError';
 import { Button } from '../../../shared/components/ui/Button';
 import { usePosts } from '../hooks/usePosts';
 import { Controller } from 'react-hook-form';
-import { SimpleEditor } from '../../../shared/components/SimpleEditor';
+import { SimpleEditor } from '../../../shared/components/simpleEditor/SimpleEditor';
 
 const CreatePostForm: React.FC = () => {
   const { form, communitySearch, create } = usePosts();

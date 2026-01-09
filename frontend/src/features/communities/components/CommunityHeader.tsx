@@ -35,7 +35,6 @@ const { data: membershipData } = useGetCommunityMembershipsQuery({
   }
 
   const community = data.data;
-  console.log(community);
   
 
   return (
@@ -53,9 +52,9 @@ const { data: membershipData } = useGetCommunityMembershipsQuery({
         <div className="ml-24 flex items-start justify-between pt-2">
           <div>
             <h1 className="text-xl font-semibold leading-tight">
-              {community.displayName}
+              r/{community.name}
             </h1>
-            <p className="text-sm text-gray-500">r/{community.name} ({community.communityType})</p>
+            <p className="text-sm text-gray-500">{community.displayName} ({community.communityType})</p>
           </div>
 {/* Mod Tools Button: Only visible to Mods/Admins */}
         {isMod && (

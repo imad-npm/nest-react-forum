@@ -25,7 +25,7 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
       <PostDropdown post={post} />
 
       {/* Post Metadata */}
-      <div className="mb-3">
+      <div className="mb-2">
                    <PostMetaData post={post} />
 
       </div>
@@ -39,10 +39,12 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
       </Link>
 
       {/* Post Content */}
-      <p className="text-gray-700 dark:text-gray-300 text-sm  line-clamp-3 mb-4">
-        {post.content}
-      </p>
 
+<div 
+className="text-gray-700 dark:text-gray-300 text-sm  line-clamp-3 mb-4"
+      
+    dangerouslySetInnerHTML={{ __html: post.content }} 
+/>
       {/* Actions */}
    <PostCardFooter post={post}/>
     </div>
