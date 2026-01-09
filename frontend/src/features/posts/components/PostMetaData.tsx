@@ -1,7 +1,5 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { FaUsers, FaUser } from 'react-icons/fa';
-
 import type { Post } from '../types';
 import { timeAgo } from '../../../shared/utils/date';
 
@@ -11,29 +9,32 @@ interface PostMetaProps {
 
 const PostMetaData: React.FC<PostMetaProps> = ({ post }) => {
   return (
-    <div className="flex items-center text-xs md:text-sm text-gray-500 dark:text-gray-400 mb-2 space-x-1">
+    <div className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 leading-none">
       {post.community && (
         <>
-          <FaUsers className="mr-1" />
           <Link
             to={`/communities/${post.community.id}`}
-            className="font-semibold hover:underline mr-1"
+            className="font-semibold text-gray-600 dark:text-gray-100 hover:underline"
           >
             c/{post.community.name}
           </Link>
-          <span className="mx-1">•</span>
+          <span className="select-none">•</span>
         </>
       )}
 
-      <FaUser className="mr-1" />
-      <span>u/{post.author.username}</span>
+      <span>Posted by</span>
+
+      <Link
+        to={`/users/${post.author.username}`}
+        className="hover:underline"
+      >
+        u/{post.author.username}
+      </Link>
 
       {post.publishedAt && (
         <>
-          <span className="mx-1">•</span>
-          <span className="text-xs">
-            Published {timeAgo(post.publishedAt)}
-          </span>
+          <span className="select-none">•</span>
+          <span>{timeAgo(post.publishedAt)}</span>
         </>
       )}
     </div>

@@ -10,6 +10,7 @@ import {
 } from 'react-icons/fa';
 import { FiShare2 } from 'react-icons/fi';
 import { PostReactionButtons } from '../../reactions/components/PostReactionButtons';
+import { ShareActions } from './ShareActions';
 
 interface PostCardFooterProps {
   post: Post;
@@ -45,10 +46,8 @@ interface PostCardFooterProps {
         </Button>
 
         {/* Share Button */}
-        <Button variant="secondary" size="sm" className="space-x-2" onClick={handleShareClick}>
-          <FiShare2 />
-          <span>Share</span>
-        </Button>
+        <ShareActions postId={post.id} />
+       
        
 
       </div>

@@ -39,8 +39,8 @@ const CreatePostForm: React.FC = () => {
           onSearch={setSearch}
           options={communities}
           loading={isFetching}
-          getLabel={(c) => c.displayName}
-          renderOption={(c) => <span>{c.displayName}</span>}
+          getLabel={(c) => c.name}
+          renderOption={(c) => <span>{c.name}</span>}
           onSelect={(c) => setValue('communityId', c.id)}
           placeholder="Search community..."
         />

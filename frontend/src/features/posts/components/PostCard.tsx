@@ -25,7 +25,10 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
       <PostDropdown post={post} />
 
       {/* Post Metadata */}
-           <PostMetaData post={post} />
+      <div className="mb-3">
+                   <PostMetaData post={post} />
+
+      </div>
 
 
       {/* Post Title */}

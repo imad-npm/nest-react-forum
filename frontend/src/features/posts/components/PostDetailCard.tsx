@@ -15,7 +15,10 @@ const PostDetailCard: React.FC<PostDetailCardProps> = ({ post }) => {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg   mb-20 ">
       {/* Post Metadata */}
-     <PostMetaData post={post} />
+      <div className="mb-3">
+            <PostMetaData post={post} />
+ 
+      </div>
 
       {/* Post Title */}
       <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 leading-tight mb-4">

@@ -54,16 +54,15 @@ const CommentCard: React.FC<CommentCardProps> = ({
 
         <p className="mb-3 text-sm text-gray-800">{comment.content}</p>
 
-        <div className="flex items-center space-x-4 text-xs text-gray-500">
+        <div className="flex items-center space-x-4 text-xs ">
           <CommentReactionButtons comment={comment} />
 
-          <button
+          <Button variant='ghost' size='sm'
             onClick={() => setShowReplyInput((v) => !v)}
-            className="flex items-center space-x-1 hover:text-primary-600"
           >
             <FaReply />
-            <span>Reply</span>
-          </button>
+            <span className='mx-2'>Reply</span>
+          </Button>
 
           {comment.repliesCount > 0 && (
             <Button onClick={() => setShowReplies((v) => !v)} variant="link">

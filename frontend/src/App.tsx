@@ -27,6 +27,7 @@ import ForgotPassword from './features/auth/pages/ForgotPassword';
 import ResetPassword from './features/auth/pages/ResetPassword';
 import GoogleAuthCallback from './features/auth/pages/GoogleAuthCallback'; // Import GoogleAuthCallback
 import { useNotificationsSSE } from './features/notifications/hooks/useNotificationsSSE';
+import { GuestGuard } from './features/auth/components/GuestGuard';
 
 const SessionLoader = ({ children }: { children: React.ReactNode }) => {
   const { isUserLoading } = useAuth();
@@ -48,8 +49,8 @@ export default function App() {
       <SessionLoader>
         <Routes>
           {/* --- Public Auth Routes (No Sidebars) --- */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
+          <Route path="/login" element={<GuestGuard><Login /></GuestGuard>} />
+          <Route path="/register" element={<GuestGuard><Register /></GuestGuard>} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/email-verification" element={<EmailVerification />} />
