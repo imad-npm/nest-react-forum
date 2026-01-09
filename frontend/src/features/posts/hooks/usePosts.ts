@@ -31,6 +31,7 @@ export const usePosts = () => {
     register,
     handleSubmit,
     setValue,
+      control, // ✅ ADD THIS
     formState: { errors },
   } = useForm<CreatePostFormValues>({
     resolver: zodResolver(createPostSchema),
@@ -65,6 +66,7 @@ export const usePosts = () => {
       register,
       handleSubmit,
       setValue,
+        control, // ✅ ADD THIS
       errors,
     },
     communitySearch: {

@@ -7,6 +7,8 @@ import { Label } from '../../../shared/components/ui/Label';
 import { InputError } from '../../../shared/components/ui/InputError';
 import { Button } from '../../../shared/components/ui/Button';
 import { usePosts } from '../hooks/usePosts';
+import { Controller } from 'react-hook-form';
+import { SimpleEditor } from '../../../shared/components/SimpleEditor';
 
 const CreatePostForm: React.FC = () => {
   const { form, communitySearch, create } = usePosts();
@@ -23,12 +25,18 @@ const CreatePostForm: React.FC = () => {
         <InputError message={errors.title?.message} />
       </div>
 
-      {/* Content */}
-      <div>
-        <Label className="block text-sm font-medium">Content</Label>
-        <Textarea {...register('content')} rows={5} />
-        <InputError message={errors.content?.message} />
-      </div>
+  {/* Content */}
+<div>
+  <Label className="block text-sm font-medium">Content</Label>
+  <Controller
+    name="content"
+    control={form.control}
+    render={({ field }) => (
+      <SimpleEditor value={field.value || ''} onChange={field.onChange} />
+    )}
+  />
+  <InputError message={errors.content?.message} />
+</div>
 
       {/* Community */}
       <div>
