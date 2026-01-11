@@ -37,20 +37,20 @@ export class CaslAbilityFactory {
     );
 
     // ---- Post Permissions ----
-    can(Action.Read, Post); // any post
+  /*  can(Action.Read, Post); // any post
     can(Action.Create, Post);
     can(Action.Update, Post, { authorId: user.id }); // only own
     can(Action.Delete, Post, { authorId: user.id });
-
+*/
     // ---- Comment Permissions ----
-    can(Action.Read, Comment);
+  /*  can(Action.Read, Comment);
     can(Action.Create, Comment);
     can(Action.Update, Comment, { authorId: user.id });
     can(Action.Delete, Comment, { authorId: user.id });
-
+*/
     // ---- Reaction Permissions ----
     // PostReaction
-    can(Action.Create, PostReaction);
+  /*  can(Action.Create, PostReaction);
     can(Action.Delete, PostReaction, { userId: user.id });
     can(Action.Update, PostReaction, { userId: user.id });
 
@@ -59,7 +59,7 @@ export class CaslAbilityFactory {
     can(Action.Create, CommentReaction);
     can(Action.Delete, CommentReaction, { userId: user.id });
     can(Action.Update, CommentReaction, { userId: user.id });
-
+*/
     can(Action.Delete, Community, { createdById: user.id });
     can(Action.Update, Community, { createdById: user.id });
 

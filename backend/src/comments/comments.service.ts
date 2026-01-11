@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { Comment } from './entities/comment.entity';
@@ -28,7 +28,7 @@ export class CommentsService {
     parentId?: number;
   }): Promise<{ data: Comment[]; count: number }> {
     const { postId, authorId, search, page = 1, limit = 10, currentUserId, parentId } = options;
-    console.error('e',postId);
+    console.error('e', postId);
 
     const query = this.commentRepo
       .createQueryBuilder('comment')
@@ -189,7 +189,7 @@ export class CommentsService {
       if (!author) {
         throw new NotFoundException('User not found');
       }
-      
+
       const comment = queryRunner.manager.create(Comment, {
         content,
         author,
@@ -215,11 +215,11 @@ export class CommentsService {
       const savedComment = await queryRunner.manager.save(comment);
 
       await queryRunner.manager.increment(Post, { id: postId }, 'commentsCount', 1);
-      
+
       await queryRunner.commitTransaction();
 
       this.eventEmitter.emit('comment.created', new CommentCreatedEvent(savedComment));
-      
+
       return savedComment;
     } catch (err) {
       await queryRunner.rollbackTransaction();
@@ -233,13 +233,16 @@ export class CommentsService {
     updateCommentData: {
       id: number;
       content?: string;
-    },
+    }, userId: number
   ): Promise<Comment> {
     const comment = await this.commentRepo.findOneBy({
       id: updateCommentData.id,
     });
     if (!comment) {
       throw new NotFoundException('Comment not found');
+    }
+    if (userId !== comment.authorId) {
+      throw new ForbiddenException('You cannot manage this comment.');
     }
 
     if (updateCommentData.content !== undefined)
@@ -248,7 +251,7 @@ export class CommentsService {
     return this.commentRepo.save(comment);
   }
 
-  async remove(id: number): Promise<boolean> {
+  async remove(id: number, userId: number): Promise<boolean> {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -261,7 +264,9 @@ export class CommentsService {
       if (!comment) {
         throw new NotFoundException('Comment not found');
       }
-
+      if (userId !== comment.authorId) {
+        throw new ForbiddenException('You cannot manage this comment.');
+      }
       if (comment.post) {
         await queryRunner.manager.decrement(Post, { id: comment.post.id }, 'commentsCount', 1);
       }
