@@ -4,10 +4,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Notification, NotificationResourceType } from '../entities/notification.entity';
 import { NotificationsService } from '../notifications.service';
-import { PostReactionCreatedEvent } from 'src/reactions/events/post-reaction-created.event';
-import { CommentReactionCreatedEvent } from 'src/reactions/events/comment-reaction-created.event';
+import { ReactionCreatedEvent } from 'src/reactions/events/reaction-created.event';
 import { User } from 'src/users/entities/user.entity';
-import { NotificationType } from '../types'; // NEW: Import NotificationType
+import { NotificationType } from '../types';
+import { Post } from 'src/posts/entities/post.entity';
+import { Comment } from 'src/comments/entities/comment.entity';
 
 @Injectable()
 export class ReactionNotificationListener {
@@ -17,53 +18,46 @@ export class ReactionNotificationListener {
     private readonly notificationsService: NotificationsService,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
+    @InjectRepository(Post)
+    private readonly postRepo: Repository<Post>,
+    @InjectRepository(Comment)
+    private readonly commentRepo: Repository<Comment>,
   ) {}
 
-  @OnEvent('post.reaction.created')
-  async handlePostReactionCreatedEvent(event: PostReactionCreatedEvent) {
+  @OnEvent('reaction.created')
+  async handleReactionCreatedEvent(event: ReactionCreatedEvent) {
     const { reaction } = event;
-    const { post, userId } = reaction;
+    const { reactableId, reactableType, userId } = reaction;
 
-    if (post.author.id !== userId) {
-      const actor = await this.userRepo.findOneBy({ id: userId });
-      if (!actor) return;
+    let resource: Post | Comment;
+    let resourceType: NotificationResourceType;
+    let notificationType: NotificationType;
 
-      const notification = this.notificationRepo.create({
-        recipient: post.author,
-        actor,
-        type: NotificationType.POST_REACTION, // MODIFIED
-        resourceType: NotificationResourceType.POST,
-        resourceId: post.id,
-        createdAt: new Date(),
-      });
-      const savedNotification = await this.notificationRepo.save(notification);
-      this.notificationsService.sendNotification(
-        post.author.id.toString(),
-        savedNotification,
-      );
+    if (reactableType === 'post') {
+      resource = await this.postRepo.findOneOrFail({ where: { id: reactableId }, relations: ['author'] });
+      resourceType = NotificationResourceType.POST;
+      notificationType = NotificationType.POST_REACTION;
+    } else {
+      resource = await this.commentRepo.findOneOrFail({ where: { id: reactableId }, relations: ['author'] });
+      resourceType = NotificationResourceType.COMMENT;
+      notificationType = NotificationType.COMMENT_REACTION;
     }
-  }
 
-  @OnEvent('comment.reaction.created')
-  async handleCommentReactionCreatedEvent(event: CommentReactionCreatedEvent) {
-    const { reaction } = event;
-    const { comment, userId } = reaction;
-
-    if (comment.author.id !== userId) {
+    if (resource && resource.author.id !== userId) {
       const actor = await this.userRepo.findOneBy({ id: userId });
       if (!actor) return;
 
       const notification = this.notificationRepo.create({
-        recipient: comment.author,
+        recipient: resource.author,
         actor,
-        type: NotificationType.COMMENT_REACTION, // MODIFIED
-        resourceType: NotificationResourceType.COMMENT,
-        resourceId: comment.id,
+        type: notificationType,
+        resourceType: resourceType,
+        resourceId: resource.id,
         createdAt: new Date(),
       });
       const savedNotification = await this.notificationRepo.save(notification);
       this.notificationsService.sendNotification(
-        comment.author.id.toString(),
+        resource.author.id.toString(),
         savedNotification,
       );
     }

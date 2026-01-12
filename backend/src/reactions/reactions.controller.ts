@@ -20,9 +20,6 @@ import { GetUser } from 'src/decorators/user.decorator';
 import { User } from 'src/users/entities/user.entity';
 import { PaginationMetaDto } from 'src/common/dto/pagination-meta.dto';
 import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
-import { PostResponseDto } from 'src/posts/dto/post-response.dto';
-import { ReactionTarget } from './reactions.types';
-import { DeleteReactionDto } from './dto/delete-reaction.dto';
 
 @Controller('reactions')
 export class ReactionsController {
@@ -37,13 +34,13 @@ export class ReactionsController {
     @Body() dto: CreateReactionDto,
     @GetUser() user: User,
   ): Promise<ReactionResponseDto> {
-  const reaction = await this.reactionsService.create(
-     {   type :dto.type,
-      userId :user.id,
-      target:dto.target,
-    targetId:dto.targetId
-    }
-    );    return ReactionResponseDto.fromEntity(reaction);
+    const reaction = await this.reactionsService.create({
+      type: dto.type,
+      userId: user.id,
+      reactableType: dto.reactableType,
+      reactableId: dto.reactableId,
+    });
+    return ReactionResponseDto.fromEntity(reaction);
   }
 
   // LIST by target
@@ -51,14 +48,14 @@ export class ReactionsController {
   async findAll(
     @Query() query: ReactionQueryDto,
   ) {
-    const { data, count } = await this.reactionsService.findAll({ target:query.target,
-      targetId:query.targetId, 
+    const { data, count } = await this.reactionsService.findAll({
+      reactableType: query.reactableType,
+      reactableId: query.reactableId,
       page: query.page,
-       limit: query.limit });
-       const paginationMeta = new PaginationMetaDto(query.page, query.limit, count, data.length);
-        return new PaginatedResponseDto(data.map(ReactionResponseDto.fromEntity), paginationMeta);
-     
-   
+      limit: query.limit,
+    });
+    const paginationMeta = new PaginationMetaDto(query.page, query.limit, count, data.length);
+    return new PaginatedResponseDto(data.map(ReactionResponseDto.fromEntity), paginationMeta);
   }
 
   // UPDATE
@@ -71,9 +68,8 @@ export class ReactionsController {
   ): Promise<ReactionResponseDto> {
     const reaction = await this.reactionsService.updateReaction({
       id,
-      type:dto.type ,
-      target:dto.target
-    } ,user.id);
+      type: dto.type,
+    }, user.id);
     return ReactionResponseDto.fromEntity(reaction);
   }
 
@@ -83,9 +79,8 @@ export class ReactionsController {
   async delete(
     @Param('id', ParseIntPipe) id: number,
     @GetUser() user: User,
-      @Body() dto: DeleteReactionDto,
   ): Promise<{ success: true }> {
-    await this.reactionsService.deleteReaction({id,target:dto.target}, user.id);
+    await this.reactionsService.deleteReaction(id, user.id);
     return { success: true };
   }
 }

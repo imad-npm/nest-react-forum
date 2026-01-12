@@ -10,7 +10,7 @@ import {
 } from 'typeorm';
 import { Comment } from '../../comments/entities/comment.entity';
 import { User } from '../../users/entities/user.entity';
-import { PostReaction } from '../../reactions/entities/post-reaction.entity';
+import { Reaction } from '../../reactions/entities/reaction.entity';
 import { Community } from '../../communities/entities/community.entity';
 import { ReactionType } from 'src/reactions/reactions.types';
 import { PostReport } from '../../reports/entities/post-report.entity';
@@ -59,8 +59,10 @@ export class Post {
   @Column({ default: 0 })
   views: number;
 
-  @OneToMany(() => PostReaction, (reaction) => reaction.post)
-  reactions: PostReaction[];
+  @OneToMany(() => Reaction, (reaction) => reaction.reactableId, {
+    cascade: true,
+  })
+  reactions: Reaction[];
 
   @Column({ default: 0 })
   likesCount: number;

@@ -21,10 +21,7 @@ import { AuthModule } from './auth/auth.module';
 import { CaslModule } from './casl/casl.module';
 import { EmailVerificationToken } from './email-verification/entities/email-verification-token.entity';
 
-import { ResetPasswordModule } from './reset-password/reset-password.module';
 import { PasswordResetToken } from './reset-password/entities/password-reset-token.entity';
-import { CommentReaction } from './reactions/entities/comment-reaction.entity';
-import { PostReaction } from './reactions/entities/post-reaction.entity';
 import { Profile } from './profile/entities/profile.entity';
 import { ProfileModule } from './profile/profile.module';
 import { Community } from './communities/entities/community.entity';
@@ -40,6 +37,8 @@ import { EmailChangeModule } from './email-change/email-change.module';
 import { CommunityRestriction } from './community-restrictions/entities/community-restriction.entity';
 import { CommunityRestrictionsModule } from "./community-restrictions/community-restrictions.module";
 import { NotificationsModule } from './notifications/notifications.module';
+import { Reaction } from './reactions/entities/reaction.entity';
+import { ResetPasswordModule } from './reset-password/reset-password.module';
 
 @Module({
   imports: [
@@ -55,8 +54,7 @@ import { NotificationsModule } from './notifications/notifications.module';
           User,
           Post,
           Comment,
-          CommentReaction,
-          PostReaction,
+          Reaction,
           EmailVerificationToken,
           PasswordResetToken,
           Profile,

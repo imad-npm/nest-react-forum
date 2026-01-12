@@ -1,7 +1,7 @@
 import { PaginationDto } from '../../common/dto/pagination.dto';
-import { IsOptional, IsEnum, IsInt } from 'class-validator';
+import { IsOptional, IsEnum, IsInt, IsString } from 'class-validator';
 import { Type } from 'class-transformer';
-import { ReactionTarget, ReactionType } from '../reactions.types';
+import { type Reactable, ReactionType } from '../reactions.types';
 
 export class ReactionQueryDto extends PaginationDto {
   @IsOptional()
@@ -13,6 +13,11 @@ export class ReactionQueryDto extends PaginationDto {
   @Type(() => Number)
   userId?: number;
 
-   target: ReactionTarget;
-  targetId?: number;
+  @IsString()
+  @IsEnum(['post', 'comment'])
+  reactableType: Reactable;
+
+  @IsInt()
+  @Type(() => Number)
+  reactableId: number;
 }

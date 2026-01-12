@@ -1,7 +1,6 @@
 import { Exclude, Expose, Type, plainToInstance } from 'class-transformer';
 import { UserResponseDto } from '../../users/dtos/user-response.dto';
 import { Comment } from '../entities/comment.entity';
-import { CommentReaction } from 'src/reactions/entities/comment-reaction.entity';
 import { ReactionResponseDto } from 'src/reactions/dto/reaction-response.dto';
 import { PostResponseDto } from 'src/posts/dto/post-response.dto';
 

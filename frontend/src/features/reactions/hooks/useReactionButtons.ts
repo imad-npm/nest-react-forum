@@ -6,76 +6,80 @@ import {
 
 import type { Comment } from '../../comments/types';
 import type { Post } from '../../posts/types';
-import { ReactionTarget, ReactionType } from '../types/types';
+import { ReactionType,  Reactable } from '../types/types';
 
 interface UseReactionButtonsProps {
   target: Post | Comment;
 }
 
-export const useReactionButtons = ({
-  target,
-}: UseReactionButtonsProps) => {
+export const useReactionButtons = ({ target }: UseReactionButtonsProps) => {
   const [createReaction] = useCreateReactionMutation();
   const [deleteReaction] = useDeleteReactionMutation();
   const [updateReaction] = useUpdateReactionMutation();
- const targetType =
-    'title' in target ? ReactionTarget.Post : ReactionTarget.Comment;
+
+  // Determine reactableType based on target
+  const reactableType =
+    'title' in target ? Reactable.Post : Reactable.Comment;
 
   const handleLike = async () => {
     if (target.userReaction?.type === ReactionType.LIKE) {
-
+      // Remove existing like
       await deleteReaction({
         id: target.userReaction.id!,
-        data: { target: targetType },
+        reactableType:reactableType
       });
       return;
     }
 
     if (target.userReaction?.type === ReactionType.DISLIKE) {
-   
+      // Switch dislike -> like
       await updateReaction({
         id: target.userReaction.id!,
         data: {
           type: ReactionType.LIKE,
-          target: targetType,
         },
+        reactableType:reactableType
+
       });
       return;
     }
 
+    // Create new like
     await createReaction({
       type: ReactionType.LIKE,
-      target: targetType,
-      targetId: target.id,
+      reactableType,
+      reactableId: target.id,
     });
   };
 
   const handleDislike = async () => {
     if (target.userReaction?.type === ReactionType.DISLIKE) {
+      // Remove existing dislike
       await deleteReaction({
         id: target.userReaction.id!,
-        data: { target: targetType },
+        reactableType:reactableType
       });
       return;
     }
 
     if (target.userReaction?.type === ReactionType.LIKE) {
-            console.log(target.userReaction);
-
+      // Switch like -> dislike
       await updateReaction({
         id: target.userReaction.id!,
         data: {
           type: ReactionType.DISLIKE,
-          target: targetType,
         },
+        reactableType: reactableType
+
       });
       return;
     }
 
+    // Create new dislike
     await createReaction({
       type: ReactionType.DISLIKE,
-      target: targetType,
-      targetId: target.id,
+      reactableType,
+      reactableId: target.id,
     });
   };
 

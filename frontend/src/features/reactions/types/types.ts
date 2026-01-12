@@ -1,60 +1,57 @@
+// reactions.types.ts
+
+// Reaction types
 export const ReactionType = {
-    LIKE: 'like',
-    DISLIKE: 'dislike',
+  LIKE: 'like',
+  DISLIKE: 'dislike',
 } as const;
 
-export const ReactionTarget = {
-   Post : 'post',
-  Comment : 'comment',
+export const Reactable = {
+  Post: 'post',
+  Comment: 'comment',
 } as const;
 
+// TypeScript types
 export type ReactionType = typeof ReactionType[keyof typeof ReactionType];
-export type ReactionTarget = typeof ReactionTarget[keyof typeof ReactionTarget];
+export type Reactable = typeof Reactable[keyof typeof Reactable];
 
+// Reaction interface (matches DB entity)
 export interface Reaction {
+  id: number;
+  type: ReactionType;
+  userId: number;
+  user: {
     id: number;
-    type: ReactionType;
-    userId: number;
-    user: {
-        id: number;
-        name: string;
-    };
-    target: ReactionTarget;
-
-    targetId: number;
-    createdAt: string;
-    updatedAt: string;
+    name: string;
+  };
+  reactableId: number;       // polymorphic target id
+  reactableType: Reactable; // polymorphic target type
+  createdAt: string;
+  updatedAt: string;
 }
 
+// DTOs
 
-
+// Create reaction
 export interface CreateReactionDto {
-    type: ReactionType;
-     target: ReactionTarget;
-
-    targetId: number;
+  type: ReactionType;
+  reactableId: number;
+  reactableType: Reactable;
 }
 
+// Update reaction
 export interface UpdateReactionDto {
-    type: ReactionType;
-    target: ReactionTarget;
-
-}
-
-export interface DeleteReactionDto {
-    target: ReactionTarget;
+  type: ReactionType;
 
 }
 
 
+// Query reaction (for findAll)
 export interface ReactionQueryDto {
-    page?: number;
-    limit?: number;
-    type?: ReactionType;
-    userId?: number;
-    target: ReactionTarget;
-
-    targetId?: number;
+  page?: number;
+  limit?: number;
+  type?: ReactionType;
+  userId?: number;
+  reactableId?: number;
+  reactableType?: Reactable;
 }
-
-

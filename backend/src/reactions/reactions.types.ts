@@ -3,7 +3,4 @@ export enum ReactionType {
   DISLIKE = 'dislike',
 }
 
-export enum ReactionTarget {
-  Post = 'post',
-  Comment = 'comment',
-}
+export type Reactable = 'post' | 'comment';

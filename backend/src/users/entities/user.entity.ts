@@ -11,8 +11,7 @@ import {
 } from 'typeorm';
 import { Post } from '../../posts/entities/post.entity';
 import { Comment } from '../../comments/entities/comment.entity';
-import { PostReaction } from '../../reactions/entities/post-reaction.entity';
-import { CommentReaction } from '../../reactions/entities/comment-reaction.entity';
+import { Reaction } from '../../reactions/entities/reaction.entity';
 import { Profile } from '../../profile/entities/profile.entity'; // Import Profile
 import { Community } from '../../communities/entities/community.entity';
 import { CommunityMembership } from '../../community-memberships/entities/community-memberships.entity';
@@ -78,11 +77,8 @@ export class User {
   @OneToMany(() => Comment, (comment) => comment.author)
   comments: Comment[];
 
-  @OneToMany(() => PostReaction, (reaction) => reaction.user)
-  postReactions: PostReaction[];
-
-  @OneToMany(() => CommentReaction, (reaction) => reaction.user)
-  commentReactions: CommentReaction[];
+  @OneToMany(() => Reaction, (reaction) => reaction.user)
+  reactions: Reaction[];
 
   @OneToMany(() => Community, (community) => community.createdBy)
   createdCommunities: Community[];

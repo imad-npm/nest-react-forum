@@ -1,28 +1,25 @@
 import { AppDataSource } from '../../data-source';
-import { postReactionFactory } from '../factories/post-reaction.factory';
-import { commentReactionFactory } from '../factories/comment-reaction.factory';
+import { reactionFactory } from '../factories/reaction.factory';
 
-import { PostReaction } from '../../reactions/entities/post-reaction.entity';
-import { CommentReaction } from '../../reactions/entities/comment-reaction.entity';
+import { Reaction } from '../../reactions/entities/reaction.entity';
 import { Post } from '../../posts/entities/post.entity';
 import { Comment } from '../../comments/entities/comment.entity';
 import { User } from '../../users/entities/user.entity';
+
 export async function seedReactions(
   posts: Post[],
   comments: Comment[],
   users: User[],
-): Promise<(PostReaction | CommentReaction)[]> {
+): Promise<Reaction[]> {
   if (!users.length) {
     throw new Error('At least one user is required to seed reactions.');
   }
 
-  const postReactionRepo = AppDataSource.getRepository(PostReaction);
-  const commentReactionRepo = AppDataSource.getRepository(CommentReaction);
+  const reactionRepo = AppDataSource.getRepository(Reaction);
   const postRepo = AppDataSource.getRepository(Post);
   const commentRepo = AppDataSource.getRepository(Comment);
 
-  const postReactionsToSave: PostReaction[] = [];
-  const commentReactionsToSave: CommentReaction[] = [];
+  const reactionsToSave: Reaction[] = [];
 
   const pickRandomUniqueUsers = (count: number): User[] => {
     const unique = new Set<number>();
@@ -44,7 +41,7 @@ export async function seedReactions(
   for (const post of posts) {
     const num = Math.floor(Math.random() * 3) + 1;
     for (const user of pickRandomUniqueUsers(num)) {
-      postReactionsToSave.push(postReactionFactory(user, post));
+      reactionsToSave.push(reactionFactory(user, post));
     }
   }
 
@@ -54,17 +51,14 @@ export async function seedReactions(
   for (const comment of comments) {
     const num = Math.floor(Math.random() * 2) + 1;
     for (const user of pickRandomUniqueUsers(num)) {
-      commentReactionsToSave.push(commentReactionFactory(user, comment));
+      reactionsToSave.push(reactionFactory(user, comment));
     }
   }
 
   // ─────────────────────────────────────────────
   // SAVE
   // ─────────────────────────────────────────────
-  const savedPostReactions = await postReactionRepo.save(postReactionsToSave);
-  const savedCommentReactions = await commentReactionRepo.save(
-    commentReactionsToSave,
-  );
+  const savedReactions = await reactionRepo.save(reactionsToSave);
 
   // ─────────────────────────────────────────────
   // 🔁 REBUILD COUNTERS (THE IMPORTANT PART)
@@ -78,17 +72,19 @@ export async function seedReactions(
       likesCount: () => `
         (
           SELECT COUNT(*)
-          FROM post_reactions pr
-          WHERE pr.postId = posts.id
-            AND pr.type = 'like'
+          FROM reactions r
+          WHERE r.reactableId = posts.id
+            AND r.reactableType = 'post'
+            AND r.type = 'like'
         )
       `,
       dislikesCount: () => `
         (
           SELECT COUNT(*)
-          FROM post_reactions pr
-          WHERE pr.postId = posts.id
-            AND pr.type = 'dislike'
+          FROM reactions r
+          WHERE r.reactableId = posts.id
+            AND r.reactableType = 'post'
+            AND r.type = 'dislike'
         )
       `,
     })
@@ -102,25 +98,26 @@ export async function seedReactions(
       likesCount: () => `
         (
           SELECT COUNT(*)
-          FROM comment_reactions cr
-          WHERE cr.commentId = comments.id
-            AND cr.type = 'like'
+          FROM reactions r
+          WHERE r.reactableId = comments.id
+            AND r.reactableType = 'comment'
+            AND r.type = 'like'
         )
       `,
       dislikesCount: () => `
         (
           SELECT COUNT(*)
-          FROM comment_reactions cr
-          WHERE cr.commentId = comments.id
-            AND cr.type = 'dislike'
+          FROM reactions r
+          WHERE r.reactableId = comments.id
+            AND r.reactableType = 'comment'
+            and r.type = 'dislike'
         )
       `,
     })
     .execute();
 
-  const all = [...savedPostReactions, ...savedCommentReactions];
-  console.log(`Seeded ${all.length} reactions ✅`);
+  console.log(`Seeded ${savedReactions.length} reactions ✅`);
   console.log(`Rebuilt like/dislike counters ✅`);
 
-  return all;
+  return savedReactions;
 }

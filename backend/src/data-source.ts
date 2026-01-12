@@ -3,8 +3,7 @@ import { config } from 'dotenv';
 import { Post } from './posts/entities/post.entity';
 import { User } from './users/entities/user.entity';
 import { Comment } from './comments/entities/comment.entity';
-import { PostReaction } from './reactions/entities/post-reaction.entity';
-import { CommentReaction } from './reactions/entities/comment-reaction.entity';
+import { Reaction } from './reactions/entities/reaction.entity';
 import { EmailVerificationToken } from './email-verification/entities/email-verification-token.entity';
 import { PasswordResetToken } from './reset-password/entities/password-reset-token.entity';
 import { Profile } from './profile/entities/profile.entity';
@@ -33,8 +32,7 @@ export const AppDataSource = new DataSource({
     User,
     Post,
     Comment,
-    PostReaction,
-    CommentReaction,
+    Reaction,
     PasswordResetToken,
     EmailChangeToken,
     EmailVerificationToken,

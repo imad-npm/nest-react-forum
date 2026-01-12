@@ -82,15 +82,19 @@ export class PostsService {
       query.andWhere('post.status = :status', { status: PostStatus.APPROVED });
     }
   }
-    if (currentUserId) {
-      query.leftJoinAndMapOne(
-        'post.userReaction',
-        'post.reactions',
-        'userReaction',
-        'userReaction.userId = :currentUserId',
-        { currentUserId },
-      );
-    }
+if (currentUserId) {
+  query.addSelect((qb) =>
+    qb
+      .select('r.type')
+      .from('reactions', 'r')
+      .where('r.reactableType = :reactableType', { reactableType: 'post' })
+      .andWhere('r.userId = :currentUserId', { currentUserId })
+      .andWhere('r.reactableId = post.id')
+      .limit(1),
+    'userReactionType',
+  );
+}
+
 
     if (search) {
       query.andWhere(
@@ -198,8 +202,8 @@ export class PostsService {
         'post.userReaction',
         'post.reactions',
         'userReaction',
-        'userReaction.userId = :currentUserId',
-        { currentUserId },
+        'userReaction.userId = :currentUserId AND userReaction.reactableType = :reactableType',
+        { currentUserId, reactableType: 'post' },
       );
     }
 

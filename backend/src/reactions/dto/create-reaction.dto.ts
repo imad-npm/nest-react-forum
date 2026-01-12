@@ -1,16 +1,14 @@
-import { IsEnum, IsInt, isNumberString } from 'class-validator';
-import { ReactionTarget, ReactionType } from '../reactions.types';
-import { Type } from 'class-transformer';
+import { IsEnum, IsInt, IsString } from 'class-validator';
+import { type Reactable, ReactionType } from '../reactions.types';
 
 export class CreateReactionDto {
   @IsEnum(ReactionType)
   type: ReactionType;
 
-   @IsEnum(ReactionTarget)
-  target: ReactionTarget;
+  @IsString()
+  @IsEnum(['post', 'comment'])
+  reactableType: Reactable;
 
-  
-@IsInt()
-targetId: number;
-
+  @IsInt()
+  reactableId: number;
 }

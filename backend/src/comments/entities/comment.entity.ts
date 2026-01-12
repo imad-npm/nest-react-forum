@@ -11,7 +11,7 @@ import {
 } from 'typeorm';
 import { Post } from '../../posts/entities/post.entity';
 import { User } from '../../users/entities/user.entity';
-import { CommentReaction } from '../../reactions/entities/comment-reaction.entity';
+import { Reaction } from '../../reactions/entities/reaction.entity';
 import { ReactionType } from 'src/reactions/reactions.types';
 import { CommentReport } from '../../reports/entities/comment-report.entity';
 
@@ -50,8 +50,10 @@ import { CommentReport } from '../../reports/entities/comment-report.entity';
   @OneToMany(() => Comment, (comment) => comment.parent)
   replies: Comment[];
 
-  @OneToMany(() => CommentReaction, (reaction) => reaction.comment)
-  reactions: CommentReaction[];
+  @OneToMany(() => Reaction, (reaction) => reaction.reactableId, {
+    cascade: true,
+  })
+  reactions: Reaction[];
 
   @Column({ default: 0 })
   likesCount: number;
