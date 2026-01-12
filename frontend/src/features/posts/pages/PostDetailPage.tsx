@@ -5,7 +5,7 @@ import { useToastContext } from '../../../shared/providers/ToastProvider';
 import CommentList from '../../comments/components/CommentList'; // Import CommentList
 import { CommentInput } from '../../comments/components/CommentInput'; // Import CommentInput
 import { AboutCommunity } from '../../communities/components/AboutCommunity';
-import { PostReactionButtons } from '../../reactions/components/PostReactionButtons';
+import { ReactionButtons } from '../../reactions/components/ReactionButtons';
 import { PostSuggestionsList } from '../components/PostSuggestionsList';
 import PostDetailCard from '../components/PostDetailCard'; // Import PostDetailCard
 import { useGetCommentsInfiniteQuery } from '../../comments/services/commentsApi'; // NEW IMPORT

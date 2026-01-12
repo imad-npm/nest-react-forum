@@ -9,7 +9,7 @@ import {
   FaEye,
 } from 'react-icons/fa';
 import { FiShare2 } from 'react-icons/fi';
-import { PostReactionButtons } from '../../reactions/components/PostReactionButtons';
+import { ReactionButtons } from '../../reactions/components/ReactionButtons';
 import { ShareActions } from './ShareActions';
 
 interface PostCardFooterProps {
@@ -36,7 +36,7 @@ interface PostCardFooterProps {
       <div className="flex items-center space-x-3 md:space-x-4">
 
         {/* Vote Buttons */}
-        <PostReactionButtons post={post} />
+        <ReactionButtons target={post} />
 
 
         {/* Comment Button */}

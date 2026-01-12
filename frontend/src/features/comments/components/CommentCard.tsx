@@ -1,6 +1,6 @@
 import { FaUser, FaReply } from 'react-icons/fa';
 import type { Comment } from '../types';
-import { CommentReactionButtons } from '../../reactions/components/CommentReactionButtons';
+import { ReactionButtons } from '../../reactions/components/ReactionButtons';
 import { Button } from '../../../shared/components/ui/Button';
 import { CommentInput } from './CommentInput';
 import { timeAgo } from '../../../shared/utils/date';
@@ -55,7 +55,7 @@ const CommentCard: React.FC<CommentCardProps> = ({
         <p className="mb-3 text-sm text-gray-800">{comment.content}</p>
 
         <div className="flex items-center space-x-4 text-xs ">
-          <CommentReactionButtons comment={comment} />
+          <ReactionButtons target={comment} />
 
           <Button variant='ghost' size='sm'
             onClick={() => setShowReplyInput((v) => !v)}

@@ -1,42 +1,46 @@
 import React from 'react';
 import { FaThumbsUp, FaThumbsDown } from 'react-icons/fa';
 import { ReactionButton } from './ReactionButton';
-import type { ReactionType } from '../types/types';
+import type { ReactionTarget, ReactionType } from '../types/types';
+import { useReactionButtons } from '../hooks/useReactionButtons';
+import type { Post } from '../../posts/types';
+
+import type { Comment } from '../../comments/types';
 
 interface ReactionButtonsProps {
-    likesCount: number;
-    dislikesCount: number;
-    userReaction: ReactionType | null | undefined;
-    onLike: () => void;
-    onDislike: () => void;
+     target:Post |Comment
     disabled?: boolean;
     className?: string;
 }
 
+
 export const ReactionButtons: React.FC<ReactionButtonsProps> = ({
-    likesCount,
-    dislikesCount,
-    userReaction,
-    onLike,
-    onDislike,
+   target,
     disabled = false,
     className = '',
-}) => (
+}) => {
+    const { handleLike, handleDislike, likesCount,
+        dislikesCount, userReactionType }
+        = useReactionButtons({ target });
+
+    return(
     <div className={`flex items-center space-x-3 ${className}`}>
         <ReactionButton
             count={likesCount}
-            onClick={onLike}
+            onClick={handleLike}
             disabled={disabled}
             type="like"
-            userReaction={userReaction}
+            userReaction={userReactionType}
         />
 
         <ReactionButton
             count={dislikesCount}
-            onClick={onDislike}
+            onClick={handleDislike}
             disabled={disabled}
             type="dislike"
-            userReaction={userReaction}
+            userReaction={userReactionType}
         />
     </div>
-);
+    )
+}
+

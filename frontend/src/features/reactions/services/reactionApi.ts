@@ -1,68 +1,84 @@
 import { apiSlice } from '../../../shared/services/apiSlice';
+import type { PaginatedResponse, ResponseDto } from '../../../shared/types';
 import type {
-  PostReaction,
-  CommentReaction,
+  Reaction,
   CreateReactionDto,
   UpdateReactionDto,
+  DeleteReactionDto,
   ReactionQueryDto,
-  PaginatedResponse,
-  ResponseDto
 } from '../types/types';
 
+const invalidateByTarget = (target: 'post' | 'comment') => [
+  { type: 'Reactions' as const },
+  target === 'post'
+    ? { type: 'Posts' as const }
+    : { type: 'Comments' as const },
+];
+
 export const reactionApi = apiSlice.injectEndpoints({
-  overrideExisting: false, // Ensure this is not overriding existing endpoints
   endpoints: (builder) => ({
-    getPostReactions: builder.query<PaginatedResponse<PostReaction>, { postId: number } & ReactionQueryDto>({
-      query: ({ postId, ...params }) => ({ url: `/posts/${postId}/reactions`, params }),
-      providesTags: (_result, _error, { postId }) => [{ type: 'PostReaction', id: postId }],
-    }),
 
-    getCommentReactions: builder.query<PaginatedResponse<CommentReaction>, { commentId: number } & ReactionQueryDto>({
-      query: ({ commentId, ...params }) => ({ url: `/comments/${commentId}/reactions`, params }),
-      providesTags: (_result, _error, { commentId }) => [{ type: 'CommentReaction', id: commentId }],
-    }),
-
-    createPostReaction: builder.mutation<ResponseDto<PostReaction>, { postId: number; data: CreateReactionDto }>({
-      query: ({ postId, data }) => ({ url: `/posts/${postId}/reactions`, method: 'POST', body: data }),
-      invalidatesTags: ['Posts']
-    }),
-
-    updatePostReaction: builder.mutation<ResponseDto<PostReaction>, { postId: number; reactionId: number; data: UpdateReactionDto }>({
-      query: ({ postId, reactionId, data }) => ({ url: `/posts/${postId}/reactions/${reactionId}`, method: 'PATCH', body: data }),
-            invalidatesTags: ['Posts']
+    // LIST
+    getReactions: builder.query<
+      PaginatedResponse<Reaction>,
+      ReactionQueryDto
+    >({
+      query: (params) => ({
+        url: '/reactions',
+        params,
+      }),
+      providesTags: ['Reactions'],
 
     }),
 
-    deletePostReaction: builder.mutation<ResponseDto<boolean>, { postId: number; reactionId: number }>({
-      query: ({ postId, reactionId }) => ({ url: `/posts/${postId}/reactions/${reactionId}`, method: 'DELETE' }),
-          invalidatesTags: ['Posts']
-
+    // CREATE
+    createReaction: builder.mutation<
+      ResponseDto<Reaction>,
+      CreateReactionDto
+    >({
+      query: (body) => ({
+        url: '/reactions',
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: (_res, _err, { target }) =>
+        invalidateByTarget(target),
     }),
 
-    createCommentReaction: builder.mutation<ResponseDto<CommentReaction>, { commentId: number; data: CreateReactionDto }>({
-      query: ({ commentId, data }) => ({ url: `/comments/${commentId}/reactions`, method: 'POST', body: data }),
-      invalidatesTags: ['Comments'],
+    // UPDATE
+    updateReaction: builder.mutation<
+      ResponseDto<Reaction>,
+      { id: number; data: UpdateReactionDto }
+    >({
+      query: ({ id, data }) => ({
+        url: `/reactions/${id}`,
+        method: 'PATCH',
+        body: data,
+      }),
+      invalidatesTags: (_res, _err, { data }) =>
+        invalidateByTarget(data.target),
     }),
 
-    updateCommentReaction: builder.mutation<ResponseDto<CommentReaction>, { commentId: number; reactionId: number; data: UpdateReactionDto }>({
-      query: ({ commentId, reactionId, data }) => ({ url: `/comments/${commentId}/reactions/${reactionId}`, method: 'PATCH', body: data }),
-      invalidatesTags: ['Comments'],
-    }),
-
-    deleteCommentReaction: builder.mutation<ResponseDto<boolean>, { commentId: number; reactionId: number }>({
-      query: ({ commentId, reactionId }) => ({ url: `/comments/${commentId}/reactions/${reactionId}`, method: 'DELETE' }),
-      invalidatesTags: ['Comments'],
+    // DELETE
+    deleteReaction: builder.mutation<
+      ResponseDto<boolean>,
+      { id: number; data: DeleteReactionDto }
+    >({
+      query: ({ id, data }) => ({
+        url: `/reactions/${id}`,
+        method: 'DELETE',
+        body: data,
+      }),
+      invalidatesTags: (_res, _err, { data }) =>
+        invalidateByTarget(data.target),
     }),
   }),
 });
 
 export const {
-  useGetPostReactionsQuery,
-  useGetCommentReactionsQuery,
-  useCreatePostReactionMutation,
-  useUpdatePostReactionMutation,
-  useCreateCommentReactionMutation,
-  useUpdateCommentReactionMutation,
-  useDeletePostReactionMutation,
-  useDeleteCommentReactionMutation,
+  useGetReactionsQuery,
+  useCreateReactionMutation,
+  useUpdateReactionMutation,
+  useDeleteReactionMutation,
 } = reactionApi;
+

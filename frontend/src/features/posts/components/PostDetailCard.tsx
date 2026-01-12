@@ -2,7 +2,7 @@ import React from 'react';
 import type { Post } from '../types';
 import { Link } from 'react-router-dom';
 import { FaUser, FaUsers, FaEye } from 'react-icons/fa';
-import { PostReactionButtons } from '../../reactions/components/PostReactionButtons';
+import { ReactionButtons } from '../../reactions/components/ReactionButtons';
 import PostActionButtons from './PostCardFooter'; // Assuming it's in the same directory
 import PostMetaData from './PostMetaData';
 import PostCardFooter from './PostCardFooter';
