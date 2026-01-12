@@ -39,7 +39,6 @@ export interface UpdateReactionDto {
     type: ReactionType;
     target: ReactionTarget;
 
-    targetId: number;
 }
 
 export interface DeleteReactionDto {

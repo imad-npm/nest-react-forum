@@ -23,6 +23,7 @@ export const useReactionButtons = ({
 
   const handleLike = async () => {
     if (target.userReaction?.type === ReactionType.LIKE) {
+
       await deleteReaction({
         id: target.userReaction.id!,
         data: { target: targetType },
@@ -31,12 +32,12 @@ export const useReactionButtons = ({
     }
 
     if (target.userReaction?.type === ReactionType.DISLIKE) {
+   
       await updateReaction({
         id: target.userReaction.id!,
         data: {
           type: ReactionType.LIKE,
           target: targetType,
-          targetId:target.id
         },
       });
       return;
@@ -59,12 +60,13 @@ export const useReactionButtons = ({
     }
 
     if (target.userReaction?.type === ReactionType.LIKE) {
+            console.log(target.userReaction);
+
       await updateReaction({
         id: target.userReaction.id!,
         data: {
           type: ReactionType.DISLIKE,
           target: targetType,
-          targetId:target.id
         },
       });
       return;

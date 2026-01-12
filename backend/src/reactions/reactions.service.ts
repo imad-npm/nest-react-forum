@@ -15,6 +15,7 @@ import { Comment } from 'src/comments/entities/comment.entity';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PostReactionCreatedEvent } from './events/post-reaction-created.event';
 import { CommentReactionCreatedEvent } from './events/comment-reaction-created.event';
+import { use } from 'passport';
 
 @Injectable()
 export class ReactionsService {
@@ -73,7 +74,9 @@ export class ReactionsService {
 
 
       const newReaction: PostReaction | CommentReaction = queryRunner.manager.create(reactionEntity, { type, userId, [targetField]: targetId });
+      
       await queryRunner.manager.save(newReaction);
+      console.log(newReaction,userId);
 
       if (newReaction.type === ReactionType.LIKE) {
         await queryRunner.manager.increment(targetEntity, { id: targetId }, 'likesCount', 1);
@@ -172,6 +175,8 @@ export class ReactionsService {
       const reaction = await queryRunner.manager.findOne(reactionEntity, { where: { id } });
       if (!reaction) throw new NotFoundException('Reaction not found');
 
+      console.log(reactionEntity,target);
+      
       if (reaction.userId !== userId) {
         throw new ForbiddenException('You cannot modify this reaction');
       }
