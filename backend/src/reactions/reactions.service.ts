@@ -8,7 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { PostReaction } from './entities/post-reaction.entity';
 import { CommentReaction } from './entities/comment-reaction.entity';
-import { ReactionType } from './reactions.types';
+import { ReactionTarget, ReactionType } from './reactions.types';
 import { UpdateReactionDto } from './dto/update-reaction.dto';
 import { Post } from 'src/posts/entities/post.entity';
 import { Comment } from 'src/comments/entities/comment.entity';
@@ -34,103 +34,88 @@ export class ReactionsService {
   async create({
     type,
     userId,
-    postId,
-    commentId,
+    target,
+    targetId,
   }: {
     type: ReactionType;
     userId: number;
-    postId?: number;
-    commentId?: number;
+    target: ReactionTarget;
+    targetId: number;
   }) {
     if (!Object.values(ReactionType).includes(type)) {
       throw new BadRequestException('Invalid reaction type');
     }
 
-    if (!!postId === !!commentId) {
-      throw new BadRequestException(
-        'Reaction must target either a post or a comment (not both)',
-      );
-    }
 
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
     try {
-      if (postId) {
-        const post = await queryRunner.manager.findOne(Post, { where: { id: postId }, relations: ['author'] });
-        if (!post) throw new NotFoundException(`Post with ID ${postId} not found`);
 
-        const existing = await queryRunner.manager.findOne(PostReaction, {
-          where: { userId, postId },
-        });
-        
-        if (existing) {
-          throw new ForbiddenException(
-            'You already reacted to this post',
-          );
-        }
+      const targetEntity = target == ReactionTarget.Post ? Post : Comment;
+      const reactionEntity = target == ReactionTarget.Post ? PostReaction : CommentReaction;
+      const targetField = target == ReactionTarget.Post ? 'postId' : 'commentId';
+      // Check target exists
+      const targetObj = await queryRunner.manager.findOne(targetEntity, { where: { id: targetId } });
+      if (!targetObj) throw new NotFoundException(`${target} not found`);
 
-        const newReaction = queryRunner.manager.create(PostReaction, { type, userId, post });
-        await queryRunner.manager.save(newReaction);
+      const existing = await queryRunner.manager.findOne(reactionEntity, {
+        where: { userId, [targetField]: targetId },
+      });
 
-        if (newReaction.type === ReactionType.LIKE) {
-          await queryRunner.manager.increment(Post, { id: postId }, 'likesCount', 1);
-        } else {
-          await queryRunner.manager.increment(Post, { id: postId }, 'dislikesCount', 1);
-        }
-        await queryRunner.commitTransaction();
+
+      if (existing) {
+        throw new ForbiddenException(
+          'You already reacted to this post',
+        );
+      }
+
+
+      const newReaction: PostReaction | CommentReaction = queryRunner.manager.create(reactionEntity, { type, userId, [targetField]: targetId });
+      await queryRunner.manager.save(newReaction);
+
+      if (newReaction.type === ReactionType.LIKE) {
+        await queryRunner.manager.increment(targetEntity, { id: targetId }, 'likesCount', 1);
+      } else {
+        await queryRunner.manager.increment(targetEntity, { id: targetId }, 'dislikesCount', 1);
+      }
+      await queryRunner.commitTransaction();
+      if (newReaction instanceof PostReaction)
         this.eventEmitter.emit('post.reaction.created', new PostReactionCreatedEvent(newReaction));
-        return newReaction;
-      }
-      else if (commentId) {
-        const comment = await queryRunner.manager.findOne(Comment, { where: { id: commentId }, relations: ['author'] });
-        if (!comment) throw new NotFoundException(`Comment with ID ${commentId} not found`);
-
-        const existing = await queryRunner.manager.findOne(CommentReaction, {
-          where: { userId, commentId },
-        });
-
-        if (existing) {
-          throw new ForbiddenException(
-            'You already reacted to this comment',
-          );
-        }
-
-        const newReaction = queryRunner.manager.create(CommentReaction, { type, userId, comment });
-        await queryRunner.manager.save(newReaction);
-
-        if (newReaction.type === ReactionType.LIKE) {
-          await queryRunner.manager.increment(Comment, { id: commentId }, 'likesCount', 1);
-        } else {
-          await queryRunner.manager.increment(Comment, { id: commentId }, 'dislikesCount', 1);
-        }
-        await queryRunner.commitTransaction();
+       if (newReaction instanceof CommentReaction)
         this.eventEmitter.emit('comment.reaction.created', new CommentReactionCreatedEvent(newReaction));
-        return newReaction;
-      }
-      throw new BadRequestException(
-        'Reaction must target either a post or a comment',
-      );
+
+      return newReaction;
+
     } catch (err) {
       await queryRunner.rollbackTransaction();
       throw err;
     } finally {
       await queryRunner.release();
     }
-  }  async findByPost({
-    postId,
+  }
+
+  async findAll({
+    target,
+    targetId,
     page = 1,
     limit = 10,
   }: {
-    postId: number;
+    target: ReactionTarget;
+    targetId?: number;
     page?: number;
     limit?: number;
-  }): Promise<{ data: PostReaction[]; count: number }> {
-    const skip = (page - 1) * limit;
 
-    const [data, count] = await this.postReactionRepo.findAndCount({
-      where: { postId },
+  }): Promise<{ data: PostReaction[] | CommentReaction[]; count: number }> {
+    const skip = (page - 1) * limit;
+    const reactionRepo = target == ReactionTarget.Post ? this.postReactionRepo : this.commentReactionRepo
+
+    const [data, count] = await reactionRepo.findAndCount({
+      where:
+        target === ReactionTarget.Post
+          ? { postId: targetId }
+          : { commentId: targetId },
       relations: ['user'],
       select: {
         id: true,
@@ -145,32 +130,7 @@ export class ReactionsService {
     return { data, count };
   }
 
-  async findByComment({
-    commentId,
-    page = 1,
-    limit = 10,
-  }: {
-    commentId: number;
-    page?: number;
-    limit?: number;
-  }): Promise<{ data: CommentReaction[]; count: number }> {
-    const skip = (page - 1) * limit;
 
-    const [data, count] = await this.commentReactionRepo.findAndCount({
-      where: { commentId },
-      relations: ['user'],
-      select: {
-        id: true,
-        type: true,
-        createdAt: true,
-        user: { id: true, username: true },
-      },
-      skip,
-      take: limit,
-    });
-
-    return { data, count };
-  }
 
   async getUserReactionOnPost(
     userId: number,
@@ -179,136 +139,132 @@ export class ReactionsService {
     return this.postReactionRepo.findOne({ where: { userId, postId } });
   }
 
-  async findPostReactionById(id: number): Promise<PostReaction> {
-    const reaction = await this.postReactionRepo.findOne({ where: { id } });
+  async findOne(id: number, target: ReactionTarget): Promise<PostReaction | CommentReaction> {
+    const reaction = target == ReactionTarget.Post ?
+      await this.postReactionRepo.findOne({ where: { id } })
+      : await this.commentReactionRepo.findOne({ where: { id } });
+
     if (!reaction) {
       throw new NotFoundException('Post reaction not found');
     }
     return reaction;
   }
 
-  async findCommentReactionById(id: number): Promise<CommentReaction> {
-    const reaction = await this.commentReactionRepo.findOne({ where: { id } });
-    if (!reaction) {
-      throw new NotFoundException('Comment reaction not found');
-    }
-    return reaction;
-  }
 
-  async updatePostReaction({
-  id,
-  type
-}: {
-  id: number;
-  type: ReactionType;
-}) {
-  const queryRunner = this.dataSource.createQueryRunner();
-  await queryRunner.connect();
-  await queryRunner.startTransaction();
+  async updateReaction({
+    id,
+    type,
+    target,
+  }: {
+    id: number;
+    type: ReactionType;
+    target: ReactionTarget;
+  }, userId: number) {
 
-  try {
-    const reaction = await queryRunner.manager.findOne(PostReaction, { where: { id } });
-    if (!reaction) throw new NotFoundException('Post reaction not found');
-    
-    if (reaction.type === type) {
-      await queryRunner.commitTransaction();
-      return reaction;
-    }
+    const targetEntity = target == ReactionTarget.Post ? Post : Comment;
+    const reactionEntity = target == ReactionTarget.Post ? PostReaction : CommentReaction;
 
-    const oldType = reaction.type;
-    const newType = type;
-    const postId = reaction.postId;
-
-    if (oldType === ReactionType.LIKE) {
-      await queryRunner.manager.decrement(Post, { id: postId }, 'likesCount', 1);
-    } else if (oldType === ReactionType.DISLIKE) {
-      await queryRunner.manager.decrement(Post, { id: postId }, 'dislikesCount', 1);
-    }
-
-    if (newType === ReactionType.LIKE) {
-      await queryRunner.manager.increment(Post, { id: postId }, 'likesCount', 1);
-    } else if (newType === ReactionType.DISLIKE) {
-      await queryRunner.manager.increment(Post, { id: postId }, 'dislikesCount', 1);
-    }
-
-    reaction.type = newType;
-    await queryRunner.manager.save(reaction);
-
-    await queryRunner.commitTransaction();
-    return reaction;
-  } catch (err) {
-    await queryRunner.rollbackTransaction();
-    throw err;
-  } finally {
-    await queryRunner.release();
-  }
-}
-
-async updateCommentReaction({
-  id,
-  type
-}: {
-  id: number;
-  type: ReactionType;
-}) {
-  const queryRunner = this.dataSource.createQueryRunner();
-  await queryRunner.connect();
-  await queryRunner.startTransaction();
-
-  try {
-    const reaction = await queryRunner.manager.findOne(CommentReaction, { where: { id } });
-    if (!reaction) throw new NotFoundException('Comment reaction not found');
-
-    if (reaction.type === type) {
-      await queryRunner.commitTransaction();
-      return reaction;
-    }
-
-    const oldType = reaction.type;
-    const newType = type;
-    const commentId = reaction.commentId;
-
-    if (oldType === ReactionType.LIKE) {
-      await queryRunner.manager.decrement(Comment, { id: commentId }, 'likesCount', 1);
-    } else if (oldType === ReactionType.DISLIKE) {
-      await queryRunner.manager.decrement(Comment, { id: commentId }, 'dislikesCount', 1);
-    }
-
-    if (newType === ReactionType.LIKE) {
-      await queryRunner.manager.increment(Comment, { id: commentId }, 'likesCount', 1);
-    } else if (newType === ReactionType.DISLIKE) {
-      await queryRunner.manager.increment(Comment, { id: commentId }, 'dislikesCount', 1);
-    }
-
-    reaction.type = newType;
-    await queryRunner.manager.save(reaction);
-
-    await queryRunner.commitTransaction();
-    return reaction;
-  } catch (err) {
-    await queryRunner.rollbackTransaction();
-    throw err;
-  } finally {
-    await queryRunner.release();
-  }
-}
-  async deletePostReaction(id: number) {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
     try {
-      const reaction = await queryRunner.manager.findOne(PostReaction, { where: { id } });
-      if (!reaction) {
-        throw new NotFoundException('Post reaction not found');
+      const reaction = await queryRunner.manager.findOne(reactionEntity, { where: { id } });
+      if (!reaction) throw new NotFoundException('Reaction not found');
+
+      if (reaction.userId !== userId) {
+        throw new ForbiddenException('You cannot modify this reaction');
       }
 
-      const result = await queryRunner.manager.delete(PostReaction, id);
+         var targetId
+
+      if(reaction instanceof PostReaction)
+        targetId=reaction.postId
+       if(reaction instanceof CommentReaction){
+        targetId=reaction.commentId
+ }
+
+
+      // Check target exists
+      const targetObj = await queryRunner.manager.findOne(targetEntity, { where: { id: targetId } });
+      if (!targetObj) throw new NotFoundException(`${target} not found`);
+
+      if (reaction.type === type) {
+        await queryRunner.commitTransaction();
+        return reaction;
+      }
+
+      const oldType = reaction.type;
+      const newType = type;
+
+      if (oldType === ReactionType.LIKE) {
+        await queryRunner.manager.decrement(targetEntity, { id: targetId }, 'likesCount', 1);
+      } else if (oldType === ReactionType.DISLIKE) {
+        await queryRunner.manager.decrement(targetEntity, { id: targetId }, 'dislikesCount', 1);
+      }
+
+      if (newType === ReactionType.LIKE) {
+        await queryRunner.manager.increment(targetEntity, { id: targetId }, 'likesCount', 1);
+      } else if (newType === ReactionType.DISLIKE) {
+        await queryRunner.manager.increment(targetEntity, { id: targetId }, 'dislikesCount', 1);
+      }
+
+      reaction.type = newType;
+      await queryRunner.manager.save(reaction);
+
+      await queryRunner.commitTransaction();
+      return reaction;
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+
+  async deleteReaction({
+    id,
+    target
+  }: {
+    id: number;
+    target: ReactionTarget;
+  }, userId: number) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    const targetEntity = target == ReactionTarget.Post ? Post : Comment;
+    const reactionEntity = target == ReactionTarget.Post ? PostReaction : CommentReaction;
+
+    try {
+      const reaction = await queryRunner.manager.findOne(reactionEntity, { where: { id } });
+      if (!reaction) throw new NotFoundException('Reaction not found');
+
+      if (reaction.userId !== userId) {
+        throw new ForbiddenException('You cannot modify this reaction');
+      }
+      var targetId
+
+      if(reaction instanceof PostReaction)
+        targetId=reaction.postId
+       if(reaction instanceof CommentReaction){
+        targetId=reaction.commentId
+ }
+
+     
+
+      // Check target exists
+      const targetObj = await queryRunner.manager.findOne(targetEntity, { where: { id: targetId } });
+      if (!targetObj) throw new NotFoundException(`${target} not found`);
+
+
+      const result = await queryRunner.manager.delete(reactionEntity, id);
       if (result.affected) {
         if (reaction.type === ReactionType.LIKE) {
-          await queryRunner.manager.decrement(Post, { id: reaction.postId }, 'likesCount', 1);
+          await queryRunner.manager.decrement(targetEntity, { id: targetId }, 'likesCount', 1);
         } else {
-          await queryRunner.manager.decrement(Post, { id: reaction.postId }, 'dislikesCount', 1);
+          await queryRunner.manager.decrement(targetEntity, { id: targetId }, 'dislikesCount', 1);
         }
       }
       await queryRunner.commitTransaction();
@@ -319,31 +275,5 @@ async updateCommentReaction({
       await queryRunner.release();
     }
   }
-  async deleteCommentReaction(id: number) {
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-
-    try {
-      const reaction = await queryRunner.manager.findOne(CommentReaction, { where: { id } });
-      if (!reaction) {
-        throw new NotFoundException('Comment reaction not found');
-      }
-
-      const result = await queryRunner.manager.delete(CommentReaction, id);
-      if (result.affected) {
-        if (reaction.type === ReactionType.LIKE) {
-          await queryRunner.manager.decrement(Comment, { id: reaction.commentId }, 'likesCount', 1);
-        } else {
-          await queryRunner.manager.decrement(Comment, { id: reaction.commentId }, 'dislikesCount', 1);
-        }
-      }
-      await queryRunner.commitTransaction();
-    } catch (err) {
-      await queryRunner.rollbackTransaction();
-      throw err;
-    } finally {
-      await queryRunner.release();
-    }
-  }}
+}
 

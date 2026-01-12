@@ -2,152 +2,90 @@ import {
   Controller,
   Post,
   Get,
+  Patch,
+  Delete,
   Body,
   Param,
-  Delete,
-  UseGuards,
-  NotFoundException,
   Query,
-  Patch,
+  UseGuards,
+  ParseIntPipe,
 } from '@nestjs/common';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { ReactionsService } from './reactions.service';
 import { CreateReactionDto } from './dto/create-reaction.dto';
 import { UpdateReactionDto } from './dto/update-reaction.dto';
-import { User } from 'src/users/entities/user.entity';
-import { GetUser } from 'src/decorators/user.decorator';
-import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
-import { Action } from 'src/casl/casl.types';
-import { PostReaction } from './entities/post-reaction.entity';
-import { CommentReaction } from './entities/comment-reaction.entity';
-import { Post as PostEntity } from '../posts/entities/post.entity';
-import { Comment as CommentEntity } from '../comments/entities/comment.entity';
-import { CaslService } from 'src/casl/casl.service';
-import { ReactionResponseDto } from './dto/reaction-response.dto';
-import { PostReactionPipe } from './pipes/post-reaction.pipe';
-import { CommentReactionPipe } from './pipes/comment-reaction.pipe';
-import { ResponseDto } from 'src/common/dto/response.dto';
-import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
-import { PaginationMetaDto } from 'src/common/dto/pagination-meta.dto';
 import { ReactionQueryDto } from './dto/reaction-query.dto';
-import { CommentPipe } from 'src/comments/pipes/comment.pipe';
-import { PostPipe } from 'src/posts/pipes/post.pipe';
+import { ReactionResponseDto } from './dto/reaction-response.dto';
+import { GetUser } from 'src/decorators/user.decorator';
+import { User } from 'src/users/entities/user.entity';
+import { PaginationMetaDto } from 'src/common/dto/pagination-meta.dto';
+import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
+import { PostResponseDto } from 'src/posts/dto/post-response.dto';
+import { ReactionTarget } from './reactions.types';
+import { DeleteReactionDto } from './dto/delete-reaction.dto';
 
-
-@Controller()
+@Controller('reactions')
 export class ReactionsController {
   constructor(
     private readonly reactionsService: ReactionsService,
-    private readonly caslService: CaslService,
   ) {}
 
-  @Post('posts/:postId/reactions')
+  // CREATE (post or comment)
+  @Post()
   @UseGuards(JwtAuthGuard)
-  async createPostReaction(
-    @Param('postId', PostPipe) post: PostEntity,
+  async create(
     @Body() dto: CreateReactionDto,
     @GetUser() user: User,
-  ): Promise<ResponseDto<ReactionResponseDto>> {
-    this.caslService.enforce(user, Action.Create, PostReaction);
-    const reaction = await this.reactionsService.create(
+  ): Promise<ReactionResponseDto> {
+  const reaction = await this.reactionsService.create(
      {   type :dto.type,
       userId :user.id,
-      postId: post.id,}
-    );
-    return new ResponseDto(ReactionResponseDto.fromEntity(reaction));
+      target:dto.target,
+    targetId:dto.targetId
+    }
+    );    return ReactionResponseDto.fromEntity(reaction);
   }
 
-  @Get('posts/:postId/reactions')
-  async getPostReactions(
-    @Param('postId', PostPipe) post: PostEntity,
+  // LIST by target
+  @Get()
+  async findAll(
     @Query() query: ReactionQueryDto,
-  ): Promise<PaginatedResponseDto<ReactionResponseDto>> {
-    const { data, count } = await this.reactionsService.findByPost({ postId: post.id, page: query.page, limit: query.limit });
-    const paginationMeta = new PaginationMetaDto(
-      query.page,
-      query.limit,
-      count,
-      data.length,
-    );
-    return new PaginatedResponseDto(data.map(ReactionResponseDto.fromEntity), paginationMeta);
+  ) {
+    const { data, count } = await this.reactionsService.findAll({ target:query.target,
+      targetId:query.targetId, 
+      page: query.page,
+       limit: query.limit });
+       const paginationMeta = new PaginationMetaDto(query.page, query.limit, count, data.length);
+        return new PaginatedResponseDto(data.map(ReactionResponseDto.fromEntity), paginationMeta);
+     
+   
   }
 
-  @Patch('posts/:postId/reactions/:reactionId')
+  // UPDATE
+  @Patch(':id')
   @UseGuards(JwtAuthGuard)
-  async updatePostReaction(
-    @Param('reactionId', PostReactionPipe) reaction: PostReaction,
+  async update(
+    @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateReactionDto,
     @GetUser() user: User,
-  ): Promise<ResponseDto<ReactionResponseDto>> {
-    this.caslService.enforce(user, Action.Update, reaction);
-    const updatedReaction = await this.reactionsService.updatePostReaction({
-       id:reaction.id,
-       type:dto.type});
-    return new ResponseDto(ReactionResponseDto.fromEntity(updatedReaction));
+  ): Promise<ReactionResponseDto> {
+    const reaction = await this.reactionsService.updateReaction({
+      id,
+      type:dto.type ,
+      target:dto.target
+    } ,user.id);
+    return ReactionResponseDto.fromEntity(reaction);
   }
 
-  @Post('comments/:commentId/reactions')
+  // DELETE
+  @Delete(':id')
   @UseGuards(JwtAuthGuard)
-  async createCommentReaction(
-    @Param('commentId', CommentPipe) comment: CommentEntity,
-    @Body() dto: CreateReactionDto,
+  async delete(
+    @Param('id', ParseIntPipe) id: number,
     @GetUser() user: User,
-  ): Promise<ResponseDto<ReactionResponseDto>> {
-    this.caslService.enforce(user, Action.Create, CommentReaction);
-    const reaction = await this.reactionsService.create(
-   {   type :dto.type,
-      userId :user.id,
-      commentId: comment.id,}
-    );
-    return new ResponseDto(ReactionResponseDto.fromEntity(reaction));
-  }
-
-  @Get('comments/:commentId/reactions')
-  async getCommentReactions(
-    @Param('commentId', CommentPipe) comment: CommentEntity,
-    @Query() query: ReactionQueryDto,
-  ): Promise<PaginatedResponseDto<ReactionResponseDto>> {
-    const { data, count } = await this.reactionsService.findByComment({ commentId: comment.id, page: query.page, limit: query.limit });
-    const paginationMeta = new PaginationMetaDto(
-      query.page,
-      query.limit,
-      count,
-      data.length,
-    );
-    return new PaginatedResponseDto(data.map(ReactionResponseDto.fromEntity), paginationMeta);
-  }
-
-  @Patch('comments/:commentId/reactions/:reactionId')
-  @UseGuards(JwtAuthGuard)
-  async updateCommentReaction(
-    @Param('reactionId', CommentReactionPipe) reaction: CommentReaction,
-    @Body() dto: UpdateReactionDto,
-    @GetUser() user: User,
-  ): Promise<ResponseDto<ReactionResponseDto>> {
-    this.caslService.enforce(user, Action.Update, reaction);
-    const updatedReaction = await this.reactionsService.updateCommentReaction({ id:reaction.id,
-      type: dto.type});
-    return new ResponseDto(ReactionResponseDto.fromEntity(updatedReaction));
-  }
-
-  @Delete('posts/:postId/reactions/:reactionId')
-  @UseGuards(JwtAuthGuard)
-  async deletePostReaction(
-    @Param('reactionId', PostReactionPipe) reaction: PostReaction,
-    @GetUser() user: User,
-  ): Promise<ResponseDto<boolean>> {
-    this.caslService.enforce(user, Action.Delete, reaction);
-    await this.reactionsService.deletePostReaction(reaction.id);
-    return new ResponseDto(true);
-  }
-
-  @Delete('comments/:commentId/reactions/:reactionId')
-  @UseGuards(JwtAuthGuard)
-  async deleteCommentReaction(
-    @Param('reactionId', CommentReactionPipe) reaction: CommentReaction,
-    @GetUser() user: User,
-  ): Promise<ResponseDto<boolean>> {
-    this.caslService.enforce(user, Action.Delete, reaction);
-    await this.reactionsService.deleteCommentReaction(reaction.id);
-    return new ResponseDto(true);
+      @Body() dto: DeleteReactionDto,
+  ): Promise<{ success: true }> {
+    await this.reactionsService.deleteReaction({id,target:dto.target}, user.id);
+    return { success: true };
   }
 }
