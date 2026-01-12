@@ -5,7 +5,7 @@ export class CreateReportDto {
   reason: string;
 
   @IsIn(['comment', 'post', 'user'])
-  entityType: 'comment' | 'post' | 'user';
+  reportableType: 'comment' | 'post' | 'user';
 
   @IsNumber()
   entityId: number;

@@ -1,4 +1,4 @@
-import { ReportStatus } from '../entities/base-report.entity';
+import { ReportStatus } from '../entities/report.entity';
 import { CommentReport } from '../entities/comment-report.entity';
 import { PostReport } from '../entities/post-report.entity';
 import { UserReport } from '../entities/user-report.entity';
@@ -11,7 +11,7 @@ export class ReportResponseDto {
   reporterId: number;
   createdAt: Date;
   updatedAt: Date;
-  entityType: 'comment' | 'post' | 'user';
+  reportableType: 'comment' | 'post' | 'user';
   commentId?: number;
   postId?: number;
   reportedUserId?: number;
@@ -29,13 +29,13 @@ export class ReportResponseDto {
     dto.updatedAt = report.updatedAt;
 
     if (report instanceof CommentReport) {
-      dto.entityType = 'comment';
+      dto.reportableType = 'comment';
       dto.commentId = report.commentId;
     } else if (report instanceof PostReport) {
-      dto.entityType = 'post';
+      dto.reportableType = 'post';
       dto.postId = report.postId;
     } else if (report instanceof UserReport) {
-      dto.entityType = 'user';
+      dto.reportableType = 'user';
       dto.reportedUserId = report.reportedUserId;
     }
 

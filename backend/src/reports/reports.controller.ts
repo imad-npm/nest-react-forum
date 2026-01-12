@@ -38,8 +38,8 @@ export class ReportsController {
   }
 
   @Get(':id')
-  async findOne(@Param('id') id: number, @Query('entityType') entityType: 'comment' | 'post' | 'user'): Promise<ResponseDto<ReportResponseDto>> {
-    const report = await this.reportsService.findOne(id, entityType);
+  async findOne(@Param('id') id: number, @Query('reportableType') reportableType: 'comment' | 'post' | 'user'): Promise<ResponseDto<ReportResponseDto>> {
+    const report = await this.reportsService.findOne(id, reportableType);
     return new ResponseDto(ReportResponseDto.fromEntity(report));
   }
 
@@ -49,6 +49,6 @@ export class ReportsController {
     @Body() updateReportDto: UpdateReportDto,
   ) {
     // TODO: Add authorization check for moderators
-    return this.reportsService.updateStatus(id, updateReportDto.status, updateReportDto.entityType);
+    return this.reportsService.updateStatus(id, updateReportDto.status, updateReportDto.reportableType);
   }
 }

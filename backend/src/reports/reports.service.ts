@@ -11,7 +11,7 @@ import { Post } from 'src/posts/entities/post.entity';
 import { CommentReport } from './entities/comment-report.entity';
 import { PostReport } from './entities/post-report.entity';
 import { UserReport } from './entities/user-report.entity';
-import { ReportStatus } from './entities/base-report.entity';
+import { ReportStatus } from './entities/report.entity';
 
 
 const PLATFORM_COMPLAINT_REASONS = [
@@ -57,12 +57,12 @@ export class ReportsService {
 
   async create(
     {
-      entityType,
+      reportableType,
       entityId,
       reason,
       description,
     }: {
-      entityType: 'comment' | 'post' | 'user';
+      reportableType: 'comment' | 'post' | 'user';
       entityId: number;
       reason: string;
       description?: string;
@@ -73,7 +73,7 @@ export class ReportsService {
       reason.toUpperCase(),
     );
 
-    if (entityType === 'comment') {
+    if (reportableType === 'comment') {
       const entity = await this.commentsRepository.findOne({
         where: { id: entityId },
       });
@@ -96,7 +96,7 @@ export class ReportsService {
       return this.commentReportRepository.save(report);
     }
 
-    if (entityType === 'post') {
+    if (reportableType === 'post') {
       const entity = await this.postsRepository.findOne({
         where: { id: entityId },
       });
@@ -120,7 +120,7 @@ export class ReportsService {
       return this.postReportRepository.save(report);
     }
 
-    if (entityType === 'user') {
+    if (reportableType === 'user') {
       const entity = await this.usersRepository.findOne({
         where: { id: entityId },
       });
@@ -152,7 +152,7 @@ export class ReportsService {
     page = 1,
     limit = 10,
     status,
-    entityType,
+    reportableType,
     reporterId,
     userId,
     communityId,
@@ -160,7 +160,7 @@ export class ReportsService {
     page?: number;
     limit?: number;
     status?: ReportStatus;
-    entityType?: 'comment' | 'post' | 'user';
+    reportableType?: 'comment' | 'post' | 'user';
     reporterId?: number;
     userId: number;
     communityId?: number;
@@ -203,7 +203,7 @@ export class ReportsService {
         whereClauses.push(`"isPlatformComplaint" = FALSE`);
       }
 
-      if (entityType && entityType !== type) return null;
+      if (reportableType && reportableType !== type) return null;
 
       const where =
         whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
@@ -220,7 +220,7 @@ export class ReportsService {
           "isPlatformComplaint",
           "communityId",
           ${specificIdColumn} AS "entitySpecificId",
-          '${type}' AS "entityType"
+          '${type}' AS "reportableType"
         FROM ${tableName}
         ${where}
       `;
@@ -267,11 +267,11 @@ export class ReportsService {
       updatedAt: item.updatedAt,
       isPlatformComplaint: item.isPlatformComplaint,
       communityId: item.communityId,
-      entityType: item.entityType,
-      commentId: item.entityType === 'comment' ? item.entitySpecificId : undefined,
-      postId: item.entityType === 'post' ? item.entitySpecificId : undefined,
+      reportableType: item.reportableType,
+      commentId: item.reportableType === 'comment' ? item.entitySpecificId : undefined,
+      postId: item.reportableType === 'post' ? item.entitySpecificId : undefined,
       reportedUserId:
-        item.entityType === 'user' ? item.entitySpecificId : undefined,
+        item.reportableType === 'user' ? item.entitySpecificId : undefined,
     }));
 
     return { data, count };
@@ -279,12 +279,12 @@ export class ReportsService {
 
   async findOne(
     id: number,
-    entityType: 'comment' | 'post' | 'user',
+    reportableType: 'comment' | 'post' | 'user',
   ): Promise<CommentReport | PostReport | UserReport> {
     let repository: Repository<any>;
 
-    if (entityType === 'comment') repository = this.commentReportRepository;
-    else if (entityType === 'post') repository = this.postReportRepository;
+    if (reportableType === 'comment') repository = this.commentReportRepository;
+    else if (reportableType === 'post') repository = this.postReportRepository;
     else repository = this.userReportRepository;
 
     const report = await repository.findOne({ where: { id } });
@@ -297,9 +297,9 @@ export class ReportsService {
   async updateStatus(
     id: number,
     status: ReportStatus,
-    entityType: 'comment' | 'post' | 'user',
+    reportableType: 'comment' | 'post' | 'user',
   ) {
-    const report = await this.findOne(id, entityType);
+    const report = await this.findOne(id, reportableType);
 
     if (report.status === status) {
       throw new ConflictException(
@@ -309,10 +309,10 @@ export class ReportsService {
 
     report.status = status;
 
-    if (entityType === 'comment') {
+    if (reportableType === 'comment') {
       return this.commentReportRepository.save(report);
     }
-    if (entityType === 'post') {
+    if (reportableType === 'post') {
       return this.postReportRepository.save(report);
     }
     return this.userReportRepository.save(report);
