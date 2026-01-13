@@ -3,15 +3,18 @@ import {
   NotFoundException,
   ConflictException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Brackets, Repository, SelectQueryBuilder } from 'typeorm';
 import { User, UserRole } from 'src/users/entities/user.entity';
 import { Comment } from 'src/comments/entities/comment.entity';
 import { Post } from 'src/posts/entities/post.entity';
 
 import { Report, Reportable, ReportStatus } from './entities/report.entity';
 import { ReportReason } from './types';
+import { CommunityMembershipRole } from 'src/community-memberships/types';
+import { CommunityMembership } from 'src/community-memberships/entities/community-memberships.entity';
 
 
 export const PLATFORM_LEVEL_REASONS = [
@@ -37,7 +40,10 @@ export class ReportsService {
     @InjectRepository(Report)
     private readonly reportRepository: Repository<Report>,
 
-   
+    @InjectRepository(CommunityMembership)
+    private readonly membershipRepository: Repository<CommunityMembership>,
+
+
     @InjectRepository(Comment)
     private readonly commentsRepository: Repository<Comment>,
 
@@ -50,150 +56,242 @@ export class ReportsService {
 
   ) { }
 
-async create(
-  {
-    reportableType,
-    reportableId,
-    reason,
-    description,
-  }: {
-    reportableType: Reportable;
-    reportableId: number;
-    reason: ReportReason;
-    description?: string;
-  },
-  reporter: User,
-) {
-  const isPlatformComplaint = PLATFORM_LEVEL_REASONS.includes(
-    reason,
-  );
+  async create(
+    {
+      reportableType,
+      reportableId,
+      reason,
+      description,
+    }: {
+      reportableType: Reportable;
+      reportableId: number;
+      reason: ReportReason;
+      description?: string;
+    },
+    reporter: User,
+  ) {
+    const isPlatformComplaint = PLATFORM_LEVEL_REASONS.includes(
+      reason,
+    );
 
-  // Validate existence based on type
-  let communityId: number | undefined;
+    // Validate existence based on type
+    let communityId: number | undefined;
 
-  switch (reportableType) {
-    case Reportable.COMMENT: {
-      const comment = await this.commentsRepository.findOne({
-        where: { id: reportableId },
-        relations : ['post']
-      });
-      if (!comment) throw new NotFoundException('Comment not found');
-      communityId = comment.post.communityId; // optional
-      break;
-    }
-
-    case Reportable.POST: {
-      const post = await this.postsRepository.findOne({
-        where: { id: reportableId },
-      });
-      if (!post) throw new NotFoundException('Post not found');
-      communityId = post.communityId;
-      break;
-    }
-
-    case Reportable.USER: {
-      if (reportableId === reporter.id) {
-        throw new ConflictException('You cannot report yourself');
+    switch (reportableType) {
+      case Reportable.COMMENT: {
+        const comment = await this.commentsRepository.findOne({
+          where: { id: reportableId },
+          relations: ['post']
+        });
+        if (!comment) throw new NotFoundException('Comment not found');
+        communityId = comment.post.communityId; // optional
+        break;
       }
-      const user = await this.usersRepository.findOne({ where: { id: reportableId } });
-      if (!user) throw new NotFoundException('User not found');
-      break;
+
+      case Reportable.POST: {
+        const post = await this.postsRepository.findOne({
+          where: { id: reportableId },
+        });
+        if (!post) throw new NotFoundException('Post not found');
+        communityId = post.communityId;
+        break;
+      }
+
+      case Reportable.USER: {
+        if (reportableId === reporter.id) {
+          throw new ConflictException('You cannot report yourself');
+        }
+        const user = await this.usersRepository.findOne({ where: { id: reportableId } });
+        if (!user) throw new NotFoundException('User not found');
+        break;
+      }
+
+      default:
+        throw new BadRequestException('Invalid reportable type');
+    }
+    if (reason === ReportReason.COMMUNITY_RULES && !communityId) {
+      throw new BadRequestException('Community reports require a community context');
     }
 
-    default:
-      throw new BadRequestException('Invalid reportable type');
-  }
+    // Check for existing report
+    const existingReport = await this.reportRepository.findOne({
+      where: {
+        reporterId: reporter.id,
+        reportableType,
+        reportableId: reportableId,
+      },
+    });
 
-  // Check for existing report
-  const existingReport = await this.reportRepository.findOne({
-    where: {
+    if (existingReport) {
+      throw new ConflictException('You have already reported this entity');
+    }
+
+    // Create and save the report
+    const report = this.reportRepository.create({
       reporterId: reporter.id,
       reportableType,
       reportableId: reportableId,
-    },
-  });
+      reason,
+      description,
+      isPlatformComplaint,
+      communityId,
+    });
 
-  if (existingReport) {
-    throw new ConflictException('You have already reported this entity');
+    return this.reportRepository.save(report);
   }
 
-  // Create and save the report
-  const report = this.reportRepository.create({
-    reporterId: reporter.id,
+
+  async findAll({
+    page = 1,
+    limit = 10,
+    status,
     reportableType,
-    reportableId: reportableId,
-    reason,
-    description,
-    isPlatformComplaint,
+    reporterId,
     communityId,
-  });
+    user
+  }: {
+    page?: number;
+    limit?: number;
+    status?: ReportStatus;
+    reportableType?: Reportable;
+    reporterId?: number;
+    communityId?: number;
+    user: User
+  }): Promise<{ data: Report[]; count: number }> {
+    const query = this.reportRepository.createQueryBuilder('report');
 
-  return this.reportRepository.save(report);
-}async findAll({
-  page = 1,
-  limit = 10,
-  status,
-  reportableType,
-  reporterId,
-  communityId,
-}: {
-  page?: number;
-  limit?: number;
-  status?: ReportStatus;
-  reportableType?: Reportable;
-  reporterId?: number;
-  communityId?: number;
-}): Promise<{ data: Report[]; count: number }> {
-  const query = this.reportRepository.createQueryBuilder('report');
+    await this.applyVisibilityScope(query, user);
 
-  // Filters
-  if (status) {
-    query.andWhere('report.status = :status', { status });
+    // Filters
+    if (status) {
+      query.andWhere('report.status = :status', { status });
+    }
+
+    if (reporterId) {
+
+      query.andWhere('report.reporterId = :reporterId', { reporterId });
+    }
+
+    if (reportableType) {
+      query.andWhere('report.reportableType = :reportableType', { reportableType });
+    }
+
+    if (communityId) {
+      query.andWhere('report.communityId = :communityId', { communityId });
+    }
+
+    // Total count
+    const count = await query.getCount();
+
+    // Pagination
+    const data = await query
+      .orderBy('report.createdAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getMany();
+
+    return { data, count };
   }
 
-  if (reporterId) {
-    query.andWhere('report.reporterId = :reporterId', { reporterId });
+
+  async findOne(id: number, user: User): Promise<Report> {
+    const query = this.reportRepository.createQueryBuilder('report')
+      .where('report.id = :id', { id });
+
+    // Apply visibility scope (authorization)
+    await this.applyVisibilityScope(query, user);
+
+    const report = await query.getOne();
+
+    if (!report) {
+      throw new NotFoundException(`Report ${id} not found or not accessible`);
+    }
+
+    return report;
   }
 
-  if (reportableType) {
-    query.andWhere('report.reportableType = :reportableType', { reportableType });
+
+
+  async updateStatus(id: number, status: ReportStatus,user:User): Promise<Report> {
+    const report = await this.reportRepository.findOneBy({ id });
+
+    if (!report) {
+      throw new NotFoundException(`Report ${id} not found or not accessible`);
+    }
+
+      if (!(await this.canUpdateStatus(report, user))) {
+    throw new ForbiddenException('You cannot update this report');
+  }
+    if (report.status === status) {
+      throw new ConflictException(
+        `Report is already with status "${status}"`,
+      );
+    }
+
+    report.status = status;
+
+    return this.reportRepository.save(report);
   }
 
-  if (communityId) {
-    query.andWhere('report.communityId = :communityId', { communityId });
+
+  private async getModeratedCommunityIds(userId: number): Promise<number[]> {
+    const rows = await this.membershipRepository.find({
+      where: {
+        userId,
+        role: CommunityMembershipRole.MODERATOR,
+      },
+      select: ['communityId'],
+    });
+
+    return rows.map(r => r.communityId);
   }
 
-  // Total count
-  const count = await query.getCount();
+  private async canUpdateStatus(report: Report, user: User): Promise<boolean> {
+  // Admins can always update
+  if (user.role === UserRole.ADMIN) return true;
 
-  // Pagination
-  const data = await query
-    .orderBy('report.createdAt', 'DESC')
-    .skip((page - 1) * limit)
-    .take(limit)
-    .getMany();
-
-  return { data, count };
+  // Normal users cannot update
+  // (no MODERATOR role in your system — moderation is inferred from community membership)
+  const moderatedCommunityIds = await this.getModeratedCommunityIds(user.id);
+if (!report.communityId) return false; // cannot update if no community
+return moderatedCommunityIds.includes(report.communityId);
 }
-async findOne(id: number): Promise<Report> {
-  const report = await this.reportRepository.findOne({ where: { id } });
-  if (!report) {
-    throw new NotFoundException(`Report ${id} not found`);
-  }
-  return report;
-}
 
-async updateStatus(id: number, status: ReportStatus): Promise<Report> {
-  const report = await this.findOne(id);
 
-  if (report.status === status) {
-    throw new ConflictException(
-      `Report is already with status "${status}"`,
-    );
+  private async applyVisibilityScope(
+  qb: SelectQueryBuilder<Report>,
+  user: User,
+) {
+  if (user.role === UserRole.ADMIN) {
+    return; // full access
   }
 
-  report.status = status;
+  // Get moderated communities once
+  const moderatedCommunityIds = await this.getModeratedCommunityIds(user.id);
 
-  return this.reportRepository.save(report);
+  if (user.role === UserRole.USER && moderatedCommunityIds.length === 0) {
+    // Normal user, not a mod anywhere
+    qb.where('report.reporterId = :userId', { userId: user.id });
+    return;
+  }
+
+  // Community moderator (or normal user who happens to moderate)
+  qb.andWhere(
+    new Brackets(qb2 => {
+      qb2.where('report.reporterId = :userId', { userId: user.id });
+
+      if (moderatedCommunityIds.length > 0) {
+        qb2.orWhere(
+          `
+          report.communityId IN (:...communityIds)
+          AND report.isPlatformComplaint = FALSE
+          `,
+          { communityIds: moderatedCommunityIds },
+        );
+      }
+    }),
+  );
 }
+
+
 }

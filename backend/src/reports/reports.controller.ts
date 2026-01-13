@@ -37,14 +37,17 @@ export class ReportsController {
   ): Promise<PaginatedResponseDto<ReportResponseDto>> {
     const { data, count } = await this.reportsService.findAll({
       ...query,
+      user:user
     });
     const paginationMeta = new PaginationMetaDto(query.page, query.limit, count, data.length); // Use defaulted values
     return new PaginatedResponseDto(data.map(ReportResponseDto.fromEntity), paginationMeta);
   }
 
   @Get(':id')
-  async findOne(@Param('id') id: number): Promise<ResponseDto<ReportResponseDto>> {
-    const report = await this.reportsService.findOne(id);
+  async findOne(@Param('id') id: number ,
+    @GetUser() user: User,
+): Promise<ResponseDto<ReportResponseDto>> {
+    const report = await this.reportsService.findOne(id,user);
     return new ResponseDto(ReportResponseDto.fromEntity(report));
   }
 
@@ -52,8 +55,10 @@ export class ReportsController {
   async updateReportStatus(
     @Param('id') id: number,
     @Body() dto: UpdateReportDto,
+        @GetUser() user: User,
+
   ) {
     // TODO: Add authorization check for moderators
-    return this.reportsService.updateStatus(id, dto.status);
+    return this.reportsService.updateStatus(id, dto.status,user);
   }
 }
