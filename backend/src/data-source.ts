@@ -9,14 +9,12 @@ import { PasswordResetToken } from './reset-password/entities/password-reset-tok
 import { Profile } from './profile/entities/profile.entity';
 import { Community } from './communities/entities/community.entity'; // Import Community
 import { CommunityMembership } from './community-memberships/entities/community-memberships.entity'; // Import CommunityMembership
-import { PostReport } from './reports/entities/post-report.entity';
-import { CommentReport } from './reports/entities/comment-report.entity';
 import { CommunityRestriction } from './community-restrictions/entities/community-restriction.entity';
-import { UserReport } from './reports/entities/user-report.entity';
 
 import { CommunityMembershipRequest } from './community-membership-requests/entities/community-membership-request.entity';
 import { EmailChangeToken } from './email-change/entities/email-change-token.entity';
 import { Notification } from './notifications/entities/notification.entity'; // Import Notification entity
+import { Report } from './reports/entities/report.entity';
 
 config(); // load .env manually
 
@@ -40,9 +38,7 @@ export const AppDataSource = new DataSource({
     Community, // Add Community
     CommunityMembership, // Add CommunityMembership
     CommunityMembershipRequest, // Add CommunityMembershipRequest
-    PostReport,
-    CommentReport,
-    UserReport,
+  Report,
     CommunityRestriction,
     Notification, // Add Notification entity here
   ],

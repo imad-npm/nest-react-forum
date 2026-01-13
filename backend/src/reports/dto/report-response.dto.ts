@@ -1,25 +1,21 @@
-import { ReportStatus } from '../entities/report.entity';
-import { CommentReport } from '../entities/comment-report.entity';
-import { PostReport } from '../entities/post-report.entity';
-import { UserReport } from '../entities/user-report.entity';
+import { Report, Reportable, ReportStatus } from '../entities/report.entity';
 
 export class ReportResponseDto {
   id: number;
   reason: string;
-  description: string | null;
+  description: string | undefined;
   status: ReportStatus;
   reporterId: number;
   createdAt: Date;
   updatedAt: Date;
-  reportableType: 'comment' | 'post' | 'user';
-  commentId?: number;
-  postId?: number;
-  reportedUserId?: number;
 
-  static fromEntity(
-    report: CommentReport | PostReport | UserReport,
-  ): ReportResponseDto {
+  // Polymorphic target
+  reportableType: Reportable;
+  reportableId: number; // use for comment/post/user IDs
+
+  static fromEntity(report: Report): ReportResponseDto {
     const dto = new ReportResponseDto();
+
     dto.id = report.id;
     dto.reason = report.reason;
     dto.description = report.description;
@@ -28,16 +24,10 @@ export class ReportResponseDto {
     dto.createdAt = report.createdAt;
     dto.updatedAt = report.updatedAt;
 
-    if (report instanceof CommentReport) {
-      dto.reportableType = 'comment';
-      dto.commentId = report.commentId;
-    } else if (report instanceof PostReport) {
-      dto.reportableType = 'post';
-      dto.postId = report.postId;
-    } else if (report instanceof UserReport) {
-      dto.reportableType = 'user';
-      dto.reportedUserId = report.reportedUserId;
-    }
+    dto.reportableType = report.reportableType;
+    dto.reportableId = report.reportableId;
+
+    
 
     return dto;
   }

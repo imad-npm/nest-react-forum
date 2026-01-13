@@ -16,10 +16,8 @@ import { Profile } from '../../profile/entities/profile.entity'; // Import Profi
 import { Community } from '../../communities/entities/community.entity';
 import { CommunityMembership } from '../../community-memberships/entities/community-memberships.entity';
 import { CommunityMembershipRequest } from '../../community-membership-requests/entities/community-membership-request.entity';
-import { PostReport } from '../../reports/entities/post-report.entity';
 import { CommunityRestriction } from '../../community-restrictions/entities/community-restriction.entity';
-import { CommentReport } from '../../reports/entities/comment-report.entity'; // NEW IMPORT
-import { UserReport } from '../../reports/entities/user-report.entity'; // NEW IMPORT
+ import { Report } from '../../reports/entities/report.entity';
 
 
 export enum UserRole {
@@ -95,17 +93,13 @@ export class User {
   )
   communityMembershipRequests: CommunityMembershipRequest[];
 
-  @OneToMany(() => PostReport, (postReport) => postReport.reporter)
-  postReports: PostReport[];
 
-  @OneToMany(() => CommentReport, (commentReport) => commentReport.reporter) // NEW RELATION
-  commentReports: CommentReport[];
+@OneToMany(() => Report, (report) => report.reporter)
+reportsMade: Report[];
 
-  @OneToMany(() => UserReport, (userReport) => userReport.reporter)
-  reportedUserReports: UserReport[];
+@OneToMany(() => Report, (report) => report.reportableId)
+reportsReceived: Report[];
 
-  @OneToMany(() => UserReport, (userReport) => userReport.reportedUser)
-  userReports: UserReport[];
 
   @OneToMany(
     () => CommunityRestriction,

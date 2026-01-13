@@ -13,7 +13,7 @@ import { Post } from '../../posts/entities/post.entity';
 import { User } from '../../users/entities/user.entity';
 import { Reaction } from '../../reactions/entities/reaction.entity';
 import { ReactionType } from 'src/reactions/reactions.types';
-import { CommentReport } from '../../reports/entities/comment-report.entity';
+import { Report } from '../../reports/entities/report.entity';
 
 @Entity('comments')
 @Check(`id <> parentId`) export class Comment {
@@ -64,8 +64,9 @@ import { CommentReport } from '../../reports/entities/comment-report.entity';
   @Column({ default: 0 })
   repliesCount: number;
 
-  @OneToMany(() => CommentReport, (commentReport) => commentReport.comment)
-  reports: CommentReport[];
+
+@OneToMany(() => Report, (report) => report.reportableId)
+reports: Report[];
 
   userReaction?: { id: number; type: ReactionType };
 

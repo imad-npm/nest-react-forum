@@ -12,8 +12,8 @@ import { Comment } from '../../comments/entities/comment.entity';
 import { User } from '../../users/entities/user.entity';
 import { Reaction } from '../../reactions/entities/reaction.entity';
 import { Community } from '../../communities/entities/community.entity';
-import { ReactionType } from 'src/reactions/reactions.types';
-import { PostReport } from '../../reports/entities/post-report.entity';
+import { ReactionType } from '../../reactions/reactions.types';
+import { Report } from '../../reports/entities/report.entity';
 
 export enum PostStatus {
   PENDING = 'pending',
@@ -80,8 +80,8 @@ export class Post {
   })
   status: PostStatus;
 
-  @OneToMany(() => PostReport, (postReport) => postReport.post)
-  reports: PostReport[];
+@OneToMany(() => Report, (report) => report.reportableId)
+reports: Report[];
 
   userReaction?: { id: number; type: ReactionType };
   @CreateDateColumn()

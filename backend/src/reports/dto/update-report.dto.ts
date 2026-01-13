@@ -6,5 +6,5 @@ export class UpdateReportDto {
   status: ReportStatus;
 
   @IsIn(['comment', 'post', 'user'])
-  reportableType: 'comment' | 'post' | 'user';
+  reportableType: Reportable;
 }

@@ -1,14 +1,16 @@
-import { IsString, IsIn, IsNumber, IsOptional } from 'class-validator';
+import { IsString, IsIn, IsNumber, IsOptional, IsEnum } from 'class-validator';
+import { Reportable } from '../entities/report.entity';
+import { ReportReason } from '../types';
 
 export class CreateReportDto {
-  @IsString()
-  reason: string;
+  @IsEnum(ReportReason)
+  reason: ReportReason;
 
-  @IsIn(['comment', 'post', 'user'])
-  reportableType: 'comment' | 'post' | 'user';
+  @IsEnum(Reportable)
+  reportableType: Reportable;
 
   @IsNumber()
-  entityId: number;
+  reportableId: number;
 
   @IsString()
   @IsOptional()

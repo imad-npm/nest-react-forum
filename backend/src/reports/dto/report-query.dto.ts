@@ -11,7 +11,7 @@ export class ReportQueryDto extends PaginationDto {
 
   @IsOptional()
   @IsEnum(Reportable)
-  reportableType?: 'comment' | 'post' | 'user';
+  reportableType?: Reportable;
 
   @IsOptional()
   @Transform(({ value }) => parseInt(value, 10))

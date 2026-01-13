@@ -10,6 +10,7 @@ import { PaginatedResponseDto } from 'src/common/dto/paginated-response.dto';
 import { ReportResponseDto } from './dto/report-response.dto';
 import { PaginationMetaDto } from 'src/common/dto/pagination-meta.dto';
 import { ResponseDto } from 'src/common/dto/response.dto';
+import { Reportable } from './entities/report.entity';
 
 @Controller('reports')
 @UseGuards(JwtAuthGuard)
@@ -18,37 +19,41 @@ export class ReportsController {
 
   @Post()
   async createReport(
-    @Body() createReportDto: CreateReportDto,
+    @Body() dto: CreateReportDto,
     @GetUser() user: User,
   ) {
-    return this.reportsService.create(createReportDto, user);
-  }
+    return this.reportsService.create(
+      {reportableType: dto.reportableType,
+        reportableId: dto.reportableId,
+         reason:dto.reason,
+         description: dto.description },
+      user,
+    );  }
 
   @Get()
   async findAll(
-    @Query() query: ReportQueryDto & { communityId?: number },
+    @Query() query: ReportQueryDto ,
     @GetUser() user: User,
   ): Promise<PaginatedResponseDto<ReportResponseDto>> {
     const { data, count } = await this.reportsService.findAll({
       ...query,
-      userId: user.id,
     });
     const paginationMeta = new PaginationMetaDto(query.page, query.limit, count, data.length); // Use defaulted values
     return new PaginatedResponseDto(data.map(ReportResponseDto.fromEntity), paginationMeta);
   }
 
   @Get(':id')
-  async findOne(@Param('id') id: number, @Query('reportableType') reportableType: 'comment' | 'post' | 'user'): Promise<ResponseDto<ReportResponseDto>> {
-    const report = await this.reportsService.findOne(id, reportableType);
+  async findOne(@Param('id') id: number): Promise<ResponseDto<ReportResponseDto>> {
+    const report = await this.reportsService.findOne(id);
     return new ResponseDto(ReportResponseDto.fromEntity(report));
   }
 
-  @Patch(':id')
+  @Patch(':id/status')
   async updateReportStatus(
     @Param('id') id: number,
-    @Body() updateReportDto: UpdateReportDto,
+    @Body() dto: UpdateReportDto,
   ) {
     // TODO: Add authorization check for moderators
-    return this.reportsService.updateStatus(id, updateReportDto.status, updateReportDto.reportableType);
+    return this.reportsService.updateStatus(id, dto.status);
   }
 }

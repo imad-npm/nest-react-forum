@@ -27,9 +27,6 @@ import { ProfileModule } from './profile/profile.module';
 import { Community } from './communities/entities/community.entity';
 import { CommunityMembership } from './community-memberships/entities/community-memberships.entity';
 import { ReportsModule } from './reports/reports.module';
-import { CommentReport } from './reports/entities/comment-report.entity';
-import { PostReport } from './reports/entities/post-report.entity';
-import { UserReport } from './reports/entities/user-report.entity';
 import { CommunityMembershipRequest } from './community-membership-requests/entities/community-membership-request.entity';
 import { CommunityMembershipRequestsModule } from './community-membership-requests/community-membership-requests.module';
 import { EmailChangeToken } from './email-change/entities/email-change-token.entity';
@@ -39,6 +36,7 @@ import { CommunityRestrictionsModule } from "./community-restrictions/community-
 import { NotificationsModule } from './notifications/notifications.module';
 import { Reaction } from './reactions/entities/reaction.entity';
 import { ResetPasswordModule } from './reset-password/reset-password.module';
+import { Report } from './reports/entities/report.entity';
 
 @Module({
   imports: [
@@ -61,9 +59,7 @@ import { ResetPasswordModule } from './reset-password/reset-password.module';
           Community,
           CommunityMembership,
           CommunityMembershipRequest, // NEW ENTITY
-          CommentReport,
-          PostReport,
-          UserReport,
+         Report,
           CommunityRestriction,
           EmailChangeToken,
           Notification,

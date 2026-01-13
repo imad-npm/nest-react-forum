@@ -5,8 +5,10 @@ import {
   Index,
   PrimaryGeneratedColumn,
   CreateDateColumn,
+  UpdateDateColumn,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
+import { ReportReason } from '../types';
 
 export enum Reportable {
   POST = 'post',
@@ -47,15 +49,25 @@ export class Report  {
   communityId?: number;
 
   @Column({
-   type: 'enum',
+   type: 'simple-enum',
     enum: ReportStatus,
     default: ReportStatus.PENDING,
   })
   status: ReportStatus;
   
+  @Column({
+  type: 'simple-enum',
+  enum: ReportReason,
+})
+reason: ReportReason;
+
+  @Column({ nullable: true })
+description?: string; // user extra info
   @Column({ default: false })
   isPlatformComplaint: boolean;
 
     @CreateDateColumn()
   createdAt: Date;
+    @UpdateDateColumn()
+  updatedAt: Date;
 }
