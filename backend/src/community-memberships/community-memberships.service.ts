@@ -66,6 +66,39 @@ export class CommunityMembershipsService {
       where: { userId, communityId },
     });
   }
+
+
+  // backend/src/community-memberships/community-memberships.service.ts
+
+async updateRole(
+  requesterId: number,
+  targetUserId: number,
+  communityId: number,
+  newRole: CommunityMembershipRole,
+): Promise<CommunityMembership> {
+  // 1. Check if requester is a moderator of the community
+  const requesterMembership = await this.membershipsRepository.findOne({
+    where: { userId: requesterId, communityId },
+  });
+
+  if (!requesterMembership || requesterMembership.role !== 'moderator') {
+    throw new ForbiddenException('Only moderators can change user roles');
+  }
+
+  // 2. Find the target membership
+  const targetMembership = await this.membershipsRepository.findOne({
+    where: { userId: targetUserId, communityId },
+    relations: ['user'], // Include user for the response DTO
+  });
+
+  if (!targetMembership) {
+    throw new NotFoundException('Member not found in this community');
+  }
+
+  // 3. Update and save
+  targetMembership.role = newRole;
+  return this.membershipsRepository.save(targetMembership);
+}
   // -----------------------------
   // 1️⃣ Self-leave
   // -----------------------------

@@ -1,4 +1,5 @@
 import { useCommunityMemberships } from '../hooks/useCommunityMemberships';
+import MembershipActions from './MembershipActions';
 
 export const MembersPage = () => {
   const { memberships, isLoading } = useCommunityMemberships();
@@ -25,7 +26,7 @@ export const MembersPage = () => {
           <tbody className="bg-white divide-y divide-gray-200">
             {memberships.map((membership) => (
               <tr key={membership.userId}>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">User #{membership.userId}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{membership.user.username}</td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                     membership.role === 'admin' ? 'bg-red-100 text-red-800' :
@@ -37,6 +38,11 @@ export const MembersPage = () => {
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
                   {new Date(membership.createdAt).toLocaleDateString()}
                 </td>
+
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
+                  <MembershipActions membership={membership}  />
+                </td>
+
               </tr>
             ))}
           </tbody>
