@@ -6,6 +6,7 @@ import { Post } from 'src/posts/entities/post.entity';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { CommentCreatedEvent } from './events/comment-created.event';
 import { User } from 'src/users/entities/user.entity';
+import { Reaction } from 'src/reactions/entities/reaction.entity';
 
 @Injectable()
 export class CommentsService {
@@ -17,153 +18,165 @@ export class CommentsService {
     private dataSource: DataSource,
     private readonly eventEmitter: EventEmitter2,
   ) { }
+async findAll(options: {
+  postId?: number;
+  authorId?: number;
+  search?: string;
+  page?: number;
+  limit?: number;
+  currentUserId?: number;
+  parentId?: number;
+}): Promise<{ data: Comment[]; count: number }> {
+  const {
+    postId,
+    authorId,
+    search,
+    page = 1,
+    limit = 10,
+    currentUserId,
+    parentId,
+  } = options;
 
-  async findAll(options: {
-    postId?: number;
-    authorId?: number;
-    search?: string;
-    page?: number;
-    limit?: number;
-    currentUserId?: number;
-    parentId?: number;
-  }): Promise<{ data: Comment[]; count: number }> {
-    const { postId, authorId, search, page = 1, limit = 10, currentUserId, parentId } = options;
-    console.error('e', postId);
+  const qb = this.commentRepo
+    .createQueryBuilder('comment')
+    .leftJoinAndSelect('comment.author', 'author')
+    .leftJoinAndSelect('comment.post', 'post')
+    .leftJoinAndSelect('comment.parent', 'parent');
 
-    const query = this.commentRepo
-      .createQueryBuilder('comment')
-      .leftJoinAndSelect('comment.author', 'author')
-      .leftJoinAndSelect('comment.post', 'post')
-      .leftJoinAndSelect('comment.parent', 'parent');
-
-    if (parentId) {
-      query.andWhere('comment.parentId = :parentId', { parentId });
-    } else if (postId) {
-      query.andWhere('comment.parentId IS NULL');
-    }
-
-    if (currentUserId) {
-      query.leftJoinAndMapOne(
-        'comment.userReaction',
-        'comment.reactions',
-        'userReaction',
-        'userReaction.userId = :currentUserId',
-      );
-      query.setParameter('currentUserId', currentUserId);
-    }
-
-    if (search) {
-      query.andWhere('comment.content LIKE :search', { search: `%${search}%` });
-    }
-    if (authorId) {
-      query.andWhere('comment.author.id = :authorId', { authorId });
-    }
-    if (postId) {
-      query.andWhere('comment.post.id = :postId', { postId });
-    }
-
-    query.orderBy('comment.createdAt', 'DESC');
-
-    const [data, count] = await query.take(limit).skip((page - 1) * limit).getManyAndCount();
-
-    const commentsWithLimitedReplies = await Promise.all(
-      data.map(async (comment) => {
-        const repliesQuery = this.commentRepo
-          .createQueryBuilder('reply')
-          .leftJoinAndSelect('reply.author', 'author')
-          .where('reply.parentId = :commentId', { commentId: comment.id })
-          .orderBy('reply.createdAt', 'ASC')
-          .take(2);
-
-        if (currentUserId) {
-          repliesQuery.leftJoinAndMapOne(
-            'reply.userReaction',
-            'reply.reactions',
-            'userReaction',
-            'userReaction.userId = :currentUserId',
-          );
-          repliesQuery.setParameter('currentUserId', currentUserId);
-        }
-
-        comment.replies = await repliesQuery.getMany();
-        return comment;
-      }),
-    );
-
-    return { data: commentsWithLimitedReplies, count };
+  // Root comments vs replies
+  if (parentId) {
+    qb.andWhere('comment.parentId = :parentId', { parentId });
+  } else if (postId) {
+    qb.andWhere('comment.parentId IS NULL');
   }
 
-  async findOne(id: number, currentUserId?: number) {
+  // 🔥 USER REACTION (POLYMORPHIC)
+  if (currentUserId) {
+    qb.leftJoinAndMapOne(
+      'comment.userReaction',
+      Reaction,
+      'userReaction',
+      `
+        userReaction.reactableId = comment.id
+        AND userReaction.reactableType = :type
+        AND userReaction.userId = :currentUserId
+      `,
+      {
+        type: "comment",
+        currentUserId,
+      },
+    );
+  }
 
-    const mainCommentQuery = this.commentRepo.createQueryBuilder('comment')
+  if (search) {
+    qb.andWhere('comment.content LIKE :search', { search: `%${search}%` });
+  }
 
-      .leftJoinAndSelect('comment.author', 'author')
+  if (authorId) {
+    qb.andWhere('author.id = :authorId', { authorId });
+  }
 
-      .leftJoinAndSelect('comment.post', 'post')
+  if (postId) {
+    qb.andWhere('post.id = :postId', { postId });
+  }
 
-      .leftJoinAndSelect('comment.parent', 'parent');
+  qb.orderBy('comment.createdAt', 'DESC');
 
-    if (currentUserId) {
+  const [comments, count] = await qb
+    .take(limit)
+    .skip((page - 1) * limit)
+    .getManyAndCount();
 
-      mainCommentQuery.leftJoinAndMapOne(
-
-        'comment.userReaction',
-
-        'comment.reactions',
-
-        'userReaction',
-
-        'userReaction.userId = :currentUserId',
-
-      );
-
-      mainCommentQuery.setParameter('currentUserId', currentUserId);
-
-    }
-
-    mainCommentQuery.where('comment.id = :id', { id });
-
-    const comment = await mainCommentQuery.getOne();
-
-    if (comment) {
-
-      const repliesQuery = this.commentRepo
-
+  // ---- LIMITED REPLIES ----
+  await Promise.all(
+    comments.map(async (comment) => {
+      const repliesQb = this.commentRepo
         .createQueryBuilder('reply')
-
         .leftJoinAndSelect('reply.author', 'author')
-
         .where('reply.parentId = :commentId', { commentId: comment.id })
-
         .orderBy('reply.createdAt', 'ASC')
-
-        .take(2); // Limit to 2 replies
+        .take(2);
 
       if (currentUserId) {
-
-        repliesQuery.leftJoinAndMapOne(
-
+        repliesQb.leftJoinAndMapOne(
           'reply.userReaction',
-
-          'reply.reactions',
-
+          Reaction,
           'userReaction',
-
-          'userReaction.userId = :currentUserId',
-
+          `
+            userReaction.reactableId = reply.id
+            AND userReaction.reactableType = :type
+            AND userReaction.userId = :currentUserId
+          `,
+          {
+            type: "comment",
+            currentUserId,
+          },
         );
-
-        repliesQuery.setParameter('currentUserId', currentUserId);
-
       }
 
-      comment.replies = await repliesQuery.getMany();
+      comment.replies = await repliesQb.getMany();
+    }),
+  );
 
-    }
+  return { data: comments, count };
+}
 
-    return comment;
+ async findOne(id: number, currentUserId?: number) {
+  const qb = this.commentRepo
+    .createQueryBuilder('comment')
+    .leftJoinAndSelect('comment.author', 'author')
+    .leftJoinAndSelect('comment.post', 'post')
+    .leftJoinAndSelect('comment.parent', 'parent');
 
+  if (currentUserId) {
+    qb.leftJoinAndMapOne(
+      'comment.userReaction',
+      Reaction,
+      'userReaction',
+      `
+        userReaction.reactableId = comment.id
+        AND userReaction.reactableType = :type
+        AND userReaction.userId = :currentUserId
+      `,
+      {
+        type: 'comment',
+        currentUserId,
+      },
+    );
   }
+
+  qb.where('comment.id = :id', { id });
+
+  const comment = await qb.getOne();
+  if (!comment) return null;
+
+  const repliesQb = this.commentRepo
+    .createQueryBuilder('reply')
+    .leftJoinAndSelect('reply.author', 'author')
+    .where('reply.parentId = :commentId', { commentId: comment.id })
+    .orderBy('reply.createdAt', 'ASC')
+    .take(2);
+
+  if (currentUserId) {
+    repliesQb.leftJoinAndMapOne(
+      'reply.userReaction',
+      Reaction,
+      'userReaction',
+      `
+        userReaction.reactableId = reply.id
+        AND userReaction.reactableType = :type
+        AND userReaction.userId = :currentUserId
+      `,
+      {
+        type: 'comment',
+        currentUserId,
+      },
+    );
+  }
+
+  comment.replies = await repliesQb.getMany();
+  return comment;
+}
 
   async createComment(
     postId: number,

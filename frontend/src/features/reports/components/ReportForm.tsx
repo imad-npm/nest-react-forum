@@ -1,13 +1,11 @@
-// frontend/src/features/reports/components/ReportForm.tsx
 import React from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { Button } from '../../../shared/components/ui/Button';
-import { Input } from '../../../shared/components/ui/Input';
+import { Textarea } from '../../../shared/components/ui/TextArea';
 import { useToastContext } from '../../../shared/providers/ToastProvider';
 import { useCreateReportMutation } from '../services/reportsApi';
-import { type CreateReportDto, Reportable } from '../types';
-import { Textarea } from '../../../shared/components/ui/TextArea';
-import { InputError } from '../../../shared/components/ui/InputError';
+import { type CreateReportDto, Reportable, ReportReason } from '../types';
+import { ReasonSelector } from './ReasonSelector';
 
 interface ReportFormProps {
   reportableId: number;
@@ -22,11 +20,8 @@ export const ReportForm: React.FC<ReportFormProps> = ({
   onSuccess,
   onCancel,
 }) => {
-  const { register, handleSubmit, formState: { errors } } = useForm<CreateReportDto>({
-    defaultValues: {
-      reportableId,
-      reportableType,
-    }
+  const { control, handleSubmit, formState: { errors } } = useForm<CreateReportDto>({
+    defaultValues: { reportableId, reportableType },
   });
 
   const [createReport, { isLoading }] = useCreateReportMutation();
@@ -35,10 +30,10 @@ export const ReportForm: React.FC<ReportFormProps> = ({
   const onSubmit = async (data: CreateReportDto) => {
     try {
       await createReport(data).unwrap();
-      showToast('Report submitted successfully. Thank you for keeping the community safe.', 'success');
-      if (onSuccess) onSuccess();
+      showToast('Report submitted successfully.', 'success');
+      onSuccess?.();
     } catch (err: any) {
-      showToast(err.data?.message || 'Failed to submit report. Please try again.', 'error');
+      showToast(err.data?.message || 'Failed to submit report.', 'error');
     }
   };
 
@@ -47,24 +42,26 @@ export const ReportForm: React.FC<ReportFormProps> = ({
       <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
         Report {reportableType}
       </h3>
-      
-      <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-          Reason for reporting
-        </label>
-        <Input
-          {...register('reason', { required: 'Please provide a reason' })}
-          placeholder="e.g., Harassment, Spam, Misinformation"
-        />
-        <InputError message={ errors.reason?.message}/>
-      </div>
+
+      <Controller
+        name="reason"
+        control={control}
+        rules={{ required: 'Please select a reason' }}
+        render={({ field }) => (
+          <ReasonSelector
+            value={field.value}
+            onChange={field.onChange}
+            error={errors.reason?.message}
+          />
+        )}
+      />
 
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
           Additional details (optional)
         </label>
         <Textarea
-          {...register('description')}
+          {...control.register('description')}
           placeholder="Provide more context..."
           className="w-full"
           rows={4}
@@ -72,14 +69,8 @@ export const ReportForm: React.FC<ReportFormProps> = ({
       </div>
 
       <div className="flex justify-end space-x-2 pt-2">
-        {onCancel && (
-          <Button type="button" variant="outline" onClick={onCancel}>
-            Cancel
-          </Button>
-        )}
-        <Button type="submit" loading={isLoading}>
-          Submit Report
-        </Button>
+        {onCancel && <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>}
+        <Button type="submit" loading={isLoading}>Submit Report</Button>
       </div>
     </form>
   );

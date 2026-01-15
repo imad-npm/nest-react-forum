@@ -197,15 +197,18 @@ if (currentUserId) {
       .leftJoinAndSelect('post.community', 'community');
 
     // Optionally join user's reaction if currentUserId is provided
-    if (currentUserId) {
-      query.leftJoinAndMapOne(
-        'post.userReaction',
-        'post.reactions',
-        'userReaction',
-        'userReaction.userId = :currentUserId AND userReaction.reactableType = :reactableType',
-        { currentUserId, reactableType: 'post' },
-      );
-    }
+   if (currentUserId) {
+  query.addSelect((qb) =>
+    qb
+      .select('r.type')
+      .from('reactions', 'r')
+      .where('r.reactableType = :reactableType', { reactableType: 'post' })
+      .andWhere('r.reactableId = post.id')
+      .andWhere('r.userId = :currentUserId', { currentUserId })
+      .limit(1),
+    'userReactionType',
+  );
+}
 
     // Filter by post ID
     query.where('post.id = :id', { id });
