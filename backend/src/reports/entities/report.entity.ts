@@ -8,18 +8,9 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
-import { ReportReason } from '../types';
+import { Reportable, ReportReason, ReportStatus } from '../types';
 
-export enum Reportable {
-  POST = 'post',
-  COMMENT = 'comment',
-  USER="user"
-}
 
-export enum ReportStatus {
-  PENDING = 'pending',
-  RESOLVED = 'resolved',
-  DISMISSED = 'dismissed',}
 
 @Entity('reports')
 @Index(['reportableType', 'reportableId'])
@@ -71,3 +62,5 @@ description?: string; // user extra info
     @UpdateDateColumn()
   updatedAt: Date;
 }
+export { Reportable, ReportStatus };
+

@@ -2,19 +2,18 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ReportsService } from './reports.service';
 import { ReportsController } from './reports.controller';
-import { CommentReport } from './entities/comment-report.entity';
-import { PostReport } from './entities/post-report.entity';
-import { UserReport } from './entities/user-report.entity';
+
 import { Post } from 'src/posts/entities/post.entity';
 import { User } from 'src/users/entities/user.entity';
 import { Comment } from 'src/comments/entities/comment.entity';
 import { CaslModule } from 'src/casl/casl.module';
+import { Report } from './entities/report.entity';
+import { CommunityMembership } from 'src/community-memberships/entities/community-memberships.entity';
 @Module({
   imports: [
     TypeOrmModule.forFeature([
-      CommentReport,
-      PostReport,
-      UserReport,
+      Report ,
+      CommunityMembership ,
       Post,
       User,
       Comment,

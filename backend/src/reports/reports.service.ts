@@ -209,29 +209,52 @@ export class ReportsService {
 
     return report;
   }
+  
+ async resolve(id: number, user: User): Promise<Report> {
+  const report = await this.reportRepository.findOneBy({ id });
 
-
-
-  async updateStatus(id: number, status: ReportStatus,user:User): Promise<Report> {
-    const report = await this.reportRepository.findOneBy({ id });
-
-    if (!report) {
-      throw new NotFoundException(`Report ${id} not found or not accessible`);
-    }
-
-      if (!(await this.canUpdateStatus(report, user))) {
-    throw new ForbiddenException('You cannot update this report');
+  if (!report) {
+    throw new NotFoundException(`Report ${id} not found`);
   }
-    if (report.status === status) {
-      throw new ConflictException(
-        `Report is already with status "${status}"`,
-      );
-    }
 
-    report.status = status;
-
-    return this.reportRepository.save(report);
+  if (!(await this.canUpdateStatus(report, user))) {
+    throw new ForbiddenException('You cannot resolve this report');
   }
+
+  if (report.status === ReportStatus.RESOLVED) {
+    throw new ConflictException('Report is already resolved');
+  }
+
+  if (report.status === ReportStatus.DISMISSED) {
+    throw new ConflictException('Dismissed reports cannot be resolved');
+  }
+
+  report.status = ReportStatus.RESOLVED;
+  return this.reportRepository.save(report);
+}
+async dismiss(id: number, user: User): Promise<Report> {
+  const report = await this.reportRepository.findOneBy({ id });
+
+  if (!report) {
+    throw new NotFoundException(`Report ${id} not found`);
+  }
+
+  if (user.role !== UserRole.ADMIN) {
+    throw new ForbiddenException('Only admins can dismiss reports');
+  }
+
+  if (report.status === ReportStatus.DISMISSED) {
+    throw new ConflictException('Report is already dismissed');
+  }
+
+  if (report.status === ReportStatus.RESOLVED) {
+    throw new ConflictException('Resolved reports cannot be dismissed');
+  }
+
+  report.status = ReportStatus.DISMISSED;
+  return this.reportRepository.save(report);
+}
+
 
 
   private async getModeratedCommunityIds(userId: number): Promise<number[]> {
@@ -247,51 +270,51 @@ export class ReportsService {
   }
 
   private async canUpdateStatus(report: Report, user: User): Promise<boolean> {
-  // Admins can always update
-  if (user.role === UserRole.ADMIN) return true;
+    // Admins can always update
+    if (user.role === UserRole.ADMIN) return true;
 
-  // Normal users cannot update
-  // (no MODERATOR role in your system — moderation is inferred from community membership)
-  const moderatedCommunityIds = await this.getModeratedCommunityIds(user.id);
-if (!report.communityId) return false; // cannot update if no community
-return moderatedCommunityIds.includes(report.communityId);
-}
+    // Normal users cannot update
+    // (no MODERATOR role in your system — moderation is inferred from community membership)
+    const moderatedCommunityIds = await this.getModeratedCommunityIds(user.id);
+    if (!report.communityId) return false; // cannot update if no community
+    return moderatedCommunityIds.includes(report.communityId);
+  }
 
 
   private async applyVisibilityScope(
-  qb: SelectQueryBuilder<Report>,
-  user: User,
-) {
-  if (user.role === UserRole.ADMIN) {
-    return; // full access
-  }
+    qb: SelectQueryBuilder<Report>,
+    user: User
+  ) {
+    if (user.role === UserRole.ADMIN) {
+      return; // full access
+    }
 
-  // Get moderated communities once
-  const moderatedCommunityIds = await this.getModeratedCommunityIds(user.id);
+    // Get moderated communities once
+    const moderatedCommunityIds = await this.getModeratedCommunityIds(user.id);
 
-  if (user.role === UserRole.USER && moderatedCommunityIds.length === 0) {
-    // Normal user, not a mod anywhere
-    qb.where('report.reporterId = :userId', { userId: user.id });
-    return;
-  }
+    if (user.role === UserRole.USER && moderatedCommunityIds.length === 0) {
+      // Normal user, not a mod anywhere
+      qb.where('report.reporterId = :userId', { userId: user.id });
+      return;
+    }
 
-  // Community moderator (or normal user who happens to moderate)
-  qb.andWhere(
-    new Brackets(qb2 => {
-      qb2.where('report.reporterId = :userId', { userId: user.id });
+    // Community moderator (or normal user who happens to moderate)
+    qb.andWhere(
+      new Brackets(qb2 => {
+        qb2.where('report.reporterId = :userId', { userId: user.id });
 
-      if (moderatedCommunityIds.length > 0) {
-        qb2.orWhere(
-          `
+        if (moderatedCommunityIds.length > 0) {
+          qb2.orWhere(
+            `
           report.communityId IN (:...communityIds)
           AND report.isPlatformComplaint = FALSE
           `,
-          { communityIds: moderatedCommunityIds },
-        );
-      }
-    }),
-  );
-}
+            { communityIds: moderatedCommunityIds },
+          );
+        }
+      }),
+    );
+  }
 
 
 }

@@ -15,3 +15,14 @@ export enum ReportReason {
   CONTRIBUTOR_PROGRAM = 'CONTRIBUTOR_PROGRAM',
   COMMUNITY_RULES = 'COMMUNITY_RULES',
 }
+
+export enum Reportable {
+  POST = 'post',
+  COMMENT = 'comment',
+  USER="user"
+}
+
+export enum ReportStatus {
+  PENDING = 'pending',
+  RESOLVED = 'resolved',
+  DISMISSED = 'dismissed',}

@@ -1,5 +1,5 @@
 import { IsEnum, IsIn } from 'class-validator';
-import { ReportStatus } from '../entities/report.entity';
+import { Reportable, ReportStatus } from '../entities/report.entity';
 
 export class UpdateReportDto {
   @IsEnum(ReportStatus)

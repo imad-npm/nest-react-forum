@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards, Patch, Param, Get, Query } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Patch, Param, Get, Query, ParseIntPipe } from '@nestjs/common';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { GetUser } from 'src/decorators/user.decorator';
 import { User } from 'src/users/entities/user.entity';
@@ -51,14 +51,14 @@ export class ReportsController {
     return new ResponseDto(ReportResponseDto.fromEntity(report));
   }
 
-  @Patch(':id/status')
-  async updateReportStatus(
-    @Param('id') id: number,
-    @Body() dto: UpdateReportDto,
-        @GetUser() user: User,
+@Post(':id/resolve')
+resolve(@Param('id', ParseIntPipe) id: number, @GetUser() user: User) {
+  return this.reportsService.resolve(id, user);
+}
 
-  ) {
-    // TODO: Add authorization check for moderators
-    return this.reportsService.updateStatus(id, dto.status,user);
-  }
+@Post(':id/dismiss')
+dismiss(@Param('id', ParseIntPipe) id: number, @GetUser() user: User) {
+  return this.reportsService.dismiss(id, user);
+}
+
 }

@@ -1,25 +1,64 @@
 import { apiSlice } from "../../../shared/services/apiSlice";
-import type { ResponseDto } from "../../auth/types";
-import type { Report, ReportQueryDto } from "../types";
+import type { PaginatedResponse, ResponseDto } from "../../../shared/types";
+import type {
+  Report,
+  ReportQueryDto,
+  CreateReportDto,
+} from "../types";
 
 export const reportsApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
+    /**
+     * LIST REPORTS
+     */
     getReports: builder.query<
-      ResponseDto<Report[]>,
+      PaginatedResponse<Report>,
       ReportQueryDto
     >({
       query: (params) => ({
-        url: `/communities/${params.communityId}/reports`,
+        url: "/reports",
         params,
       }),
       providesTags: ["Reports"],
     }),
-    dismissReport: builder.mutation<
-      ResponseDto<boolean>,
-      { communityId: number; reportId: number }
+
+    /**
+     * CREATE REPORT
+     */
+    createReport: builder.mutation<
+      ResponseDto<Report>,
+      CreateReportDto
     >({
-      query: ({ communityId, reportId }) => ({
-        url: `/communities/${communityId}/reports/${reportId}/dismiss`,
+      query: (body) => ({
+        url: "/reports",
+        method: "POST",
+        body,
+      }),
+    }),
+
+    /**
+     * DISMISS REPORT (ADMIN)
+     */
+    dismissReport: builder.mutation<
+      ResponseDto<Report>,
+      { reportId: number }
+    >({
+      query: ({ reportId }) => ({
+        url: `/reports/${reportId}/dismiss`,
+        method: "POST",
+      }),
+      invalidatesTags: ["Reports"],
+    }),
+
+    /**
+     * RESOLVE REPORT (ADMIN / MODERATOR)
+     */
+    resolveReport: builder.mutation<
+      ResponseDto<Report>,
+      { reportId: number }
+    >({
+      query: ({ reportId }) => ({
+        url: `/reports/${reportId}/resolve`,
         method: "POST",
       }),
       invalidatesTags: ["Reports"],
@@ -29,5 +68,7 @@ export const reportsApi = apiSlice.injectEndpoints({
 
 export const {
   useGetReportsQuery,
+  useCreateReportMutation,
   useDismissReportMutation,
+  useResolveReportMutation,
 } = reportsApi;
