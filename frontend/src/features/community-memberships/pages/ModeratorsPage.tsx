@@ -1,14 +1,19 @@
 import { FaUserShield } from 'react-icons/fa';
 import { Button } from '../../../shared/components/ui/Button';
 import { useModerators } from '../hooks/useModerators';
+import Pagination from '../../../shared/components/ui/Pagination';
 
 export const ModeratorsPage = () => {
   const {
     moderators,
     isLoading,
-    isRemovingMember,
+    page,
+    setPage ,
     canRemoveModerator,
-    handleRemoveModerator,
+    handleDemoteModerator,
+    isUpdating,
+    totalPages
+    
   } = useModerators();
 
   if (isLoading) return <div className="p-4">Loading moderation team...</div>;
@@ -44,7 +49,7 @@ export const ModeratorsPage = () => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {moderators.map((mod) => {
+            {moderators?.map((mod) => {
               const canRemove = canRemoveModerator(mod);
 
               return (
@@ -78,8 +83,8 @@ export const ModeratorsPage = () => {
                     <Button
                       variant="destructive"
                       size="sm"
-                      onClick={() => handleRemoveModerator(mod.userId)}
-                      disabled={isRemovingMember || !canRemove}
+                      onClick={() => handleDemoteModerator(mod.userId)}
+                      disabled={isUpdating || !canRemove}
                       className="ml-2"
                     >
                       Remove
@@ -90,7 +95,13 @@ export const ModeratorsPage = () => {
             })}
           </tbody>
         </table>
+
       </div>
+      <div className="mt-3">
+                  <Pagination page={page} setPage={setPage} totalPages={totalPages} />
+
+      </div>
+
     </div>
   );
 };

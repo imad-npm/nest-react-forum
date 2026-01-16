@@ -1,5 +1,5 @@
 import { apiSlice } from '../../../shared/services/apiSlice';
-import type { CommunityMembership, CommunityMembershipQueryDto } from '../types';
+import type { CommunityMembership, CommunityMembershipQueryDto, CommunityRole } from '../types';
 import type { PaginatedResponse, ResponseDto } from '../../../shared/types';
 
 export const communityMembershipsApi = apiSlice.injectEndpoints({
@@ -15,7 +15,21 @@ export const communityMembershipsApi = apiSlice.injectEndpoints({
       providesTags: ['CommunityMemberships'],
     }),
 
-    deleteMembership: builder.mutation<
+    updateMemberRole: builder.mutation<
+      CommunityMembership, 
+      { communityId: number; userId: number; role: CommunityRole }
+    >({
+      query: ({ communityId, userId, role }) => ({
+        url: `/communities/${communityId}/members/${userId}/role`,
+        method: 'PATCH',
+        body: { role },
+      }),
+      // Invalidates the list to trigger a UI refresh
+          invalidatesTags: ['CommunityMemberships', 'Communities'],
+
+    }),
+
+    deleteOwnMembership: builder.mutation<
       ResponseDto<boolean>,
       number // communityId
     >({
@@ -41,6 +55,7 @@ export const communityMembershipsApi = apiSlice.injectEndpoints({
 
 export const {
   useGetCommunityMembershipsQuery,
-  useDeleteMembershipMutation,
+  useUpdateMemberRoleMutation,
+  useDeleteOwnMembershipMutation,
   useRemoveCommunityMemberMutation,
 } = communityMembershipsApi;

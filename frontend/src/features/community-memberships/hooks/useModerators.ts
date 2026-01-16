@@ -1,28 +1,43 @@
 import { useParams } from 'react-router-dom';
 import {
   useGetCommunityMembershipsQuery,
-  useRemoveCommunityMemberMutation,
+  useUpdateMemberRoleMutation,
 } from '../services/communityMembershipsApi';
 import { useAuth } from '../../auth/hooks/useAuth';
 import type { User, CommunityMembership } from '../types';
+import { useState } from 'react';
 
 export const useModerators = () => {
   const { communityId } = useParams();
   const { user: currentUser } = useAuth();
   const parsedCommunityId = Number(communityId);
 
-  const { data: allMembershipsResponse, isLoading: isLoadingMemberships } =
+  const [page, setPage] = useState(1);
+
+
+  const { data: moderatorsResponse, isLoading: isLoadingModeratorsMemberships } =
     useGetCommunityMembershipsQuery({
       communityId: parsedCommunityId,
-      limit: 100,
+      role: "moderator",
+      page ,
+      limit: 10,
+    });
+
+  const { data: currentUserMembershipsResponse, isLoading: isLoadingCurrentUserMemberships } =
+    useGetCommunityMembershipsQuery({
+      communityId: parsedCommunityId,
+      userId: currentUser?.id,
+      limit: 1,
+    }, {
+      skip: !currentUser,
     });
 
   const moderators =
-    allMembershipsResponse?.data.filter((m) => m.role === 'moderator') ?? [];
+    moderatorsResponse?.data
 
-  const currentUserMembership = allMembershipsResponse?.data.find(
-    (member) => member.userId === currentUser?.id
-  );
+  const currentUserMembership = currentUserMembershipsResponse?.data[0];
+
+  const totalPages=moderatorsResponse?.meta.totalPages ;
 
   const canRemoveModerator = (
     targetMod: CommunityMembership
@@ -35,26 +50,30 @@ export const useModerators = () => {
     return isSelf || hasLowerRank;
   };
 
-  const [removeCommunityMember, { isLoading: isRemovingMember }] =
-    useRemoveCommunityMemberMutation();
+  const [updateRole, { isLoading: isUpdating }] =
+    useUpdateMemberRoleMutation();
 
-  const handleRemoveModerator = async (targetUserId: number) => {
+  const handleDemoteModerator = async (targetUserId: number) => {
     if (!communityId) return;
     try {
-      await removeCommunityMember({
+      await updateRole({
         communityId: parsedCommunityId,
-        targetUserId,
+        userId: targetUserId,
+        role: 'member', // demote to 'member' — change value if your API expects something else
       }).unwrap();
     } catch (err) {
-      console.error('Failed to remove member:', err);
+      console.error('Failed to update member role:', err);
     }
   };
 
   return {
     moderators,
-    isLoading: isLoadingMemberships,
-    isRemovingMember,
+    isLoading: isLoadingModeratorsMemberships || isLoadingCurrentUserMemberships,
+    isUpdating,
     canRemoveModerator,
-    handleRemoveModerator,
+    handleDemoteModerator,
+    page,
+    setPage ,
+    totalPages
   };
 };

@@ -1,8 +1,14 @@
+import Pagination from '../../../shared/components/ui/Pagination';
 import { useCommunityMemberships } from '../hooks/useCommunityMemberships';
 import MembershipActions from './MembershipActions';
 
 export const MembersPage = () => {
-  const { memberships, isLoading } = useCommunityMemberships();
+  const { memberships, 
+    isLoading,
+   page,
+    setPage ,
+  totalPages
+  } = useCommunityMemberships();
 
   if (isLoading) return <div className="p-4 text-center">Loading members...</div>;
 
@@ -48,6 +54,10 @@ export const MembersPage = () => {
           </tbody>
         </table>
       </div>
+         <div className="mt-3">
+                        <Pagination page={page} setPage={setPage} totalPages={totalPages} />
+      
+            </div>
     </div>
   );
 };

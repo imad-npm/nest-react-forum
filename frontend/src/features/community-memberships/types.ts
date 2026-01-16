@@ -18,6 +18,7 @@ export interface CommunityMembership {
   export interface CommunityMembershipQueryDto {
     userId?: number;
     communityId?: number;
+    role? :CommunityRole
     page?: number;
     limit?: number;
   }

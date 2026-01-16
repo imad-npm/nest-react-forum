@@ -5,56 +5,71 @@ import { Button } from '../../../shared/components/ui/Button';
 import Dropdown from '../../../shared/components/ui/Dropdown';
 import { useToastContext } from '../../../shared/providers/ToastProvider';
 import type { CommunityMembership } from '../types';
-import { useRemoveCommunityMemberMutation } from '../services/communityMembershipsApi';
-
-// Assuming these are your API hooks based on the project structure
-
+import {
+  useRemoveCommunityMemberMutation,
+  useUpdateMemberRoleMutation,
+} from '../services/communityMembershipsApi';
+import { useCreateCommunityRestrictionMutation } from '../../community-restrictions/services/communityRestrictionsApi';
 
 interface MembershipActionsProps {
-  membership : CommunityMembership
+  membership: CommunityMembership;
 }
 
 const MembershipActions: React.FC<MembershipActionsProps> = ({ membership }) => {
   const { showToast } = useToastContext();
-  const member=membership.user ;
-  const communityId=membership.communityId
-  
-  // RTK Query Mutations
+
+  const member = membership.user;
+  const communityId = membership.communityId;
+
   const [updateRole, { isLoading: isUpdating }] = useUpdateMemberRoleMutation();
   const [removeMember, { isLoading: isRemoving }] = useRemoveCommunityMemberMutation();
-  const [banMember, { isLoading: isBanning }] = useBanMemberMutation();
+  const [banMember, { isLoading: isBanning }] =
+    useCreateCommunityRestrictionMutation();
 
   const isBusy = isUpdating || isRemoving || isBanning;
 
   const handlePromote = async () => {
     try {
-      await updateRole({ 
-        communityId, 
-        userId: member.id, 
-        role: 'moderator' 
+      await updateRole({
+        communityId,
+        userId: member.id,
+        role: 'moderator',
       }).unwrap();
+
       showToast(`${member.username} promoted to moderator`, 'success');
-    } catch (err) {
+    } catch {
       showToast('Failed to promote member', 'error');
     }
   };
 
   const handleRemove = async () => {
     if (!window.confirm(`Remove ${member.username} from community?`)) return;
+
     try {
-      await removeMember({ communityId, userId: member.id }).unwrap();
+      await removeMember({
+        communityId,
+        targetUserId: member.id,
+      }).unwrap();
+
       showToast('Member removed', 'success');
-    } catch (err) {
+    } catch {
       showToast('Failed to remove member', 'error');
     }
   };
 
   const handleBan = async () => {
-    if (!window.confirm(`Permanently ban ${member?.username}?`)) return;
+    if (!window.confirm(`Permanently ban ${member.username}?`)) return;
+
     try {
-      await banMember({ communityId, userId: member.id }).unwrap();
+      await banMember({
+        communityId,
+        userId: member.id,
+        restrictionType: 'ban',
+        reason: 'Banned by moderator',
+      }).unwrap();
+
       showToast('User has been banned', 'success');
-    } catch (err) {
+    } catch {
       showToast('Failed to ban user', 'error');
     }
   };
@@ -62,13 +77,15 @@ const MembershipActions: React.FC<MembershipActionsProps> = ({ membership }) => 
   return (
     <Dropdown
       trigger={
-        <Button 
-          variant="ghost" 
-          size="sm" 
+        <Button
+          variant="ghost"
+          size="sm"
           disabled={isBusy}
           className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700"
         >
-          <BsThreeDotsVertical className={isBusy ? 'animate-pulse' : 'text-gray-500'} />
+          <BsThreeDotsVertical
+            className={isBusy ? 'animate-pulse text-gray-400' : 'text-gray-500'}
+          />
         </Button>
       }
       align="right"
@@ -78,18 +95,20 @@ const MembershipActions: React.FC<MembershipActionsProps> = ({ membership }) => 
           <button
             onClick={handlePromote}
             disabled={isBusy}
-            className="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+            className="flex items-center w-full px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
           >
-            <FaUserShield className="mr-2 text-blue-500" /> Promote to Mod
+            <FaUserShield className="mr-2 text-blue-500" />
+            Promote to Mod
           </button>
         )}
-        
+
         <button
           onClick={handleRemove}
           disabled={isBusy}
           className="flex items-center w-full px-4 py-2 text-sm text-amber-600 hover:bg-gray-100 dark:hover:bg-gray-700"
         >
-          <FaUserTimes className="mr-2" /> Remove Member
+          <FaUserTimes className="mr-2" />
+          Remove Member
         </button>
 
         <div className="border-t border-gray-100 dark:border-gray-700 my-1" />
@@ -97,9 +116,10 @@ const MembershipActions: React.FC<MembershipActionsProps> = ({ membership }) => 
         <button
           onClick={handleBan}
           disabled={isBusy}
-          className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-gray-100 dark:hover:bg-gray-700 font-medium"
+          className="flex items-center w-full px-4 py-2 text-sm text-red-600 font-medium hover:bg-gray-100 dark:hover:bg-gray-700"
         >
-          <FaBan className="mr-2" /> Ban User
+          <FaBan className="mr-2" />
+          Ban User
         </button>
       </div>
     </Dropdown>
@@ -107,14 +127,3 @@ const MembershipActions: React.FC<MembershipActionsProps> = ({ membership }) => 
 };
 
 export default MembershipActions;
-
-function useUpdateMemberRoleMutation() {
-}
-
-
-function useRemoveMemberMutation() {
-}
-
-
-function useBanMemberMutation() {
-}

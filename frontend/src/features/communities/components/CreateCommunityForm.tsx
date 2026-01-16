@@ -5,7 +5,7 @@ import { Label } from "../../../shared/components/ui/Label";
 import { Textarea } from "../../../shared/components/ui/TextArea";
 import { Controller } from "react-hook-form";
 import { InputError } from "../../../shared/components/ui/InputError";
-import { InputRadio } from "../../../shared/components/InputRadio";
+import { InputRadio } from "../../../shared/components/ui/InputRadio";
 import Toast from "../../../shared/components/ui/Toast";
 import { useCreateCommunityForm } from "../hooks/useCreateCommunityForm";
 

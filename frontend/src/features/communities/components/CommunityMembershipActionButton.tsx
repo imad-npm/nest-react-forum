@@ -5,7 +5,7 @@ import {
   useCreateMembershipRequestMutation,
   useRejectMembershipRequestMutation,
 } from '../../community-membership-requests/services/communityMembershipRequestsApi';
-import { useDeleteMembershipMutation } from '../../community-memberships/services/communityMembershipsApi';
+import { useDeleteOwnMembershipMutation } from '../../community-memberships/services/communityMembershipsApi';
 import type { Community } from '../types';
 import type { UserResponseDto } from '../../auth/types';
 
@@ -20,7 +20,7 @@ export const CommunityMembershipActionButton: React.FC<
   const [createMembershipRequest, { isLoading: isCreatingRequest }] =
     useCreateMembershipRequestMutation();
   const [deleteMembership, { isLoading: isDeletingMembership }] =
-    useDeleteMembershipMutation();
+    useDeleteOwnMembershipMutation();
   const [cancelMembershipRequest, { isLoading: isRejectingRequest }] =
     useCancelMembershipRequestMutation();
 

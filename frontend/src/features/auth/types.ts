@@ -17,7 +17,7 @@ export interface RegisterDto {
   }
 
   export interface UserResponseDto {
-    id: string;
+    id: number;
     username: string;
     email: string;
     profile?: ProfileResponseDto;
