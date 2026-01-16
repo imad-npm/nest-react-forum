@@ -28,6 +28,8 @@ import ResetPassword from './features/auth/pages/ResetPassword';
 import GoogleAuthCallback from './features/auth/pages/GoogleAuthCallback'; // Import GoogleAuthCallback
 import { useNotificationsSSE } from './features/notifications/hooks/useNotificationsSSE';
 import { GuestGuard } from './features/auth/components/GuestGuard';
+import ModGuard from './features/community-memberships/guards/ModGuard';
+import ForbiddenPage from './pages/403';
 
 const SessionLoader = ({ children }: { children: React.ReactNode }) => {
   const { isUserLoading } = useAuth();
@@ -57,6 +59,7 @@ export default function App() {
           <Route path="/verify-email" element={<VerificationResult />} />
           <Route path="/email/change/verify" element={<EmailChangeVerifyPage />} />
           <Route path="/auth/google/callback" element={<GoogleAuthCallback />} /> {/* New Google OAuth Callback Route */}
+<Route path="/403" element={<ForbiddenPage />} />
 
           {/* --- Standard User Routes (with LeftSidebar) --- */}
           <Route element={<MainLayout />}>
@@ -73,7 +76,8 @@ export default function App() {
           </Route>
 
           {/* --- Moderation Routes (with ModSidebar) --- */}
-          <Route path="/mod/community/:communityId" element={<AuthGuard><ModLayout /></AuthGuard>}>
+          <Route path="/mod/community/:communityId" element={<AuthGuard><ModGuard><ModLayout /></ModGuard>
+            </AuthGuard>}>
             <Route index element={<Navigate to="queues" replace />} />
             <Route path="queues" element={<ModQueuesPage />} />
             <Route path="members" element={<MembersPage />} />
