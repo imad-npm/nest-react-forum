@@ -23,7 +23,7 @@ type CreatePostFormValues = z.infer<typeof createPostSchema>;
 /*                                    Hook                                    */
 /* -------------------------------------------------------------------------- */
 
-export const usePosts = () => {
+export const useCreatePosts = () => {
   const navigate = useNavigate();
   const [createPost, { isLoading }] = useCreatePostMutation();
 

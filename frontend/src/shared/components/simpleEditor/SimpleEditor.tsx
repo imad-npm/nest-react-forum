@@ -114,7 +114,7 @@ function MenuBar({ editor }: { editor: any }) {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap gap-2 mb-2 border-b border-gray-200 pb-2">
-        <button
+        <button type='button'
           onClick={() => editor.chain().focus().toggleBold().run()}
           disabled={!editorState.canBold}
           className={buttonClass(editorState.isBold)}
@@ -123,7 +123,7 @@ function MenuBar({ editor }: { editor: any }) {
           <FaBold />
         </button>
 
-        <button
+        <button type='button'
           onClick={() => editor.chain().focus().toggleItalic().run()}
           disabled={!editorState.canItalic}
           className={buttonClass(editorState.isItalic)}
@@ -132,7 +132,7 @@ function MenuBar({ editor }: { editor: any }) {
           <FaItalic />
         </button>
 
-        <button
+        <button type='button'
           onClick={() => editor.chain().focus().toggleStrike().run()}
           disabled={!editorState.canStrike}
           className={buttonClass(editorState.isStrike)}
@@ -141,7 +141,7 @@ function MenuBar({ editor }: { editor: any }) {
           <FaStrikethrough />
         </button>
 
-        <button
+        <button type='button'
           onClick={() => editor.chain().focus().toggleCode().run()}
           disabled={!editorState.canCode}
           className={buttonClass(editorState.isCode)}
@@ -150,7 +150,7 @@ function MenuBar({ editor }: { editor: any }) {
           <FaCode />
         </button>
 
-        <button
+        <button type='button'
           onClick={() => editor.chain().focus().toggleBulletList().run()}
           className={buttonClass(editorState.isBulletList)}
           title="Bullet list"
@@ -158,7 +158,7 @@ function MenuBar({ editor }: { editor: any }) {
           <FaListUl />
         </button>
 
-        <button
+        <button type='button'
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
           className={buttonClass(editorState.isOrderedList)}
           title="Ordered list"
@@ -166,7 +166,7 @@ function MenuBar({ editor }: { editor: any }) {
           <FaListOl />
         </button>
 
-        <button
+        <button type='button'
           onClick={() => editor.chain().focus().toggleBlockquote().run()}
           className={buttonClass(editorState.isBlockquote)}
           title="Blockquote"
@@ -174,7 +174,7 @@ function MenuBar({ editor }: { editor: any }) {
           <FaQuoteRight />
         </button>
 
-        <button
+        <button type='button'
           onClick={() => editor.chain().focus().undo().run()}
           disabled={!editorState.canUndo}
           className={buttonClass(false)}
@@ -183,7 +183,7 @@ function MenuBar({ editor }: { editor: any }) {
           <FaUndo />
         </button>
 
-        <button
+        <button type='button'
           onClick={() => editor.chain().focus().redo().run()}
           disabled={!editorState.canRedo}
           className={buttonClass(false)}
@@ -192,7 +192,7 @@ function MenuBar({ editor }: { editor: any }) {
           <FaRedo />
         </button>
 
-        <button
+        <button type='button'
           onClick={handleImageClick}
           className={buttonClass(false)}
           title="Insert image from file"
@@ -200,7 +200,7 @@ function MenuBar({ editor }: { editor: any }) {
           <FaImage />
         </button>
 
-        <button
+        <button type='button'
           onClick={() => setShowLinkInput((s) => !s)}
           className={buttonClass(editorState.isLink || showLinkInput)}
           title={editorState.isLink ? 'Edit link' : 'Insert link'}
@@ -240,13 +240,13 @@ function MenuBar({ editor }: { editor: any }) {
             />
             <span className="text-sm text-gray-600">new tab</span>
           </label>
-          <button
+          <button type='button'
             onClick={applyLink}
             className="px-3 py-2 rounded-md bg-blue-600 text-white text-sm hover:bg-blue-700"
           >
             Apply
           </button>
-          <button
+          <button type='button' 
             onClick={() => {
               removeLink();
             }}
@@ -254,7 +254,7 @@ function MenuBar({ editor }: { editor: any }) {
           >
             Remove
           </button>
-          <button
+          <button type='button'
             onClick={() => setShowLinkInput(false)}
             className="px-2 py-2 rounded-md text-sm text-gray-500 hover:bg-gray-50"
             title="Close"

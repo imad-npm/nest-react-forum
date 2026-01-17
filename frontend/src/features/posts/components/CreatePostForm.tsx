@@ -6,12 +6,12 @@ import { Input } from '../../../shared/components/ui/Input';
 import { Label } from '../../../shared/components/ui/Label';
 import { InputError } from '../../../shared/components/ui/InputError';
 import { Button } from '../../../shared/components/ui/Button';
-import { usePosts } from '../hooks/usePosts';
+import { useCreatePosts } from '../hooks/useCreatePosts';
 import { Controller } from 'react-hook-form';
 import { SimpleEditor } from '../../../shared/components/simpleEditor/SimpleEditor';
 
 const CreatePostForm: React.FC = () => {
-  const { form, communitySearch, create } = usePosts();
+  const { form, communitySearch, create } = useCreatePosts();
   const { register, handleSubmit, setValue, errors } = form;
   const { search, setSearch, communities, isFetching } = communitySearch;
   const { handleCreatePost, isLoading } = create;
@@ -30,6 +30,7 @@ const CreatePostForm: React.FC = () => {
   <Label className="block text-sm font-medium">Content</Label>
   <Controller
     name="content"
+    defaultValue=''
     control={form.control}
     render={({ field }) => (
       <SimpleEditor value={field.value || ''} onChange={field.onChange} />
@@ -42,18 +43,27 @@ const CreatePostForm: React.FC = () => {
       <div>
         <Label className="block text-sm font-medium">Community</Label>
 
-        <SearchableSelect
-          value={search}
-          onSearch={setSearch}
-          options={communities}
-          loading={isFetching}
-          getLabel={(c) => c.name}
-          renderOption={(c) => <span>{c.name}</span>}
-          onSelect={(c) => setValue('communityId', c.id)}
-          placeholder="Search community..."
-        />
+     <Controller
+  name="communityId"
+  defaultValue={0}
+  control={form.control}
+  render={({ field, fieldState }) => (
+    <>
+      <SearchableSelect
+        value={communities.find(c => c.id === field.value)?.name || ''}
+        onSearch={setSearch}
+        options={communities}
+        loading={isFetching}
+        getLabel={(c) => c.name}
+        renderOption={(c) => <span>{c.name}</span>}
+        onSelect={(c) => field.onChange(c.id)}
+        placeholder="Search community..."
+      />
+      <InputError message={fieldState.error?.message} />
+    </>
+  )}
+/>
 
-        <InputError message={errors.communityId?.message} />
       </div>
 
       {/* Submit */}
