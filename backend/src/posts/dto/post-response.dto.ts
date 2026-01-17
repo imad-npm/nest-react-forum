@@ -1,7 +1,7 @@
 // src/posts/dto/post-response.dto.ts
 import { Exclude, Expose, Type, plainToInstance } from 'class-transformer';
 import { UserResponseDto } from '../../users/dtos/user-response.dto';
-import { Post } from '../entities/post.entity';
+import { Post, PostStatus } from '../entities/post.entity';
 import { ReactionResponseDto } from 'src/reactions/dto/reaction-response.dto';
 import { CommunityResponseDto } from 'src/communities/dto/community-response.dto';
 
@@ -14,6 +14,8 @@ export class PostResponseDto {
   @Expose() readonly createdAt: Date;
   @Expose() readonly updatedAt: Date;
   @Expose() readonly publishedAt: Date;
+  @Expose() readonly status : PostStatus ;
+  @Expose() readonly commentsLocked : boolean
 
 
   @Expose() @Type(() => UserResponseDto) readonly author: UserResponseDto;

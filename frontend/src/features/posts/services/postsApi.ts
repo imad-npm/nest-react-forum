@@ -58,6 +58,14 @@ export const postsApi = apiSlice.injectEndpoints({
           }),
           invalidatesTags: ['Posts'],
       }),
+      updateCommentLockedStatus: builder.mutation<ResponseDto<Post>, { id: number; commentsLocked: boolean }>({
+          query: ({ id, commentsLocked }) => ({
+            url: `/posts/${id}/comments-locked`,
+            method: 'PATCH',
+            body: { commentsLocked },
+          }),
+          invalidatesTags: ['Posts'],
+      }),
         deletePost: builder.mutation<ResponseDto<boolean>, number>({
             query: (id) => ({
                 url: `/posts/${id}`,
@@ -75,5 +83,6 @@ export const {
     useCreatePostMutation,
     useUpdatePostMutation,
     useUpdatePostStatusMutation,
+    useUpdateCommentLockedStatusMutation ,
     useDeletePostMutation,
 } = postsApi;

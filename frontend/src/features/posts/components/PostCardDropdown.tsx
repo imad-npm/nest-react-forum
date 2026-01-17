@@ -12,7 +12,7 @@ import { BsThreeDots } from 'react-icons/bs';
 import Dropdown from '../../../shared/components/ui/Dropdown';
 import { Button } from '../../../shared/components/ui/Button';
 import { useAuth } from '../../auth/hooks/useAuth';
-import { useDeletePostMutation } from '../services/postsApi';
+import { useDeletePostMutation, useUpdateCommentLockedStatusMutation } from '../services/postsApi';
 import { ReportForm } from '../../reports/components/ReportForm'; // Adjust path
 import { Modal } from '../../../shared/components/ui/Modal';
 
@@ -23,6 +23,10 @@ interface PostDropdownProps {
 const PostDropdown: React.FC<PostDropdownProps> = ({ post }) => {
   const { user } = useAuth();
   const [deletePost, { isLoading }] = useDeletePostMutation();
+
+    const [lockComments] = useUpdateCommentLockedStatusMutation();
+
+    
   const [isReportModalOpen, setIsReportModalOpen] = useState(false); // Modal state
 
   const handleEditPost = () => {
@@ -37,13 +41,22 @@ const PostDropdown: React.FC<PostDropdownProps> = ({ post }) => {
     }
   };
 
+   const handleToggleCommentsLocked = async () => {
+    try {
+      await lockComments({id:post.id ,commentsLocked:!post.commentsLocked}).unwrap();
+    } catch (error) {
+      console.error('Failed to lock post comments', error);
+    }
+  };
+
   const handleToggleSave = () => {
     console.log(post.userSaved ? 'Unsave post:' : 'Save post:', post.id);
   };
 
+
   return (
     <>
-      <div className="absolute top-2 right-2">
+      <div className="">
         <Dropdown
           trigger={
             <Button variant="ghost" size="sm" className="p-2">
@@ -70,6 +83,14 @@ const PostDropdown: React.FC<PostDropdownProps> = ({ post }) => {
                   <FaTrashAlt className="mr-2" />
                   Delete
                 </button>
+
+                  <button
+                onClick={handleToggleCommentsLocked}
+                className="flex items-center w-full text-left px-4 py-2 text-sm text-amber-600 dark:text-amber-400 hover:bg-gray-100 dark:hover:bg-gray-600"
+              >
+                <FaFlag className="mr-2" />
+            {!post.commentsLocked ? 'Lock Comments' : 'Unlock Comments'}  
+              </button>
               </>
             )}
 
@@ -83,10 +104,9 @@ const PostDropdown: React.FC<PostDropdownProps> = ({ post }) => {
                 Report Post
               </button>
             )}
-
-            {post.status==PostStatus.APPROVED && 
+            {post.status==PostStatus.APPROVED && <>
             
-                <button
+               <button
               onClick={handleToggleSave}
               className="flex items-center w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
             >
@@ -96,6 +116,12 @@ const PostDropdown: React.FC<PostDropdownProps> = ({ post }) => {
                 <><FaRegBookmark className="mr-2" /> Save</>
               )}
             </button>
+
+              
+            
+            </>
+            
+             
             }
 
         

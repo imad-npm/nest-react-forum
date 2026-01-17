@@ -44,11 +44,26 @@ const PostDetailPage = () => {
     <div className="container mx-auto p-4 flex flex-col md:flex-row gap-6">
       {/* Main Content Area */}
       <div className="md:w-[70%]">
+
+
         <PostDetailCard post={post} />
-        <div className="mb-6">
-                <CommentInput postId={post.id} />
-  
-        </div>
+
+
+         {/* Comment input or locked notice */}
+      <div className="mb-6">
+        {post.commentsLocked ? (
+          <div className="flex items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-900/20 p-4 text-sm text-amber-800 dark:text-amber-300">
+            <span className="text-lg">🔒</span>
+            <span>
+              Comments are locked for this post.
+            </span>
+          </div>
+        ) : (
+          <CommentInput postId={post.id} />
+        )}
+      </div>
+
+
         {/* Comments Section */}
         <CommentList
           postId={post.id}

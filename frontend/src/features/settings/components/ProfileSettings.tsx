@@ -46,7 +46,7 @@ const ProfileSettings = () => {
         <dt className="text-sm font-medium text-gray-500">Picture</dt>
         <dd className="mt-1 flex text-sm text-gray-900 sm:mt-0 sm:col-span-2">
           <span className="flex-grow">
-            <img src={profile.picture} alt="Profile" className="w-10 h-10 rounded-full" />
+            <img src={profile.picture} alt="Profile" className="w-16  rounded-full" />
           </span>
           <button
             onClick={() => setIsPictureModalOpen(true)}

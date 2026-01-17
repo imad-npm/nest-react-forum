@@ -22,6 +22,7 @@ export interface Post {
   views: number;
   likesCount: number;
   dislikesCount: number;
+  commentsLocked : boolean
   commentsCount: number; // Added commentsCount
   userReaction?: { id: number; type: ReactionType };
   userSaved?: any;

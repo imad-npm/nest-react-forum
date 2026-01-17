@@ -6,19 +6,29 @@ import { ReactionButtons } from '../../reactions/components/ReactionButtons';
 import PostActionButtons from './PostCardFooter'; // Assuming it's in the same directory
 import PostMetaData from './PostMetaData';
 import PostCardFooter from './PostCardFooter';
+import PostDropdown from './PostCardDropdown';
 
 interface PostDetailCardProps {
   post: Post;
 }
 
 const PostDetailCard: React.FC<PostDetailCardProps> = ({ post }) => {
-  return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg   mb-20 ">
-      {/* Post Metadata */}
-      <div className="mb-2">
-            <PostMetaData post={post} />
  
-      </div>
+
+ 
+  return (
+    <div className="relative bg-white dark:bg-gray-800 rounded-lg   mb-20 ">
+      {/* Post Metadata */}
+      
+      {/* Three dots dropdown */}
+
+      <div className="mb-2 relative flex justify-between">   
+                    <PostMetaData post={post} />
+
+           <PostDropdown post={post} />
+
+ 
+      </div>  
 
       {/* Post Title */}
       <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 leading-tight mb-4">
