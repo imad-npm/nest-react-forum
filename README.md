@@ -1,7 +1,7 @@
 # nest-react-forum
 # Community Forum
 
-A full-stack social platform built with NestJS (backend) and React (frontend). Supports communities, posts, nested comments, reactions, moderation, notifications, and user management.
+A full-stack social platform built with NestJS (backend) and React (frontend). Supports communities, posts, nested comments, reactions, moderation, notifications, and user management,reports, and restrictions.
 
 ## Features
 
@@ -40,6 +40,11 @@ A full-stack social platform built with NestJS (backend) and React (frontend). S
 - **Notifications**
   - Real-time via SSE (new posts, comments, reactions)
  
+- **Restrictions & Reports**
+
+  - Users can be muted, banned, or restricted temporarily/permanently
+
+  - Reports submitted by users are tracked and reviewable by moderators
 
 - **Moderation Tools** (per community)
   - Moderation queues
