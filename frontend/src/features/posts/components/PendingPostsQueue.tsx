@@ -2,6 +2,7 @@ import { useParams } from "react-router-dom";
 import { useGetPostsInfiniteQuery, useUpdatePostStatusMutation } from "../services/postsApi";
 import { Button } from "../../../shared/components/ui/Button";
 import { PostStatus } from "../types";
+import PendingPostCard from "./PendingPostCard";
 
 export const PendingPostsQueue = () => {
   const { communityId } = useParams();
@@ -32,19 +33,7 @@ export const PendingPostsQueue = () => {
         </div>
       ) : (
         posts.map((post) => (
-          <div key={post.id} className="flex justify-between items-center p-4 bg-white rounded-lg border border-gray-200">
-            <div>
-              <p className="font-medium text-gray-900 text-lg">{post.title}</p>
-              <p className="text-sm text-gray-700">{post.content}</p>
-              <p className="text-xs text-gray-500 italic">
-                Posted by User #{post.author.name} on {new Date(post.createdAt).toLocaleDateString()}
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <Button size="sm" onClick={() => approvePost(post.id)} className="bg-green-600 hover:bg-green-700">Approve</Button>
-              <Button size="sm" variant="outline" onClick={() => rejectPost(post.id)} className="text-red-600 border-red-600 hover:bg-red-50">Reject</Button>
-            </div>
-          </div>
+         <PendingPostCard post={post} approvePost={approvePost} rejectPost={rejectPost} />
         ))
       )}
     </div>
