@@ -13,6 +13,7 @@ export async function seedComments(users: User[], posts: Post[]) {
   for (let i = 0; i < 300; i++) {
     const author = users[Math.floor(Math.random() * users.length)];
     const post = posts[Math.floor(Math.random() * posts.length)];
+    
     topLevelComments.push(commentFactory(author, post));
   }
   await commentRepo.save(topLevelComments);
