@@ -7,7 +7,7 @@ import { faker } from '@faker-js/faker';
 export async function seedUsers() {
   const userRepo = AppDataSource.getRepository(User);
 
-  const users: User[] = Array.from({ length: 6 }).map(() => {
+  const users: User[] = Array.from({ length: 100 }).map(() => {
     return userFactory();
   });
 

@@ -19,7 +19,7 @@ export async function seedCommunityMemberships(
   const nextRankByCommunity = new Map<number, number>();
 
   for (const user of users) {
-    const numMemberships = Math.floor(Math.random() * 3) + 1; // 1 to 3 communities
+    const numMemberships = Math.floor(Math.random() * 5) + 1; // 1 to 13 communities
     const shuffled = [...communities].sort(() => 0.5 - Math.random());
     const toSubscribe = shuffled.slice(0, numMemberships);
 

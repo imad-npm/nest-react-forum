@@ -16,6 +16,7 @@ import { CommunityMembershipRole } from './types';
 interface MembershipQuery {
   userId?: number;
   communityId?: number;
+  role ?: CommunityMembershipRole
   page?: number;
   limit?: number;
 }
@@ -45,6 +46,10 @@ export class CommunityMembershipsService {
 
     if (query.communityId) {
       where.communityId = query.communityId;
+    }
+
+     if (query.role) {
+      where.role = query.role;
     }
 
     const options: any = { where, relations };

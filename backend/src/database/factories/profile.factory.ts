@@ -6,7 +6,7 @@ export function profileFactory(user: User): Profile {
   const profile = new Profile();
   profile.displayName = faker.person.fullName();
   profile.bio = faker.lorem.sentence();
-  profile.picture = faker.image.avatar();
+  profile.picture = "uploads/userlogo.png";
   profile.user = user; // Link profile to the provided user
   return profile;
 }

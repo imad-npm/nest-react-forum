@@ -40,6 +40,7 @@ export class CommunityMembershipsController {
     const { data, count } = await this.communityMembershipsService.findMemberships({
       userId: query.userId,
       communityId: query.communityId,
+      role : query.role ,
       page: query.page,
       limit: query.limit,
     });
