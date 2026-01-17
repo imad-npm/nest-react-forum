@@ -1,23 +1,32 @@
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Button } from '../../../shared/components/ui/Button';
-import { CommunityRestrictionType } from '../../community-restrictions/types';
+import { CommunityRestrictionType, type CommunityRestriction } from '../../community-restrictions/types';
 import {
-  useGetCommunityRestrictionsQuery,
+  useGetCommunityRestrictionsInfiniteQuery,
   useDeleteCommunityRestrictionMutation,
 } from '../../community-restrictions/services/communityRestrictionsApi.ts';
 import { Modal } from '../../../shared/components/ui/Modal';
 import { CreateRestrictionForm } from '../../community-restrictions/components/CreateRestrictionForm';
+import { useInfiniteScroll } from '../../../shared/hooks/useInfiniteScroll.ts';
 
 export const RestrictedUsersPage = () => {
   const { communityId } = useParams<{ communityId: string }>();
-  const { data: response, isLoading, refetch } = useGetCommunityRestrictionsQuery({
+  const { data: response, isLoading, fetchNextPage,
+        hasNextPage,
+        isFetchingNextPage, refetch } = useGetCommunityRestrictionsInfiniteQuery({
     communityId: Number(communityId),
-    page: 1,
-    limit: 50,
+  
   });
   const [removeRestriction] = useDeleteCommunityRestrictionMutation();
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+
+    const { sentinelRef } = useInfiniteScroll({
+        fetchNextPage,
+        hasNextPage,
+        isFetchingNextPage,
+      });
 
   const handleRestrictionCreated = () => {
     setIsModalOpen(false);
@@ -26,8 +35,9 @@ export const RestrictedUsersPage = () => {
 
   if (isLoading) return <div className="p-4">Loading restricted users...</div>;
 
-  const restrictions = response?.data ?? [];
+  const restrictions = response?.pages.flatMap((page) => page.data) ?? [];
 
+  
   return (
     <div className="max-w-4xl mx-auto">
       <div className="flex justify-between items-center mb-6">
@@ -47,7 +57,7 @@ export const RestrictedUsersPage = () => {
               className="flex justify-between items-center p-4 bg-white rounded-lg border border-gray-200"
             >
               <div>
-                <span className="font-medium text-gray-900 text-lg">User #{r.userId}</span>
+                <span className="font-medium text-gray-900 text-lg">{r.user.username}</span>
                 <p className="text-sm text-gray-500">
                   Restriction: {r.restrictionType === CommunityRestrictionType.BAN ? 'Ban' : 'Mute'}
                 </p>
@@ -59,9 +69,8 @@ export const RestrictedUsersPage = () => {
               <div>
                 <Button
                   size="sm"
-                  variant="outline"
+                  variant="destructive"
                   onClick={() => removeRestriction(r.id)}
-                  className="text-red-600 border-red-600 hover:bg-red-50"
                 >
                   Remove Restriction
                 </Button>
@@ -78,6 +87,9 @@ export const RestrictedUsersPage = () => {
           onCancel={() => setIsModalOpen(false)}
         />
       </Modal>
+
+        <div ref={sentinelRef} />
+      {isFetchingNextPage && <div className="p-4 text-center">Loading more comments...</div>}
     </div>
   );
 };

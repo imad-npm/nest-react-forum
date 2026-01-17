@@ -9,7 +9,7 @@ export type CommunityRestrictionType = typeof CommunityRestrictionType[keyof typ
 // Define a basic User interface for the frontend (copied from community-membership-requests/types.ts)
 export interface User {
   id: number;
-  name: string;
+  username: string;
   email: string;
   // Add other user properties if needed from UserResponseDto
 }

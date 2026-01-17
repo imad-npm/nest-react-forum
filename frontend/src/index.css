@@ -54,7 +54,21 @@
      ========================================================= */
   --color-success-500: #2fbf71;
   --color-warning-500: #f4b740;
-  --color-destructive-500: #e5484d;
+  /* =========================================================
+     DESTRUCTIVE — Clear, controlled danger (modern red)
+     ========================================================= */
+  --color-destructive-50:  #fff5f5;
+  --color-destructive-100: #ffe3e3;
+  --color-destructive-200: #ffbdbd;
+  --color-destructive-300: #ff9b9b;
+  --color-destructive-400: #f76a6a;
+  --color-destructive-500: #e5484d; /* base */
+  --color-destructive-600: #d93b3b;
+  --color-destructive-700: #c53030;
+  --color-destructive-800: #9b1c1c;
+  --color-destructive-900: #7a1414;
+
+  --color-destructive-foreground: #ffffff;
   --color-info-500: #4fa3ff;
 
   /* =========================================================

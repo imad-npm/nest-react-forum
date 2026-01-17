@@ -34,7 +34,7 @@ export const Button = React.forwardRef<
       base: 'inline-flex font-medium items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none ring-offset-background',
       variant: {
         default: 'bg-primary-600 text-primary-foreground hover:bg-primary/90',
-        destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
+        destructive: 'bg-destructive-500 text-destructive-foreground hover:bg-destructive/90',
         outline: 'border border-input hover:bg-accent hover:text-accent-foreground',
         secondary: 'bg-secondary-100 text-secondary-foreground hover:bg-secondary/80',
         ghost: 'hover:bg-accent hover:text-accent-foreground',

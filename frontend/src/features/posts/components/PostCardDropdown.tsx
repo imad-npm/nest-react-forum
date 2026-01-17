@@ -1,6 +1,6 @@
 // frontend/src/features/posts/components/PostDropdown.tsx
 import React, { useState } from 'react'; // Added useState
-import type { Post } from '../types';
+import { PostStatus, type Post } from '../types';
 import {
   FaEdit,
   FaTrashAlt,
@@ -84,7 +84,9 @@ const PostDropdown: React.FC<PostDropdownProps> = ({ post }) => {
               </button>
             )}
 
-            <button
+            {post.status==PostStatus.APPROVED && 
+            
+                <button
               onClick={handleToggleSave}
               className="flex items-center w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
             >
@@ -94,6 +96,9 @@ const PostDropdown: React.FC<PostDropdownProps> = ({ post }) => {
                 <><FaRegBookmark className="mr-2" /> Save</>
               )}
             </button>
+            }
+
+        
           </div>
         </Dropdown>
       </div>

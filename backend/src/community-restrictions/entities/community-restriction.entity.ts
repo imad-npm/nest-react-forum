@@ -3,6 +3,7 @@ import {
   CreateDateColumn,
   Entity,
   ManyToOne,
+  JoinColumn,
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
@@ -23,17 +24,29 @@ export class CommunityRestriction {
   @Column({ type: 'datetime', nullable: true })
   expiresAt?: Date;
 
-  @ManyToOne(() => Community, (community) => community.restrictions)
+  // Explicit community foreign key
+  @Column()
+  communityId: number;
+
+  @ManyToOne(() => Community, (community) => community.restrictions, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'communityId' })
   community: Community;
 
-  @ManyToOne(() => User, (user) => user.communityRestrictions)
+  // Explicit user foreign key
+  @Column()
+  userId: number;
+
+  @ManyToOne(() => User, (user) => user.communityRestrictions, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'userId' })
   user: User;
 
-  @ManyToOne(() => User)
-  createdBy: User;
-
+  // Explicit createdBy foreign key
   @Column()
   createdById: number;
+
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'createdById' })
+  createdBy: User;
 
   @CreateDateColumn()
   createdAt: Date;

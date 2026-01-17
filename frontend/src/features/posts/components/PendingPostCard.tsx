@@ -53,7 +53,8 @@ className="text-gray-700 dark:text-gray-300 text-sm  line-clamp-3 mb-4"
 
   <div className="flex gap-2">
               <Button size="sm" onClick={() => approvePost(post.id)} className="bg-green-600 hover:bg-green-700">Approve</Button>
-              <Button size="sm" variant="outline" onClick={() => rejectPost(post.id)} className="text-red-600 border-red-600 hover:bg-red-50">Reject</Button>
+              <Button size="sm" variant="destructive" onClick={() => rejectPost(post.id)} 
+              >Reject</Button>
             </div>
 
     </div>

@@ -18,11 +18,9 @@ export class CommunityRestrictionResponseDto {
   expiresAt: Date | null;
 
   @Expose()
-  @Transform(({ obj }) => obj.community.id)
   communityId: number;
 
   @Expose()
-  @Transform(({ obj }) => obj.user.id)
   userId: number;
 
   @Expose()

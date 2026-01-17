@@ -3,13 +3,22 @@ import { useGetPostsInfiniteQuery, useUpdatePostStatusMutation } from "../servic
 import { Button } from "../../../shared/components/ui/Button";
 import { PostStatus } from "../types";
 import PendingPostCard from "./PendingPostCard";
+import { useInfiniteScroll } from "../../../shared/hooks/useInfiniteScroll";
 
 export const PendingPostsQueue = () => {
   const { communityId } = useParams();
-  const { data, isLoading } = useGetPostsInfiniteQuery({
+  const { data, isLoading,hasNextPage,fetchNextPage,isFetchingNextPage } = useGetPostsInfiniteQuery({
     communityId: +communityId,
     status: PostStatus.PENDING,
   });
+
+
+    const { sentinelRef } = useInfiniteScroll({
+      fetchNextPage,
+      hasNextPage,
+      isFetchingNextPage,
+    });
+    
   const [updatePostStatus] = useUpdatePostStatusMutation();
 
   const approvePost = (postId: number) => {
@@ -36,6 +45,10 @@ export const PendingPostsQueue = () => {
          <PendingPostCard post={post} approvePost={approvePost} rejectPost={rejectPost} />
         ))
       )}
+
+         <div ref={sentinelRef} />
+      {isFetchingNextPage && <div className="p-4 text-center">Loading more comments...</div>}
     </div>
+  
   );
 };

@@ -1,5 +1,6 @@
 import { apiSlice } from "../../../shared/services/apiSlice";
 import type { ResponseDto } from "../../auth/types";
+import type { PaginatedResponse } from "../../comments/types";
 import type {
   CommunityRestriction,
   CreateCommunityRestrictionDto,
@@ -10,13 +11,22 @@ import type {
 export const communityRestrictionsApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
     // Fetch restrictions (supports query params)
-    getCommunityRestrictions: builder.query<
-      ResponseDto<CommunityRestriction[]>,
-      CommunityRestrictionQueryDto
+    getCommunityRestrictions: builder.infiniteQuery<
+      PaginatedResponse<CommunityRestriction>,
+      CommunityRestrictionQueryDto,number
     >({
-      query: (params) => ({
+
+        infiniteQueryOptions: {
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => {
+      const { page, totalPages } = lastPage.meta;
+      return page < totalPages ? page + 1 : undefined;
+    },
+  },
+       query: ({ queryArg, pageParam = 1 }) => ({
         url: `/community-restrictions`,
-        params,
+        // merge original query args and the page parameter
+        params: { ...(queryArg ?? {}), page: pageParam },
       }),
       providesTags: ['CommunityRestrictions'],
     }),
@@ -62,7 +72,7 @@ export const communityRestrictionsApi = apiSlice.injectEndpoints({
 });
 
 export const {
-  useGetCommunityRestrictionsQuery,
+  useGetCommunityRestrictionsInfiniteQuery,
   useCreateCommunityRestrictionMutation,
   useUpdateCommunityRestrictionMutation,
   useDeleteCommunityRestrictionMutation,
