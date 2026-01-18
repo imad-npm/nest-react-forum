@@ -16,6 +16,9 @@ function ModGuard({ children }: { children: JSX.Element }) {
 
   const isMod = data?.data[0].role=='moderator';
 
+  if(isLoading)
+  return "loading"
+
   if (!isMod) {
     return <Navigate to="/403" replace />;
   }

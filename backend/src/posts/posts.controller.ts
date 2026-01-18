@@ -44,6 +44,7 @@ export class PostsController {
       dateRange: query.dateRange,
       currentUserId: req.user?.id,
       communityId: query.communityId,
+      savedByUserId:query.savedByUserId ,
       status: query.status,
     });
 

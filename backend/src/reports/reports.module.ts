@@ -6,7 +6,6 @@ import { ReportsController } from './reports.controller';
 import { Post } from 'src/posts/entities/post.entity';
 import { User } from 'src/users/entities/user.entity';
 import { Comment } from 'src/comments/entities/comment.entity';
-import { CaslModule } from 'src/casl/casl.module';
 import { Report } from './entities/report.entity';
 import { CommunityMembership } from 'src/community-memberships/entities/community-memberships.entity';
 @Module({
@@ -18,7 +17,6 @@ import { CommunityMembership } from 'src/community-memberships/entities/communit
       User,
       Comment,
     ]),
-    CaslModule,
   ],
   controllers: [ReportsController],
   providers: [ReportsService],

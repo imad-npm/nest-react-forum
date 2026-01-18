@@ -28,6 +28,11 @@ export class PostQueryDto extends PaginationDto {
   communityId?: number;
 
   @IsOptional()
+  @IsInt()
+  @Type(() => Number)
+  savedByUserId?: number;
+
+  @IsOptional()
   @IsEnum(PostSort)
   sort?: PostSort;
 

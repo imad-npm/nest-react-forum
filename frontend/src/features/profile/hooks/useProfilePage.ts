@@ -65,7 +65,7 @@ export const useProfile = () => {
     hasNextPage: hasNextSavedPostsPage,
     isFetchingNextPage: isFetchingNextSavedPostsPage,
     isLoading: isLoadingSavedPosts,
-  } = useGetSavedPostsInfiniteQuery({});
+  } = useGetPostsInfiniteQuery({savedByUserId:currentUser?.id});
 
   const savedPosts = savedPostsData?.pages.flatMap((page) => page.data) ?? [];
 

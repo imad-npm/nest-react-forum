@@ -25,14 +25,14 @@ const PendingPostCard: React.FC<PendingPostCardProps> = ({ post,approvePost,reje
 
   return (
     <div className="relative bg-white dark:bg-gray-800 rounded-lg s border border-gray-300 hover:shadow-lg transition-shadow duration-200 mb-6 p-5">
-      {/* Three dots dropdown */}
-      <PostDropdown post={post} />
+       
+       <div className="mb-2 relative flex justify-between">   
+                    <PostMetaData post={post} />
 
-      {/* Post Metadata */}
-      <div className="mb-2">
-                   <PostMetaData post={post} />
+           <PostDropdown post={post} />
 
-      </div>
+ 
+      </div>  
 
 
       {/* Post Title */}

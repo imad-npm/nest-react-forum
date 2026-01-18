@@ -18,7 +18,6 @@ import { User } from './users/entities/user.entity';
 import { Post } from './posts/entities/post.entity';
 import { Comment } from './comments/entities/comment.entity';
 import { AuthModule } from './auth/auth.module';
-import { CaslModule } from './casl/casl.module';
 import { EmailVerificationToken } from './email-verification/entities/email-verification-token.entity';
 
 import { PasswordResetToken } from './reset-password/entities/password-reset-token.entity';
@@ -77,7 +76,6 @@ import { SavedPostsModule } from './saved-posts/saved-posts.module';
     CommentsModule,
     ReactionsModule,
     AuthModule,
-    CaslModule,
     ResetPasswordModule,
     ProfileModule,
     CommunitiesModule,

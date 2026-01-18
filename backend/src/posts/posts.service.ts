@@ -32,6 +32,7 @@ export class PostsService {
       dateRange?: string;
       currentUserId?: number;
       communityId?: number;
+      savedByUserId?:number;
       status?: PostStatus | "all";
     },
   ): Promise<{
@@ -47,6 +48,7 @@ export class PostsService {
       dateRange,
       currentUserId,
       communityId,
+      savedByUserId,
       status = PostStatus.APPROVED,
     } = options;
     const query = this.postsRepository
@@ -187,6 +189,19 @@ if (currentUserId) {
       ).setParameter('privateType', 'private')
         .setParameter('currentUserId', currentUserId);
     }
+    
+if (savedByUserId) {
+  query
+    .innerJoin(
+      'saved_posts',
+      'sp',
+      'sp.postId = post.id AND sp.userId = :savedByUserId',
+      { savedByUserId }
+    )
+    .addSelect('sp.savedAt', 'sp_savedAt') // 🔥 THIS FIXES IT
+    .addOrderBy('sp_savedAt', 'DESC');
+}
+
 
  const queryResult = await query
   .take(limit)

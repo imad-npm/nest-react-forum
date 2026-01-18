@@ -16,8 +16,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { User } from '../users/entities/user.entity';
 import { GetUser } from 'src/decorators/user.decorator';
 import { UpdateCommunityRestrictionDto } from './dto/update-community-restriction.dto';
-import { CaslService } from 'src/casl/casl.service';
-import { Action } from 'src/casl/casl.types';
+
 import { CommunityRestriction } from './entities/community-restriction.entity';
 import { CommunityRestrictionResponseDto } from './dto/community-restriction-response.dto';
 import { ResponseDto } from 'src/common/dto/response.dto';

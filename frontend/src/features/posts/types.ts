@@ -5,7 +5,10 @@ export const PostStatus = {
   APPROVED: 'approved',
   REJECTED: 'rejected',
 } as const;
+
 export type PostStatus = typeof PostStatus[keyof typeof PostStatus];
+
+
 export interface Post {
   id: number;
   title: string;
@@ -51,6 +54,7 @@ export interface PostQueryDto {
   sort?: string;
   dateRange?: string;
   communityId?: number;
+  savedByUserId?:number ;
   status?: PostStatus |'all';
 }
 

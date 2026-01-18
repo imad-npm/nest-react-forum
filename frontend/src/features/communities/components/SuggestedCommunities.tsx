@@ -42,7 +42,7 @@ const SuggestedCommunities = () => {
             <Link to={`/communities/${community.id}`} className="text-primary-600 hover:underline">
               {community.displayName || community.name}
             </Link>
-            <p className="text-sm text-gray-500">{community.membersCount} subscribers</p>
+            <p className="text-sm text-gray-500">{community.membersCount} members</p>
           </li>
         ))}
       </ul>

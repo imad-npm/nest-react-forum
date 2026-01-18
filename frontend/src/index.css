@@ -4,19 +4,20 @@
 
 
 @theme {
-  /* =========================================================
-     PRIMARY — Crisp Electric Indigo (modern, confident)
-     ========================================================= */
-  --color-primary-50:  #f7f8ff;
-  --color-primary-100: #eef0ff;
-  --color-primary-200: #dde1ff;
-  --color-primary-300: #c2c8ff;
-  --color-primary-400: #9ea8ff;
-  --color-primary-500: #6f7cff; /* main */
-  --color-primary-600: #5a67e8;
-  --color-primary-700: #4b56c5;
-  --color-primary-800: #3f479e;
-  --color-primary-900: #353c7c;
+   
+/* Elegant Indigo — recommended (subtle, modern) */
+--color-primary-50:  #f6f7ff;
+--color-primary-100: #eef1ff;
+--color-primary-200: #dde4ff;
+--color-primary-300: #c7cef6;
+--color-primary-400: #9fa3ea;
+--color-primary-500: #6f74d6; /* main — elegant */
+--color-primary-600: #5b61c0; /* hover */
+--color-primary-700: #484d9a; /* active */
+--color-primary-800: #36365f;
+--color-primary-900: #232336;
+
+--color-primary-foreground: #ffffff;
 
   /* =========================================================
      NEUTRAL — Cool Graphite (modern UI backbone)

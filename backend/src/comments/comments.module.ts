@@ -4,7 +4,6 @@ import { Comment } from './entities/comment.entity';
 import { CommentsService } from './comments.service';
 import { CommentsController } from './comments.controller';
 import { PostsModule } from 'src/posts/posts.module';
-import { CaslModule } from 'src/casl/casl.module';
 import { CommunitiesModule } from 'src/communities/communities.module';
 import { Post } from 'src/posts/entities/post.entity';
 
@@ -12,7 +11,6 @@ import { Post } from 'src/posts/entities/post.entity';
   imports: [
     TypeOrmModule.forFeature([Comment, Post]),
     PostsModule,
-    CaslModule,
     CommunitiesModule,
   ],
   providers: [CommentsService],

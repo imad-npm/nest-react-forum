@@ -181,7 +181,7 @@ export const ProfilePage = () => {
             ) : savedPosts.data.length > 0 ? (
               <>
                   <PostList
-                  posts={savedPosts.data.map(s=>s.post)}
+                  posts={savedPosts.data}
                   isLoading={false}
                   error={undefined}
                 />
