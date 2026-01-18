@@ -18,6 +18,7 @@ import { CommunityMembership } from '../../community-memberships/entities/commun
 import { CommunityMembershipRequest } from '../../community-membership-requests/entities/community-membership-request.entity';
 import { CommunityRestriction } from '../../community-restrictions/entities/community-restriction.entity';
  import { Report } from '../../reports/entities/report.entity';
+import { SavedPost } from '../../saved-posts/entities/saved-post.entity';
 
 
 export enum UserRole {
@@ -71,6 +72,9 @@ export class User {
   // Relations
   @OneToMany(() => Post, (post) => post.author)
   posts: Post[];
+
+   @OneToMany(() => SavedPost, (post) => post.user)
+  savedPosts: SavedPost[];
 
   @OneToMany(() => Comment, (comment) => comment.author)
   comments: Comment[];

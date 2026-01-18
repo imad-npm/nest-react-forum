@@ -25,7 +25,7 @@ export interface Post {
   commentsLocked : boolean
   commentsCount: number; // Added commentsCount
   userReaction?: { id: number; type: ReactionType };
-  userSaved?: any;
+  userSaved?: boolean;
   status: PostStatus;
   createdAt: string;
   updatedAt: string;

@@ -59,11 +59,9 @@ export class Post {
   @Column({ default: 0 })
   views: number;
 
-  @OneToMany(() => Reaction, (reaction) => reaction.reactableId, {
-    cascade: true,
-  })
-  reactions: Reaction[];
-
+// Important: Point to the 'post' field in the Reaction entity, NOT the ID
+@OneToMany(() => Reaction, (reaction) => reaction.post) 
+reactions: Reaction[];
   @Column({ default: 0 })
   likesCount: number;
 
@@ -84,6 +82,8 @@ export class Post {
 reports: Report[];
 
   userReaction?: { id: number; type: ReactionType };
+  userSaved?: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 

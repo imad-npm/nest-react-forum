@@ -37,6 +37,8 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { Reaction } from './reactions/entities/reaction.entity';
 import { ResetPasswordModule } from './reset-password/reset-password.module';
 import { Report } from './reports/entities/report.entity';
+import { SavedPost } from './saved-posts/entities/saved-post.entity';
+import { SavedPostsModule } from './saved-posts/saved-posts.module';
 
 @Module({
   imports: [
@@ -63,6 +65,7 @@ import { Report } from './reports/entities/report.entity';
           CommunityRestriction,
           EmailChangeToken,
           Notification,
+          SavedPost 
         ],
         migrations: ['./src/migrations/*.ts'],
         synchronize: false,
@@ -84,6 +87,7 @@ import { Report } from './reports/entities/report.entity';
     CommunityRestrictionsModule,
     EmailChangeModule,
     NotificationsModule,
+    SavedPostsModule
   ],
   controllers: [AppController],
   providers: [AppService],

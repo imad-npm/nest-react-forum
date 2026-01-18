@@ -83,15 +83,23 @@ export class PostsService {
     }
   }
 if (currentUserId) {
+// Join the reaction for the specific user
+  // Join only the reaction of the current user
+  query.leftJoinAndMapOne(
+    'post.userReaction', // property on Post entity
+    'post.reactions',    // relation
+    'userReaction',      // alias
+    'userReaction.userId = :currentUserId', 
+    { currentUserId },
+  );
   query.addSelect((qb) =>
     qb
-      .select('r.type')
-      .from('reactions', 'r')
-      .where('r.reactableType = :reactableType', { reactableType: 'post' })
-      .andWhere('r.userId = :currentUserId', { currentUserId })
-      .andWhere('r.reactableId = post.id')
+      .select('1')
+      .from('saved_posts', 'sv')
+      .where('sv.userId = :currentUserId', { currentUserId })
+      .andWhere('sv.postId = post.id')
       .limit(1),
-    'userReactionType',
+    'userSaved',
   );
 }
 
@@ -180,15 +188,28 @@ if (currentUserId) {
         .setParameter('currentUserId', currentUserId);
     }
 
-    const [data, count] = await query
-      .take(limit)
-      .skip((page - 1) * limit)
-      .getManyAndCount();
+ const queryResult = await query
+  .take(limit)
+  .skip((page - 1) * limit)
+  .getRawAndEntities();
 
-    return { data: data, count };
+// Manually map the raw results to your entities
+const data = queryResult.entities.map((entity, index) => {
+  const raw = queryResult.raw[index];
+  
+  // Note: TypeORM often prefixes raw aliases or converts them to camelCase/snake_case 
+  console.log(queryResult.raw)
+ // entity.userReaction = raw.userReaction; 
+  entity.userSaved = !!raw.userSaved; 
+  
+  return entity;
+});
+
+return { data, count: queryResult.entities.length };
+
   }
 
-
+ 
   async findOne(id: number, currentUserId?: number): Promise<Post | null> {
     // Start building query
     const query = this.postsRepository.createQueryBuilder('post')
@@ -344,8 +365,8 @@ if (currentUserId) {
       throw new NotFoundException('Post not found');
     }
     const isMod=await this.isModerator(userId,post.communityId)
-  if (userId !== post.authorId || !isMod ) {
-    throw new ForbiddenException('You cannot manage this post.');
+if (userId !== post.authorId && !isMod) {
+      throw new ForbiddenException('You cannot manage this post.');
   }
     post.commentsLocked = commentsLocked;
     return this.postsRepository.save(post);

@@ -4,6 +4,7 @@ import { useAuth } from '../../auth/hooks/useAuth';
 import { useGetProfileByUserIdQuery } from '../services/profileApi';
 import { useGetPostsInfiniteQuery } from '../../posts/services/postsApi';
 import { useGetCommentsInfiniteQuery } from '../../comments/services/commentsApi';
+import { useGetSavedPostsInfiniteQuery } from '../../saved-posts/services/savedPostsApi';
 
 export const useProfile = () => {
   const { userId } = useParams<{ userId: string }>();
@@ -23,7 +24,7 @@ export const useProfile = () => {
 
 
   const [isEditing, setIsEditing] = useState(false);
-  const [activeTab, setActiveTab] = useState<'posts' | 'comments'>('posts');
+  const [activeTab, setActiveTab] = useState<'posts' | 'comments' | 'savedPosts'>('posts');
 
   const handleEditSuccess = () => {
     setIsEditing(false);
@@ -55,6 +56,19 @@ export const useProfile = () => {
   } = useGetCommentsInfiniteQuery({ authorId: parsedUserId });
 
   const comments = commentsData?.pages.flatMap((page) => page.data) ?? [];
+
+
+  // Fetch Comments by User
+  const {
+    data: savedPostsData,
+    fetchNextPage: fetchNextSavedPostsPage,
+    hasNextPage: hasNextSavedPostsPage,
+    isFetchingNextPage: isFetchingNextSavedPostsPage,
+    isLoading: isLoadingSavedPosts,
+  } = useGetSavedPostsInfiniteQuery({});
+
+  const savedPosts = savedPostsData?.pages.flatMap((page) => page.data) ?? [];
+
 
   let errorMessage: string | null = null;
   if (error) {
@@ -99,6 +113,15 @@ export const useProfile = () => {
       isFetchingNextPage: isFetchingNextCommentsPage,
       isLoading: isLoadingComments,
       total: commentsData?.pages[0]?.meta?.totalItems ?? 0,
+    },
+
+      savedPosts: {
+      data: savedPosts,
+      fetchNextPage: fetchNextSavedPostsPage,
+      hasNextPage: hasNextSavedPostsPage,
+      isFetchingNextPage: isFetchingNextSavedPostsPage,
+      isLoading: isLoadingSavedPosts,
+      total: savedPostsData?.pages[0]?.meta?.totalItems ?? 0,
     },
   };
 };

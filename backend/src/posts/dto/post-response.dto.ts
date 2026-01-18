@@ -16,6 +16,7 @@ export class PostResponseDto {
   @Expose() readonly publishedAt: Date;
   @Expose() readonly status : PostStatus ;
   @Expose() readonly commentsLocked : boolean
+  @Expose()  userSaved : boolean
 
 
   @Expose() @Type(() => UserResponseDto) readonly author: UserResponseDto;
@@ -38,6 +39,7 @@ export class PostResponseDto {
         community: entity.community ? CommunityResponseDto.fromEntity(entity.community) : null,
         commentsCount: entity.commentsCount,
         userReaction: entity.userReaction ? ReactionResponseDto.fromEntity(entity.userReaction) : null,
+      userSaved:!!entity.userSaved 
       },
       { excludeExtraneousValues: true },
     );

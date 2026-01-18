@@ -15,6 +15,7 @@ import { CommunityMembershipRequest } from './community-membership-requests/enti
 import { EmailChangeToken } from './email-change/entities/email-change-token.entity';
 import { Notification } from './notifications/entities/notification.entity'; // Import Notification entity
 import { Report } from './reports/entities/report.entity';
+import { SavedPost } from './saved-posts/entities/saved-post.entity';
 
 config(); // load .env manually
 
@@ -39,7 +40,8 @@ export const AppDataSource = new DataSource({
     CommunityMembership, // Add CommunityMembership
     CommunityMembershipRequest, // Add CommunityMembershipRequest
   Report,
-    CommunityRestriction,
+    CommunityRestriction, 
+    SavedPost,
     Notification, // Add Notification entity here
   ],
   synchronize: false,

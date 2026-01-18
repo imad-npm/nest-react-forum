@@ -20,6 +20,7 @@ export const ProfilePage = () => {
     handleEditCancel,
     posts,
     comments,
+    savedPosts,
   } = useProfile();
 
   if (isLoading) {
@@ -105,6 +106,13 @@ export const ProfilePage = () => {
           >
             Comments ({comments.total})
           </Button>
+
+             <Button
+            variant={activeTab === 'savedPosts' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('savedPosts')}
+          >
+            Saved ({savedPosts.total})
+          </Button>
         </div>
 
         {activeTab === 'posts' && (
@@ -162,6 +170,40 @@ export const ProfilePage = () => {
             )}
           </div>
         )}
+     
+        {activeTab === 'savedPosts' && (
+          <div>
+            <h2 className="text-2xl font-semibold text-gray-800 mb-4">
+              Saved Posts
+            </h2>
+            {savedPosts.isLoading ? (
+              <p>Loading Saved Posts...</p>
+            ) : savedPosts.data.length > 0 ? (
+              <>
+                  <PostList
+                  posts={savedPosts.data.map(s=>s.post)}
+                  isLoading={false}
+                  error={undefined}
+                />
+                {savedPosts.hasNextPage && (
+                  <div className="flex justify-center mt-4">
+                    <Button
+                      onClick={() => savedPosts.fetchNextPage()}
+                      disabled={savedPosts.isFetchingNextPage}
+                    >
+                      {savedPosts.isFetchingNextPage
+                        ? 'Loading more...'
+                        : 'Load More Posts'}
+                    </Button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <p>No Saved Posts found.</p>
+            )}
+          </div>
+        )}
+     
       </div>
     </div>
   );

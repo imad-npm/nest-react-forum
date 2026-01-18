@@ -7,10 +7,12 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   Index,
+  JoinColumn,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { ReactionType } from '../reactions.types';
 import type { Reactable } from '../reactions.types';
+import { Post } from 'src/posts/entities/post.entity';
 
 @Entity('reactions')
 @Index(['reactableId', 'reactableType', 'userId'], { unique: true })
@@ -35,6 +37,10 @@ export class Reaction {
 
   @Column()
   userId: number;
+  
+  @ManyToOne(() => Post, (post) => post.reactions, { nullable: true })
+@JoinColumn({ name: 'reactableId' }) // Tells TypeORM to use this column for the join
+post: Post;
 
   @CreateDateColumn()
   createdAt: Date;

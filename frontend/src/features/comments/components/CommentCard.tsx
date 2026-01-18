@@ -1,4 +1,4 @@
-import { FaUser, FaReply } from 'react-icons/fa';
+import { FaUser, FaReply, FaComment } from 'react-icons/fa';
 import type { Comment } from '../types';
 import { ReactionButtons } from '../../reactions/components/ReactionButtons';
 import { Button } from '../../../shared/components/ui/Button';
@@ -60,8 +60,8 @@ const CommentCard: React.FC<CommentCardProps> = ({
           <Button variant='ghost' size='sm'
             onClick={() => setShowReplyInput((v) => !v)}
           >
-            <FaReply />
-            <span className='mx-2'>Reply</span>
+            <FaComment />
+            <span className='mx-1.5'>Reply</span>
           </Button>
 
           {comment.repliesCount > 0 && (

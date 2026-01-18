@@ -15,6 +15,7 @@ import { useAuth } from '../../auth/hooks/useAuth';
 import { useDeletePostMutation, useUpdateCommentLockedStatusMutation } from '../services/postsApi';
 import { ReportForm } from '../../reports/components/ReportForm'; // Adjust path
 import { Modal } from '../../../shared/components/ui/Modal';
+import { useCreateSavedPostMutation, useDeleteSavedPostMutation } from '../../saved-posts/services/savedPostsApi';
 
 interface PostDropdownProps {
   post: Post;
@@ -25,6 +26,8 @@ const PostDropdown: React.FC<PostDropdownProps> = ({ post }) => {
   const [deletePost, { isLoading }] = useDeletePostMutation();
 
     const [lockComments] = useUpdateCommentLockedStatusMutation();
+    const [savePost] = useCreateSavedPostMutation();
+    const [unSavePost] = useDeleteSavedPostMutation();
 
     
   const [isReportModalOpen, setIsReportModalOpen] = useState(false); // Modal state
@@ -49,9 +52,22 @@ const PostDropdown: React.FC<PostDropdownProps> = ({ post }) => {
     }
   };
 
-  const handleToggleSave = () => {
-    console.log(post.userSaved ? 'Unsave post:' : 'Save post:', post.id);
-  };
+  const handleToggleSave = async () => { 
+ 
+   try {
+
+    console.log(post);
+    
+    if(post.userSaved)
+      await unSavePost(post.id ).unwrap();
+    else 
+
+      await savePost({postId:post.id} ).unwrap();
+
+  } catch (error) {
+      console.error('Failed to save / unsave post', error);
+    }
+   };
 
 
   return (
