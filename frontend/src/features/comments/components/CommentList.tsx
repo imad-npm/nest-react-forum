@@ -34,7 +34,7 @@ console.log(comments);
             key={comment.id}
             comment={comment}
             level={0}
-            postId={comment.postId}
+            post={comment.post}
           />
         ))
       )}

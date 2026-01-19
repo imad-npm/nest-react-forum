@@ -5,16 +5,17 @@ import { Button } from '../../../shared/components/ui/Button';
 import { CommentInput } from './CommentInput';
 import { timeAgo } from '../../../shared/utils/date';
 import { useCommentCard } from '../hooks/useCommentCard';
+import type { Post } from '../../posts/types';
 
 interface CommentCardProps {
   comment: Comment;
-  postId: number;
+  post: Post;
   level: number;
 }
 
 const CommentCard: React.FC<CommentCardProps> = ({
   comment,
-  postId,
+  post,
   level,
 }) => {
   const {
@@ -29,7 +30,7 @@ const CommentCard: React.FC<CommentCardProps> = ({
     hasNextPage,
     isFetchingNextPage,
     shouldRender,
-  } = useCommentCard({ comment, postId, level });
+  } = useCommentCard({ comment,postId: post.id, level });
 
   if (!shouldRender) {
     return null;
@@ -57,12 +58,18 @@ const CommentCard: React.FC<CommentCardProps> = ({
         <div className="flex items-center space-x-4 text-xs ">
           <ReactionButtons target={comment} />
 
-          <Button variant='ghost' size='sm'
+          {
+            ! post.commentsLocked && (
+                 <Button variant='ghost' size='sm'
             onClick={() => setShowReplyInput((v) => !v)}
           >
             <FaComment />
             <span className='mx-1.5'>Reply</span>
           </Button>
+            )
+          }
+
+       
 
           {comment.repliesCount > 0 && (
             <Button onClick={() => setShowReplies((v) => !v)} variant="link">
@@ -79,7 +86,7 @@ const CommentCard: React.FC<CommentCardProps> = ({
       {showReplyInput && (
         <div className="mt-3 ml-6 border-l border-gray-200 pl-4">
           <CommentInput
-            postId={postId}
+            postId={post.id}
             parentId={comment.id}
             onCommentPosted={handleReplyPosted}
             onCancel={() => setShowReplyInput(false)}
@@ -95,7 +102,7 @@ const CommentCard: React.FC<CommentCardProps> = ({
             <CommentCard
               key={reply.id}
               comment={reply}
-              postId={postId}
+              post={post}
               level={level + 1}
             />
           ))}
