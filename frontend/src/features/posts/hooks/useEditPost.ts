@@ -5,36 +5,42 @@ import { z } from 'zod';
 import { useNavigate } from 'react-router-dom';
 
 import { useGetCommunitiesQuery } from '../../communities/services/communitiesApi';
-import { useCreatePostMutation } from '../services/postsApi';
+import { useUpdatePostMutation } from '../services/postsApi';
+import type { Post } from '../types';
 
 /* -------------------------------------------------------------------------- */
 /*                                   Schema                                   */
 /* -------------------------------------------------------------------------- */
 
-const createPostSchema = z.object({
+const editPostSchema = z.object({
   title: z.string().min(1, 'Title is required'),
   content: z.string().min(1, 'Content is required'),
   communityId: z.number().min(1, 'Community is required'),
 });
 
-type CreatePostFormValues = z.infer<typeof createPostSchema>;
+type EditPostFormValues = z.infer<typeof editPostSchema>;
 
 /* -------------------------------------------------------------------------- */
 /*                                    Hook                                    */
 /* -------------------------------------------------------------------------- */
 
-export const useCreatePosts = () => {
+export const useEditPost = (post : Post) => {
   const navigate = useNavigate();
-  const [createPost, { isLoading }] = useCreatePostMutation();
+  const [editPost, { isLoading }] = useUpdatePostMutation();
 
   const {
     register,
     handleSubmit,
     setValue,
       control, // ✅ ADD THIS
-    formState: { errors },
-  } = useForm<CreatePostFormValues>({
-    resolver: zodResolver(createPostSchema),
+    formState,
+  } = useForm<EditPostFormValues>({
+    resolver: zodResolver(editPostSchema),
+      defaultValues: {
+      title: post.title,
+      content: post.content,
+      communityId: post.community?.id,
+    },
   });
 
   /* --------------------------- Search State -------------------------------- */
@@ -50,12 +56,12 @@ export const useCreatePosts = () => {
 
   /* ---------------------------- Submit ------------------------------------- */
 
-  const handleCreatePost = async (values: CreatePostFormValues) => {
+  const handleEditPost = async (values: EditPostFormValues) => {
     try {
-      await createPost(values).unwrap();
+      await editPost({id:post.id,data:values}).unwrap();
       navigate('/');
     } catch (err) {
-      console.error('Create post failed', err);
+      console.error('Edit post failed', err);
     }
   };
 
@@ -67,7 +73,7 @@ export const useCreatePosts = () => {
       handleSubmit,
       setValue,
         control, // ✅ ADD THIS
-      errors,
+     formState ,
     },
     communitySearch: {
       search,
@@ -75,8 +81,8 @@ export const useCreatePosts = () => {
       communities,
       isFetching,
     },
-    create: {
-      handleCreatePost,
+    edit: {
+      handleEditPost,
       isLoading,
     },
   };

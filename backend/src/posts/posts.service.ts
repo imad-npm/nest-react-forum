@@ -335,11 +335,23 @@ return { data, count: queryResult.entities.length };
     }
 
  const isMod=await this.isModerator(userId,post.communityId)
-  if (userId !== post.authorId || !isMod ) {
+  if (userId !== post.authorId && !isMod ) {
     throw new ForbiddenException('You cannot manage this post.');
   }
-    if (postUpdateData.title !== undefined) post.title = postUpdateData.title;
-    if (postUpdateData.content !== undefined) post.content = postUpdateData.content;
+
+  if (
+  !isMod && post.status === PostStatus.APPROVED
+) {
+  throw new ForbiddenException(
+    'Approved posts cannot be edited by non mod'
+  );
+}
+
+    if (postUpdateData.title !== undefined) 
+      post.title = postUpdateData.title;
+
+    if (postUpdateData.content !== undefined)
+       post.content = postUpdateData.content;
 
     return this.postsRepository.save(post);
   }
@@ -350,7 +362,7 @@ return { data, count: queryResult.entities.length };
       throw new NotFoundException('Post not found'); // TODO: Use a more specific NestJS exception
     }
  const isMod=await this.isModerator(userId,post.communityId)
-  if (userId !== post.authorId || !isMod ) {
+  if (userId !== post.authorId && !isMod ) {
     throw new ForbiddenException('You cannot manage this post.');
   }
     const res = await this.postsRepository.remove(post);

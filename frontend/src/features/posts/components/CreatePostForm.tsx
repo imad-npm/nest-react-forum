@@ -6,12 +6,12 @@ import { Input } from '../../../shared/components/ui/Input';
 import { Label } from '../../../shared/components/ui/Label';
 import { InputError } from '../../../shared/components/ui/InputError';
 import { Button } from '../../../shared/components/ui/Button';
-import { useCreatePosts } from '../hooks/useCreatePosts';
+import { useCreatePost } from '../hooks/useCreatePost';
 import { Controller } from 'react-hook-form';
 import { SimpleEditor } from '../../../shared/components/simpleEditor/SimpleEditor';
 
 const CreatePostForm: React.FC = () => {
-  const { form, communitySearch, create } = useCreatePosts();
+  const { form, communitySearch, create } = useCreatePost();
   const { register, handleSubmit, setValue, errors } = form;
   const { search, setSearch, communities, isFetching } = communitySearch;
   const { handleCreatePost, isLoading } = create;

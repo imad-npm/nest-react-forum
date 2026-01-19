@@ -16,6 +16,7 @@ import { useDeletePostMutation, useUpdateCommentLockedStatusMutation } from '../
 import { ReportForm } from '../../reports/components/ReportForm'; // Adjust path
 import { Modal } from '../../../shared/components/ui/Modal';
 import { useCreateSavedPostMutation, useDeleteSavedPostMutation } from '../../saved-posts/services/savedPostsApi';
+import EditPostForm from './EditPostForm';
 
 interface PostDropdownProps {
   post: Post;
@@ -31,6 +32,7 @@ const PostDropdown: React.FC<PostDropdownProps> = ({ post }) => {
 
     
   const [isReportModalOpen, setIsReportModalOpen] = useState(false); // Modal state
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false); // Modal state
 
   const handleEditPost = () => {
     console.log('Edit post:', post.id);
@@ -84,13 +86,17 @@ const PostDropdown: React.FC<PostDropdownProps> = ({ post }) => {
           <div className="py-1">
             {user?.id === post.author.id && (
               <>
-                <button
-                  onClick={handleEditPost}
-                  className="flex items-center w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
-                >
-                  <FaEdit className="mr-2" />
-                  Edit
-                </button>
+
+              {1==1 && (
+   <Button
+              variant='ghost'
+                onClick={() => setIsEditModalOpen(true)}
+              >
+                Edit 
+              </Button>
+
+              )}
+           
 
                 <button
                   onClick={handleDeletePost}
@@ -112,13 +118,19 @@ const PostDropdown: React.FC<PostDropdownProps> = ({ post }) => {
 
             {/* NEW: Report Button - Only visible if not the author */}
             {user?.id !== post.author.id && (
-              <button
+              <>
+              
+                <button
                 onClick={() => setIsReportModalOpen(true)}
                 className="flex items-center w-full text-left px-4 py-2 text-sm text-amber-600 dark:text-amber-400 hover:bg-gray-100 dark:hover:bg-gray-600"
               >
                 <FaFlag className="mr-2" />
                 Report Post
               </button>
+
+               
+              </>
+            
             )}
             {post.status==PostStatus.APPROVED && <>
             
@@ -155,6 +167,17 @@ const PostDropdown: React.FC<PostDropdownProps> = ({ post }) => {
           reportableType="post"
           onSuccess={() => setIsReportModalOpen(false)}
           onCancel={() => setIsReportModalOpen(false)}
+        />
+      </Modal>
+
+        <Modal
+        open={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+      >
+        <EditPostForm
+          post={post}
+          onSuccess={() => setIsEditModalOpen(false)}
+          onCancel={() => setIsEditModalOpen(false)}
         />
       </Modal>
     </>
