@@ -13,6 +13,7 @@ import { Comment } from 'src/comments/entities/comment.entity';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { use } from 'passport';
 import { ReactionCreatedEvent } from './events/reaction-created.event';
+import { ReactionDeletedEvent } from './events/reaction-deleted.event';
 
 @Injectable()
 export class ReactionsService {
@@ -221,6 +222,11 @@ export class ReactionsService {
         }
       }
       await queryRunner.commitTransaction();
+
+      this.eventEmitter.emit(
+  'reaction.deleted',
+  new ReactionDeletedEvent(reaction),
+);
     } catch (err) {
       await queryRunner.rollbackTransaction();
       throw err;

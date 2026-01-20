@@ -6,6 +6,7 @@ export enum NotificationResourceType {
   POST = 'Post',
   COMMENT = 'Comment',
   COMMUNITY_MEMBERSHIP_REQUEST = 'CommunityMembershipRequest',
+  COMMUNITY = "COMMUNITY",
   // Add other resource types as needed
 }
 

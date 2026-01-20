@@ -7,6 +7,7 @@ import { NotificationsService } from '../notifications.service';
 import { CommentCreatedEvent } from 'src/comments/events/comment-created.event';
 import { User } from 'src/users/entities/user.entity';
 import { NotificationType } from '../types'; // NEW: Import NotificationType
+import { CommentDeletedEvent } from 'src/comments/events/comment-deleted.event';
 
 @Injectable()
 export class CommentNotificationListener {
@@ -53,5 +54,16 @@ export class CommentNotificationListener {
       );
     }
   }
+
+  @OnEvent('comment.deleted')
+async handleCommentDeleted(event: CommentDeletedEvent) {
+  const { comment } = event;
+
+  await this.notificationRepo.delete({
+    resourceType: NotificationResourceType.COMMENT,
+    resourceId: comment.id,
+  });
+}
+
 }
 

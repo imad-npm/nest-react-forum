@@ -10,6 +10,7 @@ import { CommunityMembershipRole } from 'src/community-memberships/types';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PostCreatedEvent } from './events/post-created.event';
 import { buffer } from 'stream/consumers';
+import { PostDeletedEvent } from './events/post-deleted.event';
 
 @Injectable()
 export class PostsService {
@@ -366,6 +367,8 @@ return { data, count: queryResult.entities.length };
     throw new ForbiddenException('You cannot manage this post.');
   }
     const res = await this.postsRepository.remove(post);
+   
+     this.eventEmitter.emit('post.deleted', new PostDeletedEvent(post));
     return !!res;
   }
 

@@ -21,6 +21,8 @@ import {
 } from './dto/community-membership-request-query.dto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { CommunityMembershipRequestCreatedEvent } from './events/community-membership-request-created.event';
+import { CommunityMembershipRequestAcceptedEvent } from './events/community-membership-request-accepted.event';
+import { CommunityMembershipRequestDeletedEvent } from './events/community-membership-request-deleted.event';
 
 @Injectable()
 export class CommunityMembershipRequestsService {
@@ -198,6 +200,12 @@ async acceptMembershipRequest(
     );
 
     await queryRunner.commitTransaction();
+
+    this.eventEmitter.emit(
+  'community.membership.request.accepted',
+  new CommunityMembershipRequestAcceptedEvent(request),
+);
+
     return true;
   } catch (err) {
     await queryRunner.rollbackTransaction();
@@ -206,6 +214,7 @@ async acceptMembershipRequest(
     await queryRunner.release();
   }
 }
+
 
 async removeMembershipRequest(
   actorId: number,
@@ -231,8 +240,15 @@ async removeMembershipRequest(
   // 3️⃣ Delete request
    await this.requestRepository.delete({ userId: request.userId,communityId:communityId });
 
+   this.eventEmitter.emit(
+  'community.membership.request.deleted',
+  new CommunityMembershipRequestDeletedEvent(request),
+);
+
   return true;
 }
+
+
 async removeOwnRequest(
   userId: number,
   communityId: number,
@@ -255,8 +271,15 @@ async removeOwnRequest(
     status: CommunityMembershipRequestStatus.PENDING,
   });
 
+
+   this.eventEmitter.emit(
+  'community.membership.request.deleted',
+  new CommunityMembershipRequestDeletedEvent(request),
+);
   return true;
 }
+
+
   private async canManageMembershipRequests(actorId: number, communityId: number) {
     const membership = await this.membershipRepository.findOne({
       where: {

@@ -7,6 +7,8 @@ import { NotificationsService } from '../notifications.service';
 import { CommunityMembershipRequestCreatedEvent } from '../../community-membership-requests/events/community-membership-request-created.event';
 import { User } from 'src/users/entities/user.entity';
 import { NotificationType } from '../types'; // NEW: Import NotificationType
+import { CommunityMembershipRequest } from 'src/community-membership-requests/entities/community-membership-request.entity';
+
 
 @Injectable()
 export class CommunityMembershipRequestNotificationListener {
@@ -45,4 +47,44 @@ export class CommunityMembershipRequestNotificationListener {
       );
     }
   }
+
+  
+@OnEvent('community.membership.request.accepted')
+async notifyUserOnAccepted(event: {
+  request: CommunityMembershipRequest;
+}) {
+  const { request } = event;
+
+  const user = await this.userRepo.findOneBy({ id: request.userId });
+  if (!user) return;
+
+  const notification = this.notificationRepo.create({
+    recipient: user,
+    type: NotificationType.COMMUNITY_MEMBERSHIP_ACCEPTED,
+    resourceType: NotificationResourceType.COMMUNITY,
+    resourceId: request.communityId,
+  });
+
+  const saved = await this.notificationRepo.save(notification);
+
+  this.notificationsService.sendNotification(
+    user.id.toString(),
+    saved,
+  );
+}
+
+
+  @OnEvent([
+  'community.membership.request.accepted',
+  'community.membership.request.deleted',
+])
+async cleanupMembershipRequestNotification(event) {
+  const { request } = event;
+
+  await this.notificationRepo.delete({
+    resourceType: NotificationResourceType.COMMUNITY_MEMBERSHIP_REQUEST,
+    resourceId: request.id,
+  });
+}
+
 }

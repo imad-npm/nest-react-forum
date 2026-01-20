@@ -7,6 +7,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { CommentCreatedEvent } from './events/comment-created.event';
 import { User } from 'src/users/entities/user.entity';
 import { Reaction } from 'src/reactions/entities/reaction.entity';
+import { CommentDeletedEvent } from './events/comment-deleted.event';
 
 @Injectable()
 export class CommentsService {
@@ -290,6 +291,11 @@ async findAll(options: {
 
       await queryRunner.manager.remove(comment);
       await queryRunner.commitTransaction();
+
+      this.eventEmitter.emit(
+  'comment.deleted',
+  new CommentDeletedEvent(comment),
+);
       return true;
     } catch (err) {
       await queryRunner.rollbackTransaction();

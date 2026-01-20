@@ -9,6 +9,7 @@ import { User } from 'src/users/entities/user.entity';
 import { NotificationType } from '../types';
 import { Post } from 'src/posts/entities/post.entity';
 import { Comment } from 'src/comments/entities/comment.entity';
+import { ReactionDeletedEvent } from 'src/reactions/events/reaction-deleted.event';
 
 @Injectable()
 export class ReactionNotificationListener {
@@ -62,4 +63,23 @@ export class ReactionNotificationListener {
       );
     }
   }
+
+  @OnEvent('reaction.deleted')
+async handleReactionDeleted(event: ReactionDeletedEvent) {
+  const { reaction } = event;
+
+  await this.notificationRepo.delete({
+    actor: { id: reaction.userId },
+    resourceId: reaction.reactableId,
+    resourceType:
+      reaction.reactableType === 'post'
+        ? NotificationResourceType.POST
+        : NotificationResourceType.COMMENT,
+    type:
+      reaction.reactableType === 'post'
+        ? NotificationType.POST_REACTION
+        : NotificationType.COMMENT_REACTION,
+  });
+}
+
 }

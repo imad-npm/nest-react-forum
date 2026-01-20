@@ -7,6 +7,7 @@ import { NotificationsService } from '../notifications.service';
 import { PostCreatedEvent } from '../../posts/events/post-created.event';
 import { User } from 'src/users/entities/user.entity';
 import { NotificationType } from '../types'; // NEW: Import NotificationType
+import { PostDeletedEvent } from 'src/posts/events/post-deleted.event';
 
 @Injectable()
 export class PostNotificationListener {
@@ -43,4 +44,15 @@ export class PostNotificationListener {
       );
     }
   }
+
+  @OnEvent('post.deleted')
+async handlePostDeleted(event: PostDeletedEvent) {
+  const { post } = event;
+
+  await this.notificationRepo.delete({
+    resourceType: NotificationResourceType.POST,
+    resourceId: post.id,
+  });
+}
+
 }
