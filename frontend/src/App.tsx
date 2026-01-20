@@ -30,6 +30,7 @@ import { useNotificationsSSE } from './features/notifications/hooks/useNotificat
 import { GuestGuard } from './features/auth/components/GuestGuard';
 import ModGuard from './features/community-memberships/guards/ModGuard';
 import ForbiddenPage from './pages/403';
+import './shared/components/simpleEditor/editor.css'; // ✅ import the CSS
 
 const SessionLoader = ({ children }: { children: React.ReactNode }) => {
   const { isUserLoading } = useAuth();

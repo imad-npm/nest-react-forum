@@ -8,7 +8,7 @@ interface PostSuggestionCardProps {
 
 export const PostSuggestionCard: React.FC<PostSuggestionCardProps> = ({ post }) => {
   return (
-    <div className="bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors duration-200">
+    <div className="bg-gray-50  rounded-lg p-3 hover:bg-gray-100 transition-colors duration-200">
       <Link to={`/posts/${post.id}`} className="text-md font-semibold text-gray-800 hover:text-primary-600">
         {post.title}
       </Link>

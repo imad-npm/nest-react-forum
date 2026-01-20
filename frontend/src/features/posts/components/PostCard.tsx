@@ -40,7 +40,7 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
       {/* Post Content */}
 
 <div 
-className="text-gray-700 dark:text-gray-300 text-sm  line-clamp-3 mb-4"
+className="  ProseMirror text-gray-700 dark:text-gray-300 text-sm  line-clamp-3 mb-4"
       
     dangerouslySetInnerHTML={{ __html: post.content }} 
 />

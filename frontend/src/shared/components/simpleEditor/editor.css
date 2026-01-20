@@ -1,21 +1,19 @@
 /* Assign a fixed class for scoping */
-.my-editor .ProseMirror {
+ .ProseMirror {
   caret-color: #2563eb;
   line-height: 1.6;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-  color: #0f172a;
-  min-height: 200px;
 }
 
 /* headings */
-.my-editor .ProseMirror h1 { font-size: 1.6rem; margin: .6rem 0; font-weight: 700; }
-.my-editor .ProseMirror h2 { font-size: 1.35rem; margin: .55rem 0; font-weight: 700; }
-.my-editor .ProseMirror h3 { font-size: 1.15rem; margin: .5rem 0; font-weight: 600; }
-.my-editor .ProseMirror h4,h5,h6 { margin: .45rem 0; font-weight: 600; }
+ .ProseMirror h1 { font-size: 1.6rem; margin: .6rem 0; font-weight: 700; }
+ .ProseMirror h2 { font-size: 1.35rem; margin: .55rem 0; font-weight: 700; }
+ .ProseMirror h3 { font-size: 1.15rem; margin: .5rem 0; font-weight: 600; }
+ .ProseMirror h4,h5,h6 { margin: .45rem 0; font-weight: 600; }
 
 /* paragraphs and prose */
-.my-editor .ProseMirror p { margin: .45rem 0; color: #1e293b; }
-.my-editor .ProseMirror p code {
+ .ProseMirror p { margin: .45rem 0; color: #1e293b; }
+ .ProseMirror p code {
   background: rgba(15,23,42,0.05);
   padding: .1rem .25rem;
   border-radius: 4px;
@@ -24,7 +22,7 @@
 }
 
 /* blockquote */
-.my-editor .ProseMirror blockquote {
+ .ProseMirror blockquote {
   border-left: 3px solid rgba(59,130,246,0.15);
   padding-left: 1rem;
   color: #334155;
@@ -34,7 +32,7 @@
 }
 
 /* code block / pre */
-.my-editor .ProseMirror pre {
+ .ProseMirror pre {
   background: #0f172a;
   color: #e6edf3;
   padding: .8rem;
@@ -46,14 +44,14 @@
 }
 
 /* Lists */
-.my-editor .ProseMirror ul {
+ .ProseMirror ul {
   margin: 0.5rem 0;
   padding-left: 1.5rem;       /* indentation */
   list-style-type: disc;       /* standard bullets */
   list-style-position: outside;
 }
 
-.my-editor .ProseMirror ol {
+ .ProseMirror ol {
   margin: 0.5rem 0;
   padding-left: 1.5rem;       /* indentation */
   list-style-type: decimal;    /* numbers */
@@ -61,17 +59,17 @@
 }
 
 /* List items spacing */
-.my-editor .ProseMirror li {
+ .ProseMirror li {
   margin: 0.25rem 0;           /* space between items */
   line-height: 1.5;
   color: #1e293b;
 }
 
 /* Nested lists indentation */
-.my-editor .ProseMirror ul ul,
-.my-editor .ProseMirror ul ol,
-.my-editor .ProseMirror ol ul,
-.my-editor .ProseMirror ol ol {
+ .ProseMirror ul ul,
+ .ProseMirror ul ol,
+ .ProseMirror ol ul,
+ .ProseMirror ol ol {
   margin-top: 0.25rem;
   margin-bottom: 0.25rem;
   padding-left: 1.25rem;       /* extra indent for nested lists */
@@ -79,11 +77,11 @@
 
 
 /* links */
-.my-editor .ProseMirror a {
+ .ProseMirror a {
   color: #1d4ed8;
   text-decoration: underline;
 }
-.my-editor .ProseMirror a[target="_blank"]::after {
+ .ProseMirror a[target="_blank"]::after {
   content: " ↗";
   font-size: .85em;
   opacity: .7;
@@ -91,7 +89,7 @@
 }
 
 /* images */
-.my-editor .ProseMirror img {
+ .ProseMirror img {
   max-width: 100%;
   border-radius: 8px;
   margin: .6rem 0;
@@ -99,9 +97,9 @@
 }
 
 /* selection highlight */
-.my-editor .ProseMirror .is-active {
+ .ProseMirror .is-active {
   outline: 2px solid rgba(59,130,246,0.12);
 }
 
 /* niceties */
-.my-editor .ProseMirror:focus { outline: none; }
+ .ProseMirror:focus { outline: none; }

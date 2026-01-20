@@ -18,7 +18,6 @@ import {
   FaLink,
   FaUnlink,
 } from 'react-icons/fa';
-import './editor.css'; // ✅ import the CSS
 interface SimpleEditorProps {
   value: string;
   onChange: (value: string) => void;

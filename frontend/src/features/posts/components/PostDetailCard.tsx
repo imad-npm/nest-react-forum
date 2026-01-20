@@ -37,7 +37,7 @@ const PostDetailCard: React.FC<PostDetailCardProps> = ({ post }) => {
 
     
 <div 
-className="text-gray-700 dark:text-gray-300 text-sm  line-clamp-3 mb-8"
+className="text-gray-700 dark:text-gray-300 ProseMirror text-sm   mb-8"
       
     dangerouslySetInnerHTML={{ __html: post.content }} 
 />
