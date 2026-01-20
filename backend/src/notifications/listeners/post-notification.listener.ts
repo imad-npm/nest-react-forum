@@ -40,19 +40,43 @@ export class PostNotificationListener {
       const savedNotification = await this.notificationRepo.save(notification);
       this.notificationsService.sendNotification(
         recipient.id.toString(),
-        savedNotification,
+        {action:"created" ,
+          notification : savedNotification
+        }
       );
     }
   }
 
   @OnEvent('post.deleted')
-async handlePostDeleted(event: PostDeletedEvent) {
-  const { post } = event;
+  async handlePostDeleted(event: PostDeletedEvent) {
+    const { post } = event;
 
-  await this.notificationRepo.delete({
-    resourceType: NotificationResourceType.POST,
-    resourceId: post.id,
-  });
-}
+    // find all notifications referencing this post (including recipient relation)
+    const notifications = await this.notificationRepo.find({
+      where: {
+        resourceType: NotificationResourceType.POST,
+        resourceId: post.id,
+      },
+      relations: ['recipient'],
+    });
+
+    // send SSE delete for each notification and collect ids
+    const ids : number[] = [];
+    for (const notif of notifications) {
+      if (notif.recipient && notif.recipient.id) {
+        this.notificationsService.sendNotification(notif.recipient.id.toString(), {
+          action: 'deleted',
+          notification: notif, // full object (frontend can use notif.id)
+        });
+      }
+      ids.push(notif.id);
+    }
+
+    if (ids.length) {
+      // remove DB rows by id
+      await this.notificationRepo.delete(ids);
+    }
+  }
+
 
 }

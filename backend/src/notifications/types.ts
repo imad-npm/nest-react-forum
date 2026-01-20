@@ -1,3 +1,5 @@
+import { Notification } from "./entities/notification.entity";
+
 export enum NotificationType {
   NEW_POST = 'NEW_POST',
   NEW_COMMENT = 'NEW_COMMENT',
@@ -8,4 +10,15 @@ export enum NotificationType {
   COMMUNITY_MEMBERSHIP_ACCEPTED = 'COMMUNITY_MEMBERSHIP_ACCEPTED',
   COMMUNITY_MEMBERSHIP_REJECTED = 'COMMUNITY_MEMBERSHIP_REJECTED',
   // Add other notification types as needed
+}
+export interface NotificationEventPayload {
+  action: 'created' | 'deleted';
+  notification: Notification;
+}
+export enum NotificationResourceType {
+  POST = 'Post',
+  COMMENT = 'Comment',
+  COMMUNITY_MEMBERSHIP_REQUEST = 'CommunityMembershipRequest',
+  COMMUNITY = "COMMUNITY",
+  // Add other resource types as needed
 }

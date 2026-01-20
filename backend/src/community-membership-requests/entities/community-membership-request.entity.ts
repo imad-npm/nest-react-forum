@@ -4,6 +4,9 @@ import {
   ManyToOne,
   Column,
   PrimaryColumn,
+  PrimaryGeneratedColumn,
+  Index,
+  Unique,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Community } from '../../communities/entities/community.entity';
@@ -15,12 +18,17 @@ export enum CommunityMembershipRequestStatus {
 }
 
 @Entity('community_membership_requests')
+@Unique(['userId', 'communityId']) // prevent duplicates
 export class CommunityMembershipRequest {
   // Composite primary key: userId + communityId
-  @PrimaryColumn()
+
+   @PrimaryGeneratedColumn()
+  id: number; // surrogate PK
+  
+    @Column()
   userId: number;
 
-  @PrimaryColumn()
+  @Column()
   communityId: number;
 
   @ManyToOne(() => User, (user) => user.communityMembershipRequests)

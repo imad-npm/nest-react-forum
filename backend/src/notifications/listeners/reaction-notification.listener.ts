@@ -59,27 +59,48 @@ export class ReactionNotificationListener {
       const savedNotification = await this.notificationRepo.save(notification);
       this.notificationsService.sendNotification(
         resource.author.id.toString(),
-        savedNotification,
-      );
+ {action:"created" ,
+          notification : savedNotification
+        }      );
     }
   }
-
   @OnEvent('reaction.deleted')
-async handleReactionDeleted(event: ReactionDeletedEvent) {
-  const { reaction } = event;
+  async handleReactionDeleted(event: ReactionDeletedEvent) {
+    const { reaction } = event;
 
-  await this.notificationRepo.delete({
-    actor: { id: reaction.userId },
-    resourceId: reaction.reactableId,
-    resourceType:
-      reaction.reactableType === 'post'
-        ? NotificationResourceType.POST
-        : NotificationResourceType.COMMENT,
-    type:
-      reaction.reactableType === 'post'
-        ? NotificationType.POST_REACTION
-        : NotificationType.COMMENT_REACTION,
-  });
-}
+    const where = {
+      actor: { id: reaction.userId },
+      resourceId: reaction.reactableId,
+      resourceType:
+        reaction.reactableType === 'post'
+          ? NotificationResourceType.POST
+          : NotificationResourceType.COMMENT,
+      type:
+        reaction.reactableType === 'post'
+          ? NotificationType.POST_REACTION
+          : NotificationType.COMMENT_REACTION,
+    };
+
+    // load matching notifications together with recipient
+    const notifications = await this.notificationRepo.find({
+      where,
+      relations: ['recipient'],
+    });
+
+    const ids :number[]= [];
+    for (const notif of notifications) {
+      if (notif.recipient && notif.recipient.id) {
+        this.notificationsService.sendNotification(notif.recipient.id.toString(), {
+          action: 'deleted',
+          notification: notif,
+        });
+      }
+      ids.push(notif.id);
+    }
+
+    if (ids.length) {
+      await this.notificationRepo.delete(ids);
+    }
+  }
 
 }

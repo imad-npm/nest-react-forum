@@ -2,7 +2,7 @@
 import { useEffect, useRef } from 'react';
 import { useAppDispatch, useAppSelector } from '../../../shared/stores/hooks';
 import { notificationsApi } from '../services/notificationsApi';
-import type { INotification, INotificationQueryDto } from '../types'; // Import NotificationQueryDto
+import type { INotification, INotificationQueryDto, NotificationEventPayload } from '../types'; // Import NotificationQueryDto
 
 export function useNotificationsSSE() {
   const dispatch = useAppDispatch();
@@ -27,11 +27,13 @@ es.onopen = () => {
       console.log('✅ SSE Connected');
     };
     es.onmessage = (event) => {
-      const notification: INotification = JSON.parse(event.data);
+      const notificationPayload: NotificationEventPayload = JSON.parse(event.data);
       console.log('📩 New Notification Received:', event.data);
       // Define query arguments for the getNotifications endpoint
       const queryArgs: INotificationQueryDto = { page: 1, limit: 20 }; // Match the default query for getNotifications
+      const  {notification,action}=notificationPayload
 
+      if(action=="created")
       dispatch(
         notificationsApi.util.updateQueryData(
           'getNotifications',
@@ -56,6 +58,28 @@ es.onopen = () => {
           }
         )
       );
+
+      else if(action=="deleted"){
+          dispatch(
+    notificationsApi.util.updateQueryData(
+      'getNotifications',
+      { limit: 10 }, // same query args you used for fetch
+      (draft) => {
+        if (!draft.pages[0]) return;
+
+        const firstPage = draft.pages[0];
+
+        // filter out the deleted notification
+        firstPage.data = firstPage.data.filter(n => n.id !== notification.id);
+
+        // update meta total
+        if (firstPage.meta.totalItems > 0) {
+          firstPage.meta.totalItems -= 1;
+        }
+      }
+    )
+  );
+      }
 
       dispatch(
         notificationsApi.util.updateQueryData(

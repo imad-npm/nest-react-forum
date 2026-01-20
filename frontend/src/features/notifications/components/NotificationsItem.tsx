@@ -51,7 +51,7 @@ const NotificationItem = ({ notification }: { notification: INotification }) => 
         return `/comments/${notification.resourceId}`;
 
       case 'CommunityMembershipRequest':
-        return `/community-membership-requests/${notification.resourceId}`;
+        return `mod/community/${notification.resourceId}/queues`;
 
       default:
         return '#';

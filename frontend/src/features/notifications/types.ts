@@ -23,8 +23,13 @@ export interface INotification {
   recipient: any; // Consider refining this type if User interface is available
   actor: any; // Consider refining this type if User interface is available
   type: NotificationType;
-  resourceType?: 'Post' | 'Comment' | 'CommunityMembershipRequest';
+  resourceType?: 'Post' | 'Comment' | 'CommunityMembershipRequest' | 'COMMUNITY';
   resourceId?: number;
   read: boolean;
   createdAt: string;
 }
+export interface NotificationEventPayload {
+  action: 'created' | 'deleted';
+  notification: INotification;
+}
+

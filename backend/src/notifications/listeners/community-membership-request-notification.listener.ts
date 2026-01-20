@@ -8,6 +8,9 @@ import { CommunityMembershipRequestCreatedEvent } from '../../community-membersh
 import { User } from 'src/users/entities/user.entity';
 import { NotificationType } from '../types'; // NEW: Import NotificationType
 import { CommunityMembershipRequest } from 'src/community-membership-requests/entities/community-membership-request.entity';
+import { CommunityMembershipRequestDeletedEvent } from 'src/community-membership-requests/events/community-membership-request-deleted.event';
+import { Community } from 'src/communities/entities/community.entity';
+
 
 
 @Injectable()
@@ -18,73 +21,123 @@ export class CommunityMembershipRequestNotificationListener {
     private readonly notificationsService: NotificationsService,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
+    @InjectRepository(Community)
+    private readonly communityRepo: Repository<Community>,
   ) {}
 
+  /* =========================
+     REQUEST CREATED
+  ========================== */
   @OnEvent('community.membership.request.created')
-  async handleCommunityMembershipRequestCreatedEvent(
-    event: CommunityMembershipRequestCreatedEvent,
-  ) {
+  async handleCreated(event: CommunityMembershipRequestCreatedEvent) {
     const { request } = event;
-    const { community, user } = request;
 
-    // Notify the community createdBy
-    if (community.createdBy.id !== user.id) {
-      const recipient = community.createdBy;
-      const actor = user;
+    const community = await this.communityRepo.findOne({
+      where: { id: request.communityId },
+      relations: ['createdBy'],
+    });
 
-      const notification = this.notificationRepo.create({
-        recipient,
-        actor,
-        type: NotificationType.COMMUNITY_MEMBERSHIP_REQUEST, // MODIFIED
-        resourceType: NotificationResourceType.COMMUNITY_MEMBERSHIP_REQUEST,
-        resourceId: community.id,
-        createdAt: new Date(),
-      });
-      const savedNotification = await this.notificationRepo.save(notification);
-      this.notificationsService.sendNotification(
-        recipient.id.toString(),
-        savedNotification,
-      );
-    }
+    if (!community || !community.createdBy) return;
+    if (community.createdBy.id === request.userId) return;
+
+    const notification = this.notificationRepo.create({
+      recipient: { id: community.createdBy.id },
+      actor: { id: request.userId },
+      type: NotificationType.COMMUNITY_MEMBERSHIP_REQUEST,
+      resourceType: NotificationResourceType.COMMUNITY_MEMBERSHIP_REQUEST,
+      resourceId: request.id,
+    });
+
+    const saved = await this.notificationRepo.save(notification);
+
+    this.notificationsService.sendNotification(
+      community.createdBy.id.toString(),
+      {
+        action: 'created',
+        notification: saved,
+      },
+    );
   }
 
-  
-@OnEvent('community.membership.request.accepted')
-async notifyUserOnAccepted(event: {
-  request: CommunityMembershipRequest;
-}) {
-  const { request } = event;
+  /* =========================
+     REQUEST ACCEPTED → notify user
+  ========================== */
+  @OnEvent('community.membership.request.accepted')
+  async notifyUserAccepted(event: {
+    request: CommunityMembershipRequest;
+  }) {
+    const { request } = event;
 
-  const user = await this.userRepo.findOneBy({ id: request.userId });
-  if (!user) return;
+    const user = await this.userRepo.findOneBy({ id: request.userId });
+    if (!user) return;
 
-  const notification = this.notificationRepo.create({
-    recipient: user,
-    type: NotificationType.COMMUNITY_MEMBERSHIP_ACCEPTED,
-    resourceType: NotificationResourceType.COMMUNITY,
-    resourceId: request.communityId,
-  });
+    const notification = this.notificationRepo.create({
+      recipient: user,
+      type: NotificationType.COMMUNITY_MEMBERSHIP_ACCEPTED,
+      resourceType: NotificationResourceType.COMMUNITY,
+      resourceId: request.communityId,
+    });
 
-  const saved = await this.notificationRepo.save(notification);
+    const saved = await this.notificationRepo.save(notification);
 
-  this.notificationsService.sendNotification(
-    user.id.toString(),
-    saved,
-  );
+    this.notificationsService.sendNotification(user.id.toString(), {
+      action: 'created',
+      notification: saved,
+    });
+  }
+
+  /* =========================
+     REQUEST ACCEPTED → cleanup
+  ========================== */
+  @OnEvent('community.membership.request.accepted')
+  async cleanupOnAccepted(
+    event: CommunityMembershipRequestDeletedEvent,
+  ) {
+    await this.cleanupRequestNotifications(event);
+  }
+
+  /* =========================
+     REQUEST DELETED → cleanup
+  ========================== */
+  @OnEvent('community.membership.request.deleted')
+  async cleanupOnDeleted(
+    event: CommunityMembershipRequestDeletedEvent,
+  ) {
+    await this.cleanupRequestNotifications(event);
+  }
+
+  /* =========================
+     SHARED CLEANUP LOGIC
+  ========================== */
+  private async cleanupRequestNotifications(
+    event: CommunityMembershipRequestDeletedEvent,
+  ) {
+    const { request } = event;
+
+    
+
+    const notifications = await this.notificationRepo.find({
+      where: {
+        resourceType: NotificationResourceType.COMMUNITY_MEMBERSHIP_REQUEST,
+        resourceId: request.id,
+      },
+      relations: ['recipient'],
+    });
+
+    for (const notif of notifications) {
+      this.notificationsService.sendNotification(
+        notif.recipient.id.toString(),
+        {
+          action: 'deleted',
+          notification: notif,
+        },
+      );
+    }
+
+    await this.notificationRepo.delete({
+      resourceType: NotificationResourceType.COMMUNITY_MEMBERSHIP_REQUEST,
+      resourceId: request.id,
+    });
+  }
 }
 
-
-  @OnEvent([
-  'community.membership.request.accepted',
-  'community.membership.request.deleted',
-])
-async cleanupMembershipRequestNotification(event) {
-  const { request } = event;
-
-  await this.notificationRepo.delete({
-    resourceType: NotificationResourceType.COMMUNITY_MEMBERSHIP_REQUEST,
-    resourceId: request.id,
-  });
-}
-
-}

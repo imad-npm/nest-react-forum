@@ -18,9 +18,11 @@ actorId?: number;
 
   static fromEntity(notification: Notification): NotificationResponseDto {
     const dto = new NotificationResponseDto();
+    console.log(notification);
+    
 
     dto.id = notification.id;
-    dto.recipientId = notification.recipient.id;
+    dto.recipientId = notification.recipientId;
 
     dto.actor = notification.actor
       ? UserResponseDto.fromEntity(notification.actor)

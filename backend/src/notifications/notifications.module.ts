@@ -16,10 +16,12 @@ import { PostsModule } from 'src/posts/posts.module';
 import { User } from 'src/users/entities/user.entity';
 import { Post } from 'src/posts/entities/post.entity';
 import { Comment } from 'src/comments/entities/comment.entity';
+import { Community } from 'src/communities/entities/community.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Notification, User, Post, Comment]), // <-- make Post & Comment available    EventEmitterModule,
+    TypeOrmModule.forFeature([Notification, User, Post, 
+      Comment,Community]), // <-- make Post & Comment available    EventEmitterModule,
     CommentsModule,
     ReactionsModule,
     UsersModule,

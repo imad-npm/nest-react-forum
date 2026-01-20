@@ -90,7 +90,7 @@ export class CommunityMembershipRequestsService {
 
       const community = await queryRunner.manager.findOne(Community, {
         where: { id: communityId },
-        select: ['id', 'createdById', 'communityType'], // Select communityType
+  relations: ['createdBy'], // 👈 load the full user entity
       });
       if (!community) {
         throw new NotFoundException('Community not found');
@@ -127,12 +127,12 @@ export class CommunityMembershipRequestsService {
           userId,
           communityId,
         });
-        await queryRunner.manager.save(request);
+        const savedRequest=await queryRunner.manager.save(request);
 
         // Emit event
         this.eventEmitter.emit(
           'community.membership.request.created',
-          new CommunityMembershipRequestCreatedEvent(request),
+          new CommunityMembershipRequestCreatedEvent(savedRequest),
         );
 
         await queryRunner.commitTransaction();
@@ -145,6 +145,8 @@ export class CommunityMembershipRequestsService {
       await queryRunner.release();
     }
   }
+
+
 async acceptMembershipRequest(
   actorId: number,
   userId: number,

@@ -4,6 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull } from 'typeorm';
 import { Notification } from './entities/notification.entity';
 import { NotificationQueryDto } from './dto/notification-query.dto';
+import { NotificationEventPayload } from './types';
 
 @Injectable()
 export class NotificationsService {
@@ -24,7 +25,7 @@ export class NotificationsService {
     this.clients.delete(userId);
   }
 
-  sendNotification(userId: string, data: any): void {
+  sendNotification(userId: string, data: NotificationEventPayload): void {
     const emitter = this.clients.get(userId);
     if (emitter) {
       emitter.emit('notification', data);

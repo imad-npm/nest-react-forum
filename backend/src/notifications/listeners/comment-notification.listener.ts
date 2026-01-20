@@ -34,7 +34,9 @@ export class CommentNotificationListener {
       const savedNotification = await this.notificationRepo.save(notification);
       this.notificationsService.sendNotification(
         post.author.id.toString(),
-        savedNotification,
+         {action:"created" ,
+          notification : savedNotification
+        }
       );
     }
 
@@ -50,20 +52,40 @@ export class CommentNotificationListener {
       const savedNotification = await this.notificationRepo.save(notification);
       this.notificationsService.sendNotification(
         parent.author.id.toString(),
-        savedNotification,
+         {action:"created" ,
+          notification : savedNotification
+        }
       );
     }
   }
 
-  @OnEvent('comment.deleted')
-async handleCommentDeleted(event: CommentDeletedEvent) {
-  const { comment } = event;
+    @OnEvent('comment.deleted')
+  async handleCommentDeleted(event: CommentDeletedEvent) {
+    const { comment } = event;
 
-  await this.notificationRepo.delete({
-    resourceType: NotificationResourceType.COMMENT,
-    resourceId: comment.id,
-  });
-}
+    const notifications = await this.notificationRepo.find({
+      where: {
+        resourceType: NotificationResourceType.COMMENT,
+        resourceId: comment.id,
+      },
+      relations: ['recipient'],
+    });
+
+    const ids :number[] = [];
+    for (const notif of notifications) {
+      if (notif.recipient && notif.recipient.id) {
+        this.notificationsService.sendNotification(notif.recipient.id.toString(), {
+          action: 'deleted',
+          notification: notif,
+        });
+      }
+      ids.push(notif.id);
+    }
+
+    if (ids.length) {
+      await this.notificationRepo.delete(ids);
+    }
+  }
 
 }
 

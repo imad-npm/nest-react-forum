@@ -12,7 +12,7 @@ import {
 import { User } from '../../users/entities/user.entity';
 import { ReactionType } from '../reactions.types';
 import type { Reactable } from '../reactions.types';
-import { Post } from 'src/posts/entities/post.entity';
+import { Post } from '../../posts/entities/post.entity';
 
 @Entity('reactions')
 @Index(['reactableId', 'reactableType', 'userId'], { unique: true })

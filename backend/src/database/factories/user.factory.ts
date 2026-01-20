@@ -13,6 +13,6 @@ export function userFactory(): User {
   const saltRounds = 10;
 
   user.password = bcrypt.hashSync(plainPassword, saltRounds);
-
+  user.emailVerifiedAt = Math.random() < 0.5 ? new Date() : null;
   return user;
 }
