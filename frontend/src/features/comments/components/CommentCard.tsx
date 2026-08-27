@@ -6,6 +6,8 @@ import { CommentInput } from './CommentInput';
 import { timeAgo } from '../../../shared/utils/date';
 import { useCommentCard } from '../hooks/useCommentCard';
 import type { Post } from '../../posts/types';
+import { use } from 'react';
+import { useAuth } from '../../auth/hooks/useAuth';
 
 interface CommentCardProps {
   comment: Comment;
@@ -32,6 +34,7 @@ const CommentCard: React.FC<CommentCardProps> = ({
     shouldRender,
   } = useCommentCard({ comment,postId: post.id, level });
 
+const{user}=useAuth()
   if (!shouldRender) {
     return null;
   }
@@ -58,16 +61,18 @@ const CommentCard: React.FC<CommentCardProps> = ({
         <div className="flex items-center space-x-4 text-xs ">
           <ReactionButtons target={comment} />
 
-          {
-            ! post.commentsLocked && (
-                 <Button variant='ghost' size='sm'
-            onClick={() => setShowReplyInput((v) => !v)}
-          >
-            <FaComment />
-            <span className='mx-1.5'>Reply</span>
-          </Button>
-            )
-          }
+     {
+  user && !post.commentsLocked && (
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={() => setShowReplyInput((v) => !v)}
+    >
+      <FaComment />
+      <span className="mx-1.5">Reply</span>
+    </Button>
+  )
+}
 
        
 

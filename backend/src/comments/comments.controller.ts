@@ -32,7 +32,7 @@ export class CommentsController {
   @UseGuards(OptionalJwtAuthGuard)
   async findAll(
     @Query() query: CommentQueryDto,
-    @GetUser() user: User,
+    @GetUser({optional:true}) user: User,
   ): Promise<PaginatedResponseDto<CommentResponseDto>> {
     const { data, count } = await this.commentsService.findAll({
       page: query.page,
