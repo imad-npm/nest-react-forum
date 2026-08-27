@@ -10,12 +10,14 @@ import { PostSuggestionsList } from '../components/PostSuggestionsList';
 import PostDetailCard from '../components/PostDetailCard'; // Import PostDetailCard
 import { useGetCommentsInfiniteQuery } from '../../comments/services/commentsApi'; // NEW IMPORT
 import { useEffect } from 'react';
+import { useAuth } from '../../auth/hooks/useAuth';
 
 const PostDetailPage = () => {
   const { id } = useParams<{ id: string }>();
   const postId = Number(id);
   const { data, error, isLoading } = useGetPostByIdQuery(postId);
   const { showToast } = useToastContext();
+const { user } = useAuth();
 
    // ✅ HOOK ALWAYS RUNS
   useEffect(() => {
@@ -39,7 +41,6 @@ const PostDetailPage = () => {
 
   const post = data.data;
 
-
   return (
     <div className="container mx-auto p-4 flex flex-col md:flex-row gap-6">
       {/* Main Content Area */}
@@ -58,9 +59,14 @@ const PostDetailPage = () => {
               Comments are locked for this post.
             </span>
           </div>
-        ) : (
-          <CommentInput postId={post.id} />
-        )}
+        ) : user ? (
+  <CommentInput postId={post.id} />
+) : (
+  <Link to="/login">
+    Log in to comment
+  </Link>
+)
+        }
       </div>
 
 

@@ -7,6 +7,7 @@ const ExploreCommunitiesPage: React.FC = () => {
   const [queryParams, setQueryParams] = useState<CommunityQueryDto>({
     limit: 10,
     page: 1,
+    communityType:"public"
   });
   const [searchTerm, setSearchTerm] = useState('');
 

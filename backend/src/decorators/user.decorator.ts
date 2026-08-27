@@ -1,4 +1,3 @@
-// src/decorators/current-user.decorator.ts
 import {
   createParamDecorator,
   ExecutionContext,
@@ -6,16 +5,21 @@ import {
 } from '@nestjs/common';
 import { User } from 'src/users/entities/user.entity';
 
-export const GetUser = createParamDecorator(
-  (data: unknown, ctx: ExecutionContext): User => {
-    const request = ctx.switchToHttp().getRequest();
+interface GetUserOptions {
+  optional?: boolean;
+}
 
-    // This comes from JwtStrategy.validate() → req.user
+export const GetUser = createParamDecorator(
+  (
+    options: GetUserOptions | undefined,
+    ctx: ExecutionContext,
+  ): User | undefined => {
+    const request = ctx.switchToHttp().getRequest();
     const user: User | undefined = request.user;
 
-    if (!user) {
+    if (!user && !options?.optional) {
       throw new UnauthorizedException(
-        'No authenticated user found. Token ff may be missing or invalid.',
+        'No authenticated user found. Token may be missing or invalid.',
       );
     }
 

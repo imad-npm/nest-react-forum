@@ -67,7 +67,7 @@ export class CommunitiesController {
   @Get(':id')
   @UseGuards(OptionalJwtAuthGuard)
   async findOne(@Param('id', ParseIntPipe) id: number ,
-  @GetUser() user :User)
+  @GetUser({optional:true}) user :User)
   : Promise<ResponseDto<CommunityResponseDto>> {
     const community = await this.communitiesService.findOne(id,user);
    

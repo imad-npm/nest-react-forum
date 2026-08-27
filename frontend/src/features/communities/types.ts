@@ -22,6 +22,8 @@ export interface CommunityQueryDto {
   displayName?: string;
   page?: number;
   limit?: number;
+  communityType:CommunityType
+  
 }
 
 export type CommunityType = 'public' | 'restricted' | 'private';

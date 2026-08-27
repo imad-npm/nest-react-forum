@@ -63,18 +63,21 @@ export default function App() {
           <Route path="/403" element={<ForbiddenPage />} />
 
           {/* --- Standard User Routes (with LeftSidebar) --- */}
-          <Route element={<MainLayout />}>
-            <Route path="/" element={<AuthGuard><FeedPage /></AuthGuard>} />
-            <Route path="/posts/:id" element={<AuthGuard><PostDetailPage /></AuthGuard>} />
-            <Route path="/submit" element={<AuthGuard><CreatePostPage /></AuthGuard>} />
-            <Route path="/communities/:communityId" element={<AuthGuard><CommunityPage /></AuthGuard>} />
-            <Route path="/my-communities" element={<AuthGuard><MyCommunitiesPage /></AuthGuard>} />
-            <Route path="/explore-communities" element={<AuthGuard><ExploreCommunitiesPage /></AuthGuard>} />
-            <Route path="/profile/:userId" element={<AuthGuard><ProfilePage /></AuthGuard>} /> {/* Changed Route */}
-            <Route path="/settings" element={<AuthGuard><SettingsPage /></AuthGuard>} />
-            <Route path="/search" element={<AuthGuard><SearchResultsPage /></AuthGuard>} /> {/* New Search Results Route */}
-            <Route path="/notifications" element={<AuthGuard><NotificationsPage /></AuthGuard>} />
-          </Route>
+        <Route element={<MainLayout />}>
+  {/* Public read-only pages */} 
+   <Route path="/" element={<FeedPage />} />
+  <Route path="/posts/:id" element={<PostDetailPage />} />
+  <Route path="/communities/:communityId" element={<CommunityPage />} />
+  <Route path="/explore-communities" element={<ExploreCommunitiesPage />} />
+  <Route path="/profile/:userId" element={<ProfilePage />} />
+  <Route path="/search" element={<SearchResultsPage />} />
+
+  {/* Authenticated pages */}
+  <Route path="/submit" element={<AuthGuard><CreatePostPage /></AuthGuard>} />
+  <Route path="/my-communities" element={<AuthGuard><MyCommunitiesPage /></AuthGuard>} />
+  <Route path="/settings" element={<AuthGuard><SettingsPage /></AuthGuard>} />
+  <Route path="/notifications" element={<AuthGuard><NotificationsPage /></AuthGuard>} />
+</Route>
 
           {/* --- Moderation Routes (with ModSidebar) --- */}
           <Route path="/mod/community/:communityId" element={<AuthGuard><ModGuard><ModLayout /></ModGuard>

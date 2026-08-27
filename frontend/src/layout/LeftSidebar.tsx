@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import React, { use, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FaHome, FaCompass, FaUsers, FaPlusSquare, FaRocket } from 'react-icons/fa'; // Example icons
 import {Modal} from '../shared/components/ui/Modal'; // Assuming this path
 import CreateCommunityForm from '../features/communities/components/CreateCommunityForm';
+import { useAuth } from '../features/auth/hooks/useAuth';
 
 const LeftSidebar: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
-
+  const {user}=useAuth()
   const handleOpenModal = (event: React.MouseEvent) => {
     event.preventDefault(); // Prevent navigation
     setIsModalOpen(true);
@@ -53,9 +54,23 @@ const LeftSidebar: React.FC = () => {
               </Link>
             </li>
             <li>
-              <a href="#" onClick={handleOpenModal} className="flex items-center space-x-2 p-2 rounded-md hover:bg-gray-100 text-gray-700">
-                <FaRocket /> <span>Start Community</span>
-              </a>
+             {user ? (
+  <button
+    onClick={handleOpenModal}
+    className="flex items-center space-x-2 p-2 rounded-md hover:bg-gray-100 text-gray-700"
+  >
+    <FaRocket />
+    <span>Start Community</span>
+  </button>
+) : (
+  <Link
+    to="/login"
+    className="flex items-center space-x-2 p-2 rounded-md hover:bg-gray-100 text-gray-700"
+  >
+    <FaRocket />
+    <span>Start Community</span>
+  </Link>
+)}
             </li>
           </ul>
         </div>

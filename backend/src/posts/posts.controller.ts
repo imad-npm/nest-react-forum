@@ -26,6 +26,7 @@ import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from 'src/auth/guards/optional-jwt-auth.guard';
 import { GetUser } from 'src/decorators/user.decorator';
 import { User } from 'src/users/entities/user.entity';
+import { log } from 'console';
 
 @Controller('posts')
 export class PostsController {
@@ -33,7 +34,7 @@ export class PostsController {
 
   // ======= LIST POSTS =======
   @Get()
-  @UseGuards(JwtAuthGuard)
+@UseGuards(OptionalJwtAuthGuard)
   async findAll(@Query() query: PostQueryDto, @Req() req: any): Promise<PaginatedResponseDto<PostResponseDto>> {
     const { data, count } = await this.postsService.findAll({
       page: query.page,
@@ -114,7 +115,11 @@ export class PostsController {
   // ======= GET SINGLE POST =======
   @Get(':id')
   @UseGuards(OptionalJwtAuthGuard)
-  async findOne(@Param('id', ParseIntPipe) id: number, @GetUser() user?: User): Promise<ResponseDto<PostResponseDto>> {
+  async findOne(@Param('id', ParseIntPipe) id: number,
+  @GetUser({ optional: true }) user?: User,
+  )
+   : Promise<ResponseDto<PostResponseDto>> {
+    log("jt")
     const post = await this.postsService.findOne(id, user?.id);
     if (!post) throw new NotFoundException('Post not found');
     this.postsService.incrementViews(id);
