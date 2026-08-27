@@ -36,6 +36,7 @@ export class PostsController {
   @Get()
 @UseGuards(OptionalJwtAuthGuard)
   async findAll(@Query() query: PostQueryDto, @Req() req: any): Promise<PaginatedResponseDto<PostResponseDto>> {
+   log("ddd")
     const { data, count } = await this.postsService.findAll({
       page: query.page,
       limit: query.limit,
@@ -48,6 +49,8 @@ export class PostsController {
       savedByUserId:query.savedByUserId ,
       status: query.status,
     });
+    console.log(data);
+    
 
     const paginationMeta = new PaginationMetaDto(query.page, query.limit, count, data.length);
     return new PaginatedResponseDto(data.map(PostResponseDto.fromEntity), paginationMeta);

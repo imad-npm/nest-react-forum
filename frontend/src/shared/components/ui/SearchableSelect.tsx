@@ -10,7 +10,6 @@ interface SearchableSelectProps<T> {
   renderOption?: (item: T) => React.ReactNode;
   placeholder?: string;
 }
-
 const SearchableSelect = <T extends { id: string | number }>({
   value,
   onSearch,
@@ -22,9 +21,13 @@ const SearchableSelect = <T extends { id: string | number }>({
   placeholder = 'Search...',
 }: SearchableSelectProps<T>) => {
   const [open, setOpen] = useState(false);
+  const [searchValue, setSearchValue] = useState(value);
+
   const ref = useRef<HTMLDivElement>(null);
 
-  /* -------------------------- Outside click ------------------------------- */
+  useEffect(() => {
+    setSearchValue(value);
+  }, [value]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -32,18 +35,21 @@ const SearchableSelect = <T extends { id: string | number }>({
         setOpen(false);
       }
     };
+
     document.addEventListener('mousedown', handler);
+
     return () => document.removeEventListener('mousedown', handler);
   }, []);
-
-  /* ----------------------------------------------------------------------- */
 
   return (
     <div ref={ref} className="relative">
       <input
-        value={value}
+        value={searchValue}
         onChange={(e) => {
-          onSearch(e.target.value);
+          const text = e.target.value;
+
+          setSearchValue(text);
+          onSearch(text);
           setOpen(true);
         }}
         placeholder={placeholder}
@@ -53,11 +59,15 @@ const SearchableSelect = <T extends { id: string | number }>({
       {open && (
         <ul className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white shadow">
           {loading && (
-            <li className="px-3 py-2 text-sm text-gray-500">Loading…</li>
+            <li className="px-3 py-2 text-sm text-gray-500">
+              Loading…
+            </li>
           )}
 
           {!loading && options.length === 0 && (
-            <li className="px-3 py-2 text-sm text-gray-500">No results</li>
+            <li className="px-3 py-2 text-sm text-gray-500">
+              No results
+            </li>
           )}
 
           {!loading &&
@@ -66,12 +76,18 @@ const SearchableSelect = <T extends { id: string | number }>({
                 key={item.id}
                 onClick={() => {
                   onSelect(item);
-                  onSearch(getLabel(item));
+
+                  const label = getLabel(item);
+                  setSearchValue(label);
+                  onSearch(label);
+
                   setOpen(false);
                 }}
                 className="cursor-pointer px-3 py-2 hover:bg-primary-600 hover:text-white"
               >
-                {renderOption ? renderOption(item) : getLabel(item)}
+                {renderOption
+                  ? renderOption(item)
+                  : getLabel(item)}
               </li>
             ))}
         </ul>
@@ -79,5 +95,4 @@ const SearchableSelect = <T extends { id: string | number }>({
     </div>
   );
 };
-
 export default SearchableSelect;
