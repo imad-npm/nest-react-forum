@@ -1,13 +1,13 @@
 import { apiSlice } from '../../../shared/services/apiSlice';
 import type { LoginDto, RegisterDto, UserResponseDto, ResponseDto } from '../types';
-import { setAccessToken } from '../stores/authSlice';
+import { logout, setAccessToken } from '../stores/authSlice';
 
 export const authApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
-     getMe: builder.query<ResponseDto<UserResponseDto>, void>({
-          query: () => 'auth/me',
-          providesTags: ['Me'],
-        }),
+    getMe: builder.query<ResponseDto<UserResponseDto>, void>({
+      query: () => 'auth/me',
+      providesTags: ['Me'],
+    }),
     register: builder.mutation<ResponseDto<UserResponseDto>, RegisterDto>({
       query: (credentials) => ({
         url: 'auth/register',
@@ -27,7 +27,7 @@ export const authApi = apiSlice.injectEndpoints({
         try {
           const { data } = await queryFulfilled;
           dispatch(setAccessToken(data.data.accessToken));
-        } catch {}
+        } catch { }
       },
     }),
     logout: builder.mutation<ResponseDto<null>, void>({
@@ -36,6 +36,13 @@ export const authApi = apiSlice.injectEndpoints({
         method: 'POST',
       }),
       invalidatesTags: ['Me'],
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+        } finally {
+          setAccessToken(null)
+        }
+      },
     }),
     forgotPassword: builder.mutation<ResponseDto<null>, { email: string }>({
       query: (credentials) => ({
@@ -57,7 +64,7 @@ export const authApi = apiSlice.injectEndpoints({
         try {
           const { data } = await queryFulfilled;
           dispatch(setAccessToken(data.data.accessToken));
-        } catch {}
+        } catch { }
       },
     }),
   }),

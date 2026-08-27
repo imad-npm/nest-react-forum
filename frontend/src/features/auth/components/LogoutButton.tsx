@@ -2,6 +2,7 @@ import { useAppDispatch } from '../../../shared/stores/hooks';
 import { logout } from '../stores/authSlice';
 import { FaSignOutAlt } from 'react-icons/fa';
 import { Button } from '../../../shared/components/ui/Button'; // Assuming you have a Button component
+import { useLogoutMutation } from '../services/authApi';
 
 interface LogoutButtonProps {
   className?: string; // Add className prop
@@ -9,10 +10,13 @@ interface LogoutButtonProps {
 
 const LogoutButton: React.FC<LogoutButtonProps> = ({ className }) => {
   const dispatch = useAppDispatch();
+const [logoutRequest] = useLogoutMutation();
 
-  const handleLogout = () => {
-    dispatch(logout());
-  };
+
+  const handleLogout = async () => {
+  await logoutRequest();
+  dispatch(logout());
+};
 
   return (
     <Button onClick={handleLogout} variant="ghost" className={`flex items-center space-x-1 ${className}`}>

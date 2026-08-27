@@ -60,7 +60,7 @@ export default function App() {
           <Route path="/verify-email" element={<VerificationResult />} />
           <Route path="/email/change/verify" element={<EmailChangeVerifyPage />} />
           <Route path="/auth/google/callback" element={<GoogleAuthCallback />} /> {/* New Google OAuth Callback Route */}
-<Route path="/403" element={<ForbiddenPage />} />
+          <Route path="/403" element={<ForbiddenPage />} />
 
           {/* --- Standard User Routes (with LeftSidebar) --- */}
           <Route element={<MainLayout />}>
@@ -78,7 +78,7 @@ export default function App() {
 
           {/* --- Moderation Routes (with ModSidebar) --- */}
           <Route path="/mod/community/:communityId" element={<AuthGuard><ModGuard><ModLayout /></ModGuard>
-            </AuthGuard>}>
+          </AuthGuard>}>
             <Route index element={<Navigate to="queues" replace />} />
             <Route path="queues" element={<ModQueuesPage />} />
             <Route path="members" element={<MembersPage />} />
