@@ -26,7 +26,9 @@
     "seed": "ts-node src/database/seeds/index.ts",
     "migration:refresh": "npm run db:drop && npm run migration:run ",
     "migration:refreshAndSeed": "npm run db:drop && npm run migration:run && npm run seed",
-    "db:drop": "npm run typeorm -- schema:drop -d ./src/data-source.ts"
+    "db:drop": "npm run typeorm -- schema:drop -d ./src/data-source.ts",
+    "migration:run:prod": "typeorm migration:run -d dist/data-source.js",
+    "seed:prod": "node dist/database/seeds/index.js"
   },
   "dependencies": {
     "@casl/ability": "^6.7.3",

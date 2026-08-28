@@ -77,4 +77,4 @@ EXPOSE 10000
 # Start
 # -------------------------
 
-CMD ["sh", "-c", "node /app/backend/dist/main.js & nginx -g 'daemon off;'"]
+CMD ["sh", "-c", "cd /app/backend && npm run migration:run:prod && npm run seed:prod && node dist/main.js & nginx -g 'daemon off;'"]
