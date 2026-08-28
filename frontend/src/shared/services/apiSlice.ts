@@ -11,7 +11,7 @@ import { setAccessToken, logout } from '../../features/auth/stores/authSlice';
 
 // Create a base query with authentication headers
 const baseQuery = fetchBaseQuery({
-  baseUrl: 'http://localhost:3000/api/',
+  baseUrl: import.meta.env.VITE_API_URL,
   prepareHeaders: (headers, { getState }) => {
     // Assuming your auth slice is named 'auth' and has an 'accessToken' field
     const token = (getState() as RootState).auth?.accessToken;

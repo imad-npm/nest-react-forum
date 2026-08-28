@@ -2,44 +2,83 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { useContainer } from 'class-validator';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 
 import cookieParser from 'cookie-parser';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(
+    AppModule,
+  );
+
+  const configService = app.get(ConfigService);
+
+  const port = configService.get<number>('PORT') ?? 3000;
+  const nodeEnv = configService.get<string>('NODE_ENV') ?? 'development';
+
+  // =========================================================
+  // Middleware
+  // =========================================================
 
   app.use(cookieParser());
 
-  // Use validation pipe globally
+
+  // =========================================================
+  // Validation
+  // =========================================================
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
-      transform: true, // auto-convert types
+      transform: true,
       transformOptions: {
-        enableImplicitConversion: true, // allows automatic type conversion
+        enableImplicitConversion: true,
       },
     }),
   );
-  app.setGlobalPrefix('api'); // all routes will now start with /api
 
-  app.enableCors({
-    origin: 'http://localhost:5173', // Change this to your frontend URL  
-    credentials: true,
-  });
 
-  // Get ConfigService instance
-  const configService = app.get(ConfigService);
-  const port = configService.get<number>('PORT') ?? 3000;
+  // =========================================================
+  // API prefix
+  // =========================================================
 
-  // Serve static files from the 'uploads' directory
-  app.useStaticAssets(join(__dirname, '..', 'uploads'), {
-    prefix: '/uploads/',
-  });
+  app.setGlobalPrefix('api');
 
-  await app.listen(port);
-  console.log(`Application is running on: http://localhost:${port}`);
+
+  // =========================================================
+  // CORS
+  // =========================================================
+
+  if (nodeEnv !== 'production') {
+    app.enableCors({
+      origin: 'http://localhost:5173',
+      credentials: true,
+    });
+  }
+
+
+  // =========================================================
+  // Static uploads
+  // =========================================================
+
+  app.useStaticAssets(
+    join(__dirname, '..', 'uploads'),
+    {
+      prefix: '/uploads/',
+    },
+  );
+
+
+  // =========================================================
+  // Start server
+  // =========================================================
+
+  await app.listen(port, '0.0.0.0');
+
+  console.log(
+    `NestJS running on http://localhost:${port}`,
+  );
 }
+
 bootstrap();
