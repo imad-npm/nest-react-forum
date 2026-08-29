@@ -6,10 +6,10 @@ import {
 
 import type { Comment } from '../../comments/types';
 import type { Post } from '../../posts/types';
-import { ReactionType,  Reactable } from '../types/types';
+import { Reactable, ReactionType,  type ReactableEntity } from '../types/types';
 
 interface UseReactionButtonsProps {
-  target: Post | Comment;
+  target: ReactableEntity;
 }
 
 export const useReactionButtons = ({ target }: UseReactionButtonsProps) => {
@@ -19,7 +19,7 @@ export const useReactionButtons = ({ target }: UseReactionButtonsProps) => {
 
   // Determine reactableType based on target
   const reactableType =
-    'title' in target ? Reactable.Post : Reactable.Comment;
+    'title' in target ? Reactable.POST : Reactable.COMMENT;
 
   const handleLike = async () => {
     if (target.userReaction?.type === ReactionType.LIKE) {

@@ -1,21 +1,22 @@
-// reactions.types.ts
+import type { Comment } from "../../comments/types";
+import type { Post } from "../../posts/types";
 
-// Reaction types
 export const ReactionType = {
   LIKE: 'like',
   DISLIKE: 'dislike',
 } as const;
 
+export type ReactionType =
+  typeof ReactionType[keyof typeof ReactionType];
+
 export const Reactable = {
-  Post: 'post',
-  Comment: 'comment',
+  POST: 'post',
+  COMMENT: 'comment',
 } as const;
 
-// TypeScript types
-export type ReactionType = typeof ReactionType[keyof typeof ReactionType];
-export type Reactable = typeof Reactable[keyof typeof Reactable];
+export type Reactable =
+  typeof Reactable[keyof typeof Reactable];
 
-// Reaction interface (matches DB entity)
 export interface Reaction {
   id: number;
   type: ReactionType;
@@ -24,29 +25,22 @@ export interface Reaction {
     id: number;
     name: string;
   };
-  reactableId: number;       // polymorphic target id
-  reactableType: Reactable; // polymorphic target type
+  reactableId: number;
+  reactableType: Reactable;
   createdAt: string;
   updatedAt: string;
 }
 
-// DTOs
-
-// Create reaction
 export interface CreateReactionDto {
   type: ReactionType;
   reactableId: number;
   reactableType: Reactable;
 }
 
-// Update reaction
 export interface UpdateReactionDto {
   type: ReactionType;
-
 }
 
-
-// Query reaction (for findAll)
 export interface ReactionQueryDto {
   page?: number;
   limit?: number;
@@ -55,3 +49,5 @@ export interface ReactionQueryDto {
   reactableId?: number;
   reactableType?: Reactable;
 }
+
+export type ReactableEntity = Post | Comment;

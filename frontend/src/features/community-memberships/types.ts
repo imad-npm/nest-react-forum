@@ -1,10 +1,12 @@
+import type { Community } from "../communities/types";
+
 export interface CommunityMembership {
     userId: number;
     communityId: number;
     role: CommunityRole; // Add this
     user: User; // Add the user object
     rank: number; // Add rank
-    // community: CommunityResponseDto; // Assuming CommunityResponseDto exists
+    community: Community; // Assuming CommunityResponseDto exists
     createdAt: string;
   }
 

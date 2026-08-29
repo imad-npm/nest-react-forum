@@ -14,9 +14,10 @@ export const useBannedUsers = () => {
     limit: 10,
   });
   const [unban] = useDeleteCommunityRestrictionMutation();
-
+  
+const bannedUsers = restrictions?.pages.flatMap((page) => page.data) ?? [];
   return {
-    bannedUsers: restrictions?.data ?? [],
+    bannedUsers: bannedUsers,
     isLoading,
     unbanUser: unban,
   };

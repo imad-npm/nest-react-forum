@@ -1,15 +1,16 @@
 import { useParams, Link } from 'react-router-dom';
-import { useGetPostByIdQuery } from '../services/savedPostsApi';
 import { useToastContext } from '../../../shared/providers/ToastProvider';
 
 import CommentList from '../../comments/components/CommentList'; // Import CommentList
 import { CommentInput } from '../../comments/components/CommentInput'; // Import CommentInput
 import { AboutCommunity } from '../../communities/components/AboutCommunity';
 import { ReactionButtons } from '../../reactions/components/ReactionButtons';
-import { PostSuggestionsList } from '../components/PostSuggestionsList';
-import PostDetailCard from '../components/PostDetailCard'; // Import PostDetailCard
+
 import { useGetCommentsInfiniteQuery } from '../../comments/services/commentsApi'; // NEW IMPORT
 import { useEffect } from 'react';
+import PostDetailCard from '../../posts/components/PostDetailCard';
+import { PostSuggestionsList } from '../../posts/components/PostSuggestionsList';
+import { useGetPostByIdQuery } from '../../posts/services/postsApi';
 
 const PostDetailPage = () => {
   const { id } = useParams<{ id: string }>();

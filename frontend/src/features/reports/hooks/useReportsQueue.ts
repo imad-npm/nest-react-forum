@@ -12,7 +12,7 @@ export const useReportsQueue = () => {
 
   const handleDismiss = (reportId: number) => {
     if (communityId) {
-      dismissReport({ communityId: +communityId, reportId });
+      dismissReport({ reportId });
     }
   };
 

@@ -1,14 +1,14 @@
 import React from 'react';
 import { FaThumbsUp, FaThumbsDown } from 'react-icons/fa';
 import { ReactionButton } from './ReactionButton';
-import type { ReactionTarget, ReactionType } from '../types/types';
 import { useReactionButtons } from '../hooks/useReactionButtons';
 import type { Post } from '../../posts/types';
 
 import type { Comment } from '../../comments/types';
+import type { Reactable, ReactableEntity } from '../types/types';
 
 interface ReactionButtonsProps {
-     target:Post |Comment
+     target:ReactableEntity
     disabled?: boolean;
     className?: string;
 }

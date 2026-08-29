@@ -1,6 +1,4 @@
-import { useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
-import { useDispatch, useSelector } from 'react-redux';
 import Header from './Header';
 import LeftSidebar from './LeftSidebar';
 

@@ -56,7 +56,8 @@ export const reactionApi = apiSlice.injectEndpoints({
     // DELETE
     deleteReaction: builder.mutation<
       ResponseDto<boolean>,
-      { id: number; reactableType: Reactable }
+      { id: number; reactableType: Reactable
+       }
     >({
       query: ({ id }) => ({
         url: `/reactions/${id}`,
