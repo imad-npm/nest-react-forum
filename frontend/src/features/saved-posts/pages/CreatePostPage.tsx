@@ -1,5 +1,5 @@
 import React from 'react';
-import CreatePostForm from '../components/CreatePostForm';
+import CreatePostForm from '../../posts/components/CreatePostForm';
 
 const CreatePostPage: React.FC = () => {
   return (

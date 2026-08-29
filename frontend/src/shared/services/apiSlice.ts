@@ -5,10 +5,14 @@ import {
   type BaseQueryFn,
   type FetchArgs,
   type FetchBaseQueryError,
-  type RootState,
 } from '@reduxjs/toolkit/query/react';
-import { setAccessToken, logout } from '../../features/auth/stores/authSlice';
 
+import { setAccessToken, logout } from '../../features/auth/stores/authSlice';
+import type { store } from '../stores/store';
+
+
+ type RootState = ReturnType<typeof store.getState>;
+ 
 // Create a base query with authentication headers
 const baseQuery = fetchBaseQuery({
   baseUrl: import.meta.env.VITE_API_URL,

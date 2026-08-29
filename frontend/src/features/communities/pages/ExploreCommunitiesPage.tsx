@@ -16,6 +16,10 @@ const ExploreCommunitiesPage: React.FC = () => {
   const communities = data?.data || [];
   const meta = data?.meta;
 
+const hasNextPage = meta
+  ? meta.page < meta.totalPages
+  : false;
+
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);
   };
@@ -26,7 +30,7 @@ const ExploreCommunitiesPage: React.FC = () => {
   };
 
   const handleLoadMore = () => {
-    if (meta?.hasNextPage) {
+    if (hasNextPage) {
       setQueryParams((prev) => ({ ...prev, page: (prev.page || 1) + 1 }));
     }
   };
@@ -72,7 +76,7 @@ const ExploreCommunitiesPage: React.FC = () => {
         </div>
       )}
 
-      {meta?.hasNextPage && (
+      {hasNextPage && (
         <div className="text-center mt-6">
           <button
             onClick={handleLoadMore}

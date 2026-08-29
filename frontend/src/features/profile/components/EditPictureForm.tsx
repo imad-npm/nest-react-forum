@@ -39,7 +39,7 @@ const EditPictureForm: React.FC<EditPictureFormProps> = ({ currentPicture, onClo
       if (validationResult.success) {
         setPreview(URL.createObjectURL(file));
       } else {
-        showToast(validationResult.error.errors[0].message, 'error');
+        showToast(validationResult.error.issues[0].message, 'error');
         // Clear the invalid file input
         if (fileInputRef.current) {
           fileInputRef.current.value = '';
@@ -64,7 +64,7 @@ const EditPictureForm: React.FC<EditPictureFormProps> = ({ currentPicture, onClo
     const validationResult = pictureSchema.safeParse({ pictureFile: selectedFile });
 
     if (!validationResult.success) {
-      showToast(validationResult.error.errors[0].message, 'error');
+      showToast(validationResult.error.issues[0].message, 'error');
       return;
     }
 

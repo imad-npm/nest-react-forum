@@ -22,7 +22,7 @@ export interface CommunityQueryDto {
   displayName?: string;
   page?: number;
   limit?: number;
-  communityType:CommunityType
+  communityType?:CommunityType
   
 }
 

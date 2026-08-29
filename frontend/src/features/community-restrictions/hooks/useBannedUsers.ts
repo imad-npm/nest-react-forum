@@ -1,13 +1,13 @@
 import { useParams } from 'react-router-dom';
 import {
-  useGetCommunityRestrictionsQuery,
+  useGetCommunityRestrictionsInfiniteQuery,
   useDeleteCommunityRestrictionMutation,
 } from '../services/communityRestrictionsApi';
 import { CommunityRestrictionType } from '../types';
 
 export const useBannedUsers = () => {
   const { communityId } = useParams();
-  const { data: restrictions, isLoading } = useGetCommunityRestrictionsQuery({
+  const { data: restrictions, isLoading } = useGetCommunityRestrictionsInfiniteQuery({
     communityId: +communityId,
     restrictionType: CommunityRestrictionType.BAN,
     page: 1,
