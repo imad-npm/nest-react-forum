@@ -7,11 +7,11 @@ import PostPreview from '../../posts/components/PostPreview';
 import CommunityPreview from '../../communities/components/CommunityPreview';
 import UserPreview from '../../user/components/UserPreview';
 import type { Post, PostQueryDto } from '../../posts/types';
-import type { UserResponseDto } from '../../auth/types';
 import type { Community } from '../../communities/types';
 import { Button } from '../../../shared/components/ui/Button';
 import { FaSortAmountDownAlt, FaFire } from 'react-icons/fa';
 import SearchFilters from '../components/Filters';
+import type { UserResponseDto } from '../../user/types';
 
 
 

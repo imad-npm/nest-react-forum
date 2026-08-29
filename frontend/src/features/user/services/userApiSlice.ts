@@ -1,7 +1,7 @@
 import { apiSlice } from '../../../shared/services/apiSlice';
-import type { ResponseDto, UserResponseDto, UpdateUsernameDto } from '../../auth/types';
+import type { ResponseDto, UpdateUsernameDto } from '../../auth/types';
 import type { PaginatedResponse } from '../../../shared/types';
-import type { UserQueryDto } from '../types';
+import type { UserQueryDto, UserResponseDto } from '../types';
 
 export const userApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({

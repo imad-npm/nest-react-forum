@@ -7,7 +7,8 @@ import {
 } from '../../community-membership-requests/services/communityMembershipRequestsApi';
 import { useDeleteOwnMembershipMutation } from '../../community-memberships/services/communityMembershipsApi';
 import type { Community } from '../types';
-import type { UserResponseDto } from '../../auth/types';
+import type { UserResponseDto } from '../../user/types';
+import { useNavigate } from 'react-router-dom';
 
 interface CommunityMembershipActionButtonProps {
   community: Community;
@@ -24,12 +25,14 @@ export const CommunityMembershipActionButton: React.FC<
   const [cancelMembershipRequest, { isLoading: isRejectingRequest }] =
     useCancelMembershipRequestMutation();
 
+const navigate = useNavigate();
+
   const handleJoinOrRequest = () => {
     if (currentUser) {
       createMembershipRequest(community.id);
     } else {
-      console.log('Please log in to join or request membership.');
-      // TODO: Implement actual login redirection or modal
+         navigate('/login');
+
     }
   };
 

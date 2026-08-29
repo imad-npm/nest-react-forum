@@ -1,6 +1,7 @@
 import { apiSlice } from '../../../shared/services/apiSlice';
-import type { LoginDto, RegisterDto, UserResponseDto, ResponseDto } from '../types';
+import type { LoginDto, RegisterDto, ResponseDto } from '../types';
 import { logout, setAccessToken } from '../stores/authSlice';
+import type { UserResponseDto } from '../../user/types';
 
 export const authApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({

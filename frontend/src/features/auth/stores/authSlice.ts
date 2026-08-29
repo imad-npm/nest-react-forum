@@ -1,9 +1,9 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import type { User } from '../../community-memberships/types';
+import type { UserResponseDto } from '../../user/types';
 
 interface AuthState {
   accessToken: string | null;
-    user: User | null;
+    user: UserResponseDto | null;
 
 }
 

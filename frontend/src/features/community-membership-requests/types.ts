@@ -1,3 +1,5 @@
+import type { UserResponseDto } from "../user/types";
+
 // Replace enum with const object
 export const CommunityMembershipRequestSort = {
   NEWEST: 'newest',
@@ -15,18 +17,13 @@ export const CommunityMembershipRequestStatus = {
 export type CommunityMembershipRequestStatus = (typeof CommunityMembershipRequestStatus)[keyof typeof CommunityMembershipRequestStatus];
 
 // Define a basic User interface for the frontend
-export interface User {
-  id: number;
-  name: string;
-  email: string;
-  // Add other user properties if needed from UserResponseDto
-}
+
 
 export interface CommunityMembershipRequest {
     id: number;
     userId: number;
     communityId: number;
-    user: User; // Add the user object
+    user: UserResponseDto; // Add the user object
     status: 'pending' | 'accepted' | 'rejected';
     createdAt: string;
     updatedAt: string;

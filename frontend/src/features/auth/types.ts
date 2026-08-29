@@ -16,12 +16,7 @@ export interface RegisterDto {
     picture: string | null;
   }
 
-  export interface UserResponseDto {
-    id: number;
-    username: string;
-    email: string;
-    profile?: ProfileResponseDto;
-  }
+ 
 
   export interface ResponseDto<T> {
     data: T;

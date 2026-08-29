@@ -32,7 +32,9 @@ export const AboutCommunity: React.FC<AboutCommunityProps> = ({ communityId }) =
         <span>Members: {community.membersCount.toLocaleString()}</span>
         <span>Created: {new Date(community.createdAt).toLocaleDateString()}</span>
       </div>
-      <CommunityMembershipActionButton community={community} currentUser={currentUser} />
+      <CommunityMembershipActionButton community={community}
+  currentUser={currentUser ?? null}
+        />
     </div>
   );
 };

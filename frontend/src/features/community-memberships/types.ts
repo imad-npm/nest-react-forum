@@ -1,21 +1,17 @@
 import type { Community } from "../communities/types";
+import type { UserResponseDto } from "../user/types";
 
 export interface CommunityMembership {
     userId: number;
     communityId: number;
     role: CommunityRole; // Add this
-    user: User; // Add the user object
+    user: UserResponseDto; // Add the user object
     rank: number; // Add rank
     community: Community; // Assuming CommunityResponseDto exists
     createdAt: string;
   }
 
-  export interface User {
-    id: number;
-    username: string;
-    email: string;
-    // Add other user properties if needed from UserResponseDto
-  }
+ 
   
   export interface CommunityMembershipQueryDto {
     userId?: number;

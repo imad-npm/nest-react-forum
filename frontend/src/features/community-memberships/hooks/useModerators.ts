@@ -4,7 +4,7 @@ import {
   useUpdateMemberRoleMutation,
 } from '../services/communityMembershipsApi';
 import { useAuth } from '../../auth/hooks/useAuth';
-import type { User, CommunityMembership } from '../types';
+import type { CommunityMembership } from '../types';
 import { useState } from 'react';
 
 export const useModerators = () => {

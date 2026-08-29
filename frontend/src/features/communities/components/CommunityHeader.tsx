@@ -19,7 +19,7 @@ export const CommunityHeader: React.FC<CommunityHeaderProps> = ({ communityId })
 
 const { data: membershipData } = useGetCommunityMembershipsQuery({
     communityId,
-    userId: +currentUser?.id,
+    userId: Number(currentUser?.id),
   }, { skip: !currentUser?.id });
 
   console.log(membershipData);
@@ -65,7 +65,10 @@ const { data: membershipData } = useGetCommunityMembershipsQuery({
             </Button>
           </Link>
         )}
-          <CommunityMembershipActionButton community={community} currentUser={currentUser} />
+          <CommunityMembershipActionButton
+           community={community}
+  currentUser={currentUser ?? null}
+            />
         </div>
 
         {/* Description */}

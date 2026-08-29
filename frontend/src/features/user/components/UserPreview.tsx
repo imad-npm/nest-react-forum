@@ -1,7 +1,7 @@
 import React from 'react';
-import type { UserResponseDto } from '../../auth/types';
 import { Link } from 'react-router-dom';
 import { FaUserCircle } from 'react-icons/fa';
+import type { UserResponseDto } from '../types';
 
 interface UserPreviewProps {
   user: UserResponseDto;

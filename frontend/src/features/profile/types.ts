@@ -1,18 +1,15 @@
 // Assuming User is already defined in a shared types file or needs to be defined here.
 // For now, let's include a minimal User type if not already globally available.
-export interface User {
-  id: number;
-  username: string;
-  email: string;
-  // Add other user properties as needed
-}
+
+import type { UserResponseDto } from "../user/types";
+
 
 export interface Profile {
   id: number;
   displayName: string;
   bio: string | null;
   picture: string | null; // URL to the profile picture
-  user: User; // The associated user object
+  user: UserResponseDto; // The associated user object
   
 }
 
