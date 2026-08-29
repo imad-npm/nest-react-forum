@@ -29,14 +29,16 @@ console.log(comments);
       {comments.length === 0 ? (
         <p>No comments found.</p>
       ) : (
-        comments.map((comment: Comment) => (
-          <CommentCard
-            key={comment.id}
-            comment={comment}
-            level={0}
-            post={comment.post}
-          />
-        ))
+        comments.map((comment: Comment) =>
+           comment.post ? (
+            <CommentCard
+              key={comment.id}
+              comment={comment}
+              level={0}
+              post={comment.post}
+            />
+          ) : null
+      )
       )}
       <div ref={sentinelRef} />
       {isFetchingNextPage && <div className="p-4 text-center">Loading more comments...</div>}

@@ -7,8 +7,9 @@ import { useInfiniteScroll } from "../../../shared/hooks/useInfiniteScroll";
 
 export const PendingPostsQueue = () => {
   const { communityId } = useParams();
+ 
   const { data, isLoading,hasNextPage,fetchNextPage,isFetchingNextPage } = useGetPostsInfiniteQuery({
-    communityId: +communityId,
+    communityId: Number(communityId),
     status: PostStatus.PENDING,
   });
 

@@ -67,7 +67,7 @@ const EditBioForm: React.FC<EditBioFormProps> = ({ currentBio, onClose }) => {
         <Button type="button" variant="ghost" onClick={onClose} disabled={isLoading}>
           Cancel
         </Button>
-        <Button type="submit" isLoading={isLoading}>
+        <Button type="submit" >
           {isLoading ? 'Saving...' : 'Save'}
         </Button>
       </div>

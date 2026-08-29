@@ -176,8 +176,7 @@ const PostDropdown: React.FC<PostDropdownProps> = ({ post }) => {
       >
         <EditPostForm
           post={post}
-          onSuccess={() => setIsEditModalOpen(false)}
-          onCancel={() => setIsEditModalOpen(false)}
+         
         />
       </Modal>
     </>

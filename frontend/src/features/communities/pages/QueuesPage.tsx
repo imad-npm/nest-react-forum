@@ -10,8 +10,9 @@ import { RejectedPostsQueue } from '../../posts/components/RejectedPostsQueue';
 
 const JoinRequestsQueue = () => {
   const { communityId } = useParams();
+ 
   const { data:requests, isLoading } = useGetCommunityMembershipRequestsQuery({
-    communityId: +communityId,
+    communityId:Number(communityId),
     status: CommunityMembershipRequestStatus.PENDING,
     page: 1,
     limit: 10,

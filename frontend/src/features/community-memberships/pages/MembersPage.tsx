@@ -55,7 +55,9 @@ export const MembersPage = () => {
         </table>
       </div>
          <div className="mt-3">
-                        <Pagination page={page} setPage={setPage} totalPages={totalPages} />
+                        <Pagination page={page}
+                         setPage={setPage} 
+                         totalPages={totalPages ?? 1} />
       
             </div>
     </div>

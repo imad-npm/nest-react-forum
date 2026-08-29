@@ -46,7 +46,8 @@ const ProfileSettings = () => {
         <dt className="text-sm font-medium text-gray-500">Picture</dt>
         <dd className="mt-1 flex text-sm text-gray-900 sm:mt-0 sm:col-span-2">
           <span className="flex-grow">
-            <img src={profile.picture} alt="Profile" className="w-16  rounded-full" />
+            <img src={profile.picture ?? undefined}
+             alt="Profile" className="w-16  rounded-full" />
           </span>
           <button
             onClick={() => setIsPictureModalOpen(true)}
@@ -57,21 +58,21 @@ const ProfileSettings = () => {
         </dd>
       </div>
 
-      <Modal open={isDisplayNameModalOpen} onClose={() => setIsDisplayNameModalOpen(false)} title="Edit Display Name">
+      <Modal open={isDisplayNameModalOpen} onClose={() => setIsDisplayNameModalOpen(false)} >
         <EditDisplayNameForm
           currentDisplayName={profile.displayName}
           onClose={() => setIsDisplayNameModalOpen(false)}
         />
       </Modal>
 
-      <Modal open={isBioModalOpen} onClose={() => setIsBioModalOpen(false)} title="Edit Bio">
+      <Modal open={isBioModalOpen} onClose={() => setIsBioModalOpen(false)} >
         <EditBioForm
           currentBio={profile.bio}
           onClose={() => setIsBioModalOpen(false)}
         />
       </Modal>
 
-      <Modal open={isPictureModalOpen} onClose={() => setIsPictureModalOpen(false)} title="Edit Profile Picture">
+      <Modal open={isPictureModalOpen} onClose={() => setIsPictureModalOpen(false)} >
         <EditPictureForm
           currentPicture={profile.picture}
           onClose={() => setIsPictureModalOpen(false)}

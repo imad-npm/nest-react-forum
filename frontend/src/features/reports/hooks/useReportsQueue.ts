@@ -4,7 +4,7 @@ import { useGetReportsQuery, useDismissReportMutation } from '../services/report
 export const useReportsQueue = () => {
   const { communityId } = useParams();
   const { data: reports, isLoading } = useGetReportsQuery({
-    communityId: +communityId,
+    communityId:Number(communityId),
     page: 1,
     limit: 10,
   });

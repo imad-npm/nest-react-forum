@@ -68,7 +68,6 @@ const EditPostForm: React.FC<EditPostFormProps> = ({ post }) => {
                 renderOption={(c) => <span>{c.name}</span>}
                 onSelect={(c) => field.onChange(c.id)}
                 placeholder="Search community..."
-                disabled={isLocked}
               />
               <InputError message={fieldState.error?.message} />
             </>

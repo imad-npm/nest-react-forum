@@ -70,7 +70,7 @@ export const ReportForm: React.FC<ReportFormProps> = ({
 
       <div className="flex justify-end space-x-2 pt-2">
         {onCancel && <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>}
-        <Button type="submit" loading={isLoading}>Submit Report</Button>
+        <Button type="submit" >Submit Report</Button>
       </div>
     </form>
   );

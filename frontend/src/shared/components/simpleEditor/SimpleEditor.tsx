@@ -21,6 +21,7 @@ import {
 interface SimpleEditorProps {
   value: string;
   onChange: (value: string) => void;
+  readOnly?: boolean;
 }
 
 const extensions = [TextStyleKit, StarterKit];
@@ -291,8 +292,7 @@ export const SimpleEditor: React.FC<SimpleEditorProps> = ({ value, onChange }) =
   // Sync external value changes
   useEffect(() => {
     if (editor && value !== editor.getHTML()) {
-      editor.commands.setContent(value, false);
-    }
+editor.commands.setContent(value, { emitUpdate: false });    }
   }, [value, editor]);
 
   if (!editor) return null;

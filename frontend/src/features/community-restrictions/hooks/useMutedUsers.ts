@@ -7,8 +7,9 @@ import { CommunityRestrictionType } from '../types';
 
 export const useMutedUsers = () => {
   const { communityId } = useParams();
+ 
   const { data: restrictions, isLoading } = useGetCommunityRestrictionsInfiniteQuery({
-    communityId: +communityId,
+    communityId:Number(communityId),
     restrictionType: CommunityRestrictionType.MUTE,
     page: 1,
     limit: 10,

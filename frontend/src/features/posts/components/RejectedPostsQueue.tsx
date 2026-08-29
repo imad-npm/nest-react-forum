@@ -5,7 +5,7 @@ import { PostStatus } from "../types";
 export const RejectedPostsQueue = () => {
   const { communityId } = useParams();
   const { data, isLoading } = useGetPostsInfiniteQuery({
-    communityId: +communityId,
+    communityId:Number(communityId),
     status: PostStatus.REJECTED,
   });
 
