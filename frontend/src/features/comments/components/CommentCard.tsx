@@ -1,4 +1,4 @@
-import { FaUser, FaReply, FaComment } from 'react-icons/fa';
+import { FaUser, FaComment, FaTrash } from 'react-icons/fa';
 import type { Comment } from '../types';
 import { ReactionButtons } from '../../reactions/components/ReactionButtons';
 import { Button } from '../../../shared/components/ui/Button';
@@ -6,8 +6,8 @@ import { CommentInput } from './CommentInput';
 import { timeAgo } from '../../../shared/utils/date';
 import { useCommentCard } from '../hooks/useCommentCard';
 import type { Post } from '../../posts/types';
-import { use } from 'react';
 import { useAuth } from '../../auth/hooks/useAuth';
+import { useDeleteCommentMutation } from '../services/commentsApi';
 
 interface CommentCardProps {
   comment: Comment;
@@ -32,52 +32,84 @@ const CommentCard: React.FC<CommentCardProps> = ({
     hasNextPage,
     isFetchingNextPage,
     shouldRender,
-  } = useCommentCard({ comment,postId: post.id, level });
+  } = useCommentCard({
+    comment,
+    postId: post.id,
+    level,
+  });
 
-const{user}=useAuth()
+  const { user } = useAuth();
+  const [deleteComment, { isLoading: isDeleting }] =
+    useDeleteCommentMutation();
+
   if (!shouldRender) {
     return null;
   }
 
+  const isAuthor = user?.id === comment.author.id;
+
+  const handleDelete = async () => {
+    if (!window.confirm('Are you sure you want to delete this comment?')) {
+      return;
+    }
+
+    try {
+      await deleteComment(comment.id).unwrap();
+    } catch (error) {
+      console.error('Failed to delete comment:', error);
+    }
+  };
+
   return (
     <div className="mb-3">
       {/* COMMENT CARD */}
-      <div className="rounded-lg border border-gray-300 bg-white p-4 ">
+      <div className="rounded-lg border border-gray-300 bg-white p-4">
         <div className="mb-2 flex items-center text-sm text-gray-500">
           <FaUser className="mr-1" />
           <span>u/{comment.author.username}</span>
           <span className="mx-1">•</span>
-          <span className="text-xs">{timeAgo(comment.createdAt)}</span>
+          <span className="text-xs">
+            {timeAgo(comment.createdAt)}
+          </span>
         </div>
 
-        {/* DEBUG */}
-        <div className="mb-1 text-xs text-gray-400">
-          id: {comment.id}, parentId: {comment.parentId ?? 'null'}
-          {showReplies ? ' 1' : ' 0'}
-        </div>
+        <p className="mb-3 text-sm text-gray-800">
+          {comment.content}
+        </p>
 
-        <p className="mb-3 text-sm text-gray-800">{comment.content}</p>
-
-        <div className="flex items-center space-x-4 text-xs ">
+        <div className="flex items-center space-x-4 text-xs">
           <ReactionButtons target={comment} />
 
-     {
-  user && !post.commentsLocked && (
-    <Button
-      variant="ghost"
-      size="sm"
-      onClick={() => setShowReplyInput((v) => !v)}
-    >
-      <FaComment />
-      <span className="mx-1.5">Reply</span>
-    </Button>
-  )
-}
+          {user && !post.commentsLocked && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowReplyInput((v) => !v)}
+            >
+              <FaComment />
+              <span className="mx-1.5">Reply</span>
+            </Button>
+          )}
 
-       
+          {isAuthor && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleDelete}
+              disabled={isDeleting}
+            >
+              <FaTrash />
+              <span className="mx-1.5">
+                {isDeleting ? 'Deleting...' : 'Delete'}
+              </span>
+            </Button>
+          )}
 
           {comment.repliesCount > 0 && (
-            <Button onClick={() => setShowReplies((v) => !v)} variant="link">
+            <Button
+              onClick={() => setShowReplies((v) => !v)}
+              variant="link"
+            >
               {showReplies
                 ? `Hide replies (${comment.repliesCount})`
                 : remainingReplies > 0
@@ -116,7 +148,11 @@ const{user}=useAuth()
 
       {showReplies && hasNextPage && (
         <div className="flex justify-center mt-2 ml-6">
-          <Button variant="link" onClick={fetchNextPage} disabled={isFetchingNextPage}>
+          <Button
+            variant="link"
+            onClick={fetchNextPage}
+            disabled={isFetchingNextPage}
+          >
             {isFetchingNextPage
               ? 'Loading more replies…'
               : '+ Load more replies'}
