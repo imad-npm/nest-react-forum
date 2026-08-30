@@ -67,11 +67,8 @@ COPY nginx/nginx.conf \
 
 # =========================================================
 # Start
-# =========================================================
+
 CMD ["sh", "-c", "\
   envsubst '$PORT' < /etc/nginx/http.d/default.conf.template > /etc/nginx/http.d/default.conf && \
-  cd /app/backend && \
-  npm run migration:run:prod && \
-  node dist/main.js & \
-  until nc -z 127.0.0.1 3000; do sleep 0.5; done && \
+  ( cd /app/backend && npm run migration:run:prod && node dist/main.js & ) ; \
   nginx -g 'daemon off;'"]
