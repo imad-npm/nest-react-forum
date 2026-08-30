@@ -70,7 +70,7 @@ COPY nginx/nginx.conf \
 # Render port
 # -------------------------
 
-EXPOSE 10000
+#EXPOSE 10000
 
 
 # -------------------------
