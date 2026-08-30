@@ -63,18 +63,18 @@ COPY --from=frontend-builder /app/frontend/dist \
 # -------------------------
 
 COPY nginx/nginx.conf \
-    /etc/nginx/http.d/default.conf
-
-
-# -------------------------
-# Render port
-# -------------------------
-
-#EXPOSE 10000
+    /etc/nginx/http.d/default.conf.template
 
 
 # -------------------------
 # Start
 # -------------------------
 
-CMD ["sh", "-c", "cd /app/backend && npm run migration:run:prod && npm run seed:prod && node dist/main.js & nginx -g 'daemon off;'"]
+CMD ["sh", "-c", "\
+sed \"s/\\${PORT}/$PORT/g\" /etc/nginx/http.d/default.conf.template > /etc/nginx/http.d/default.conf && \
+cd /app/backend && \
+npm run migration:run:prod && \
+npm run seed:prod && \
+node dist/main.js & \
+nginx -g 'daemon off;' \
+"]
