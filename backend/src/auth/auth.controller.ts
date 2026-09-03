@@ -21,6 +21,7 @@ import type { Response } from 'express';
 import { parseExpiresInToMs } from './utils/time.util';
 import { ConfigService } from '@nestjs/config';
 import { JwtAuthGuard } from './guards/jwt-auth.guard'; // Import JwtAuthGuard
+import { log } from 'console';
 
 @Controller('auth')
 export class AuthController {
@@ -32,6 +33,8 @@ export class AuthController {
 
   @Post('register')
   async register(@Body() dto: RegisterDto): Promise<ResponseDto<UserResponseDto>> {
+    
+    log(dto)
     const user = await this.authService.register(
       dto.username,
       dto.email,

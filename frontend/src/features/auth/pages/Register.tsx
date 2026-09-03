@@ -10,7 +10,7 @@ import { InputError } from '../../../shared/components/ui/InputError';
 import { useNavigate } from 'react-router-dom';
 
 const registerSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
+  username: z.string().min(1, 'Username is required'),
   email: z.string().email('Invalid email address'),
   password: z.string().min(6, 'Password must be at least 6 characters long'),
 });
@@ -42,8 +42,8 @@ const Register = () => {
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div>
             <Label htmlFor="name">Name</Label>
-            <Input id="name" {...formRegister('name')} />
-            <InputError message={errors.name?.message} />
+            <Input id="name" {...formRegister('username')} />
+            <InputError message={errors.username?.message} />
           </div>
           <div>
             <Label htmlFor="email">Email</Label>
