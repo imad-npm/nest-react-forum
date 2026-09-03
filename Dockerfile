@@ -33,6 +33,7 @@ RUN npm run build
 # =========================================================
 FROM node:20-alpine
 
+# Install nginx
 RUN apk add --no-cache nginx
 
 WORKDIR /app
@@ -44,7 +45,7 @@ WORKDIR /app
 
 COPY backend/package*.json ./backend/
 
-RUN cd backend && npm ci
+RUN cd backend && npm ci 
 
 COPY --from=backend-builder /app/backend/dist ./backend/dist
 
@@ -62,7 +63,7 @@ COPY --from=frontend-builder /app/frontend/dist \
 # -------------------------
 
 COPY nginx/nginx.conf \
-    /etc/nginx/http.d/default.conf
+    /etc/nginx/http.d/default.conf.template
 
 
 # -------------------------
@@ -70,6 +71,7 @@ COPY nginx/nginx.conf \
 # -------------------------
 
 CMD ["sh", "-c", "\
+sed \"s/\\${PORT}/$PORT/g\" /etc/nginx/http.d/default.conf.template > /etc/nginx/http.d/default.conf && \
 cd /app/backend && \
 npm run migration:run:prod && \
 npm run seed:prod && \
