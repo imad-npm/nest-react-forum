@@ -69,73 +69,20 @@ COPY nginx/nginx.conf \
 # =========================================================
 # Start
 # =========================================================
-
 CMD ["sh", "-c", "\
-echo '========================================'; \
-echo 'STARTING CONTAINER'; \
-echo '========================================'; \
-echo \"PORT=$PORT\"; \
-echo \"NODE_VERSION=$(node --version)\"; \
-echo \"Working directory=$(pwd)\"; \
-echo ''; \
-echo '--- Files ---'; \
-ls -la /app/backend; \
-echo ''; \
-echo '--- Dist ---'; \
-ls -la /app/backend/dist; \
-echo ''; \
-echo '--- Nginx config template ---'; \
-cat /etc/nginx/http.d/default.conf.template; \
-echo ''; \
-echo '--- Generating nginx config ---'; \
+echo '=== Starting ==='; \
 sed \"s/\\${PORT}/$PORT/g\" /etc/nginx/http.d/default.conf.template > /etc/nginx/http.d/default.conf; \
-cat /etc/nginx/http.d/default.conf; \
-echo ''; \
-echo '--- Testing nginx config ---'; \
-nginx -t; \
-echo ''; \
-echo '--- Running migrations ---'; \
 cd /app/backend; \
-npm run migration:run:prod; \
-echo '--- Migration finished ---'; \
-echo ''; \
-echo '--- Running seed ---'; \
-npm run seed:prod; \
-echo '--- Seed finished ---'; \
-echo ''; \
-echo '========================================'; \
-echo 'STARTING NESTJS'; \
-echo '========================================'; \
+echo '=== Migration ==='; \
+npm run migration:run:prod || exit 1; \
+echo '=== Seed ==='; \
+npm run seed:prod || exit 1; \
+echo '=== Starting NestJS ==='; \
 node dist/main.js > /tmp/nest.log 2>&1 & \
 NEST_PID=$!; \
-echo \"NestJS PID=$NEST_PID\"; \
-sleep 5; \
-echo ''; \
-echo '--- NestJS logs ---'; \
+sleep 3; \
 cat /tmp/nest.log; \
-echo ''; \
-echo '--- NestJS process ---'; \
-ps; \
-echo ''; \
-echo '--- Testing NestJS :3000 ---'; \
-curl -i http://127.0.0.1:3000/ || true; \
-echo ''; \
-echo '--- Testing NestJS API ---'; \
-curl -i 'http://127.0.0.1:3000/api/posts?limit=10&page=1' || true; \
-echo ''; \
-if kill -0 $NEST_PID 2>/dev/null; then \
-    echo '========================================'; \
-    echo 'NestJS IS RUNNING'; \
-    echo '========================================'; \
-else \
-    echo '========================================'; \
-    echo 'ERROR: NestJS DIED'; \
-    echo '========================================'; \
-    exit 1; \
-fi; \
-echo ''; \
-echo '========================================'; \
-echo 'STARTING NGINX'; \
-echo '========================================'; \
+kill -0 $NEST_PID 2>/dev/null || exit 1; \
+echo '=== Starting nginx ==='; \
 nginx -g 'daemon off;' \
 "]

@@ -45,6 +45,8 @@ export const AppDataSource = new DataSource({
     Notification, // Add Notification entity here
   ],
   synchronize: false,
-  migrations: ['src/database/migrations/*.ts'],
+migrations: [
+  `${__dirname}/database/migrations/*.{js,ts}`,
+],
   logging: true,
 });
