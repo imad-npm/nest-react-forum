@@ -3,6 +3,8 @@
 
 A full-stack social platform built with NestJS (backend) and React (frontend). Supports communities, posts, nested comments, reactions, moderation, notifications, and user management,reports, and restrictions.
 
+🔗 Live Demo: Nest React Forum
+
 ## Features
 
 - **Authentication**
