@@ -1,50 +1,62 @@
+import { useNavigate } from 'react-router-dom';
+
 import {
   useCreateReactionMutation,
   useDeleteReactionMutation,
   useUpdateReactionMutation,
 } from '../services/reactionApi';
 
-import type { Comment } from '../../comments/types';
-import type { Post } from '../../posts/types';
-import { Reactable, ReactionType,  type ReactableEntity } from '../types/types';
+import { Reactable, ReactionType, type ReactableEntity } from '../types/types';
+import { useAuth } from '../../auth/hooks/useAuth';
 
 interface UseReactionButtonsProps {
   target: ReactableEntity;
 }
 
-export const useReactionButtons = ({ target }: UseReactionButtonsProps) => {
+export const useReactionButtons = ({
+  target
+}: UseReactionButtonsProps) => {
+  const navigate = useNavigate();
+
   const [createReaction] = useCreateReactionMutation();
   const [deleteReaction] = useDeleteReactionMutation();
   const [updateReaction] = useUpdateReactionMutation();
 
-  // Determine reactableType based on target
   const reactableType =
     'title' in target ? Reactable.POST : Reactable.COMMENT;
 
+    const {user:currentUser}=useAuth()
+  const requireAuth = () => {
+    if (!currentUser) {
+      navigate('/login');
+      return false;
+    }
+
+    return true;
+  };
+
   const handleLike = async () => {
+    if (!requireAuth()) return;
+
     if (target.userReaction?.type === ReactionType.LIKE) {
-      // Remove existing like
       await deleteReaction({
         id: target.userReaction.id!,
-        reactableType:reactableType
+        reactableType,
       });
       return;
     }
 
     if (target.userReaction?.type === ReactionType.DISLIKE) {
-      // Switch dislike -> like
       await updateReaction({
         id: target.userReaction.id!,
         data: {
           type: ReactionType.LIKE,
         },
-        reactableType:reactableType
-
+        reactableType,
       });
       return;
     }
 
-    // Create new like
     await createReaction({
       type: ReactionType.LIKE,
       reactableType,
@@ -53,29 +65,27 @@ export const useReactionButtons = ({ target }: UseReactionButtonsProps) => {
   };
 
   const handleDislike = async () => {
+    if (!requireAuth()) return;
+
     if (target.userReaction?.type === ReactionType.DISLIKE) {
-      // Remove existing dislike
       await deleteReaction({
         id: target.userReaction.id!,
-        reactableType:reactableType
+        reactableType,
       });
       return;
     }
 
     if (target.userReaction?.type === ReactionType.LIKE) {
-      // Switch like -> dislike
       await updateReaction({
         id: target.userReaction.id!,
         data: {
           type: ReactionType.DISLIKE,
         },
-        reactableType: reactableType
-
+        reactableType,
       });
       return;
     }
 
-    // Create new dislike
     await createReaction({
       type: ReactionType.DISLIKE,
       reactableType,

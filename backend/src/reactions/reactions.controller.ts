@@ -34,6 +34,7 @@ export class ReactionsController {
     @Body() dto: CreateReactionDto,
     @GetUser() user: User,
   ): Promise<ReactionResponseDto> {
+    
     const reaction = await this.reactionsService.create({
       type: dto.type,
       userId: user.id,
