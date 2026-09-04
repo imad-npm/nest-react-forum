@@ -18,9 +18,9 @@ export function useNotificationsSSE() {
     // Prevent duplicate connections
     if (eventSourceRef.current) return;
 
-    const es = new EventSource(
-      `http://localhost:3000/api/notifications/sse?token=${accessToken}`
-    );
+   const es = new EventSource(
+  `${import.meta.env.VITE_API_URL}/notifications/sse?token=${encodeURIComponent(accessToken)}`
+);
 
     eventSourceRef.current = es;
 es.onopen = () => {
