@@ -78,10 +78,9 @@ npm run migration:run:prod || exit 1; \
 echo '=== Seed ==='; \
 npm run seed:prod || exit 1; \
 echo '=== Starting NestJS ==='; \
-node dist/main.js > /tmp/nest.log 2>&1 & \
+node dist/main.js & \
 NEST_PID=$!; \
 sleep 3; \
-cat /tmp/nest.log; \
 kill -0 $NEST_PID 2>/dev/null || exit 1; \
 echo '=== Starting nginx ==='; \
 nginx -g 'daemon off;' \
