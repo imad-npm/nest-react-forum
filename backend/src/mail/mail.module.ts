@@ -12,7 +12,7 @@ import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handleba
         transport: {
           host: config.getOrThrow<string>('SMTP_HOST'),
           port: config.getOrThrow<number>('SMTP_PORT'),
-          secure: false,
+          secure: config.getOrThrow<string>('SMTP_SECURE'),
            auth: {
             user: config.getOrThrow<string>('SMTP_USER'),
             pass: config.getOrThrow<string>('SMTP_PASS'),
