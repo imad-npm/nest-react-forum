@@ -48,7 +48,7 @@ COPY backend/package*.json ./backend/
 RUN cd backend && npm ci
 
 COPY --from=backend-builder /app/backend/dist ./backend/dist
-
+COPY backend/src/mail/templates ./backend/src/mail/templates
 
 # =========================================================
 # React
